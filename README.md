@@ -19,6 +19,8 @@ the project should still be treated as pre-1.0.
 - Release builds: <https://github.com/TimeWatcher/lux/releases>
 - Built-in packages: <https://github.com/TimeWatcher/lux-packages>
 - Documentation source: <https://github.com/TimeWatcher/lux-docs-site>
+- MGFX documentation: <https://timewatcher.github.io/mgfx-docs-site/>
+- MGFX documentation source: <https://github.com/TimeWatcher/mgfx-docs-site>
 
 ## Why Lux
 
@@ -170,12 +172,15 @@ Key concepts:
 compiler/   Rust implementation of luxc
 packages/   Built-in Lux packages, tracked as a submodule
 docs-site/  Public documentation site, tracked as a submodule
+mgfx-docs-site/
+            MGFX package documentation site, tracked as a submodule
 docs/       Design notes and implementation references
 examples/   Small Lux and GMod project examples
 ```
 
-The `packages` and `docs-site` directories are independent repositories. Use
-`--recurse-submodules` when cloning, or run this after cloning:
+The `packages`, `docs-site`, and `mgfx-docs-site` directories are independent
+repositories. Use `--recurse-submodules` when cloning, or run this after
+cloning:
 
 ```powershell
 git submodule update --init --recursive
@@ -235,6 +240,15 @@ For documentation work:
 cd docs-site
 npm install
 npm run dev -- --host 127.0.0.1 --port 4173
+npm run build
+```
+
+For MGFX documentation work:
+
+```powershell
+cd mgfx-docs-site
+npm install
+npm run dev -- --host 127.0.0.1 --port 4174
 npm run build
 ```
 
