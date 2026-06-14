@@ -1,6 +1,6 @@
 [submodule "packages"]
 	path = packages
-	url = ./packages
+	url = https://github.com/TimeWatcher/lux-packages.git
 [submodule "docs-site"]
 	path = docs-site
-	url = ./docs-site
+	url = https://github.com/TimeWatcher/lux-docs-site.git
