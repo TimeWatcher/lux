@@ -4,7 +4,10 @@ Lux licensing
 Unless a file says otherwise:
 
 - Source code is licensed under either the MIT License or the Apache License,
-  Version 2.0, at your option.
+  Version 2.0, at your option, except for separately licensed packages.
+- The bundled MGFX package under packages/lux/mgfx/ is licensed under the Lux
+  MGFX Non-Commercial License. Commercial use of MGFX requires a separate
+  written license from the copyright holder.
 - Documentation prose is licensed under Creative Commons Attribution 4.0
   International (CC BY 4.0).
 - Code examples in documentation are licensed as source code: MIT OR
@@ -16,5 +19,6 @@ See:
 
 - LICENSE-MIT
 - LICENSE-APACHE
+- packages/LICENSE-MGFX-NC
 - LICENSE-DOCS
 - NOTICE

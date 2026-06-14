@@ -245,7 +245,11 @@ GMod project build that imports the package being changed.
 
 Lux uses a split license model:
 
-- Source code is licensed under `MIT OR Apache-2.0`.
+- Source code is licensed under `MIT OR Apache-2.0`, except for separately
+  licensed packages.
+- The bundled `@lux/mgfx` package is licensed for non-commercial use only.
+  Commercial use of MGFX requires a separate written license from the copyright
+  holder.
 - Documentation prose is licensed under `CC-BY-4.0`.
 - Code examples in documentation are licensed under `MIT OR Apache-2.0`.
 - The Lux name, logo, icon, and other branding assets are not licensed for
@@ -253,8 +257,10 @@ Lux uses a split license model:
 
 Using `luxc` to compile your source code does not change the license of your
 addon or generated project. If generated Lua embeds Lux runtime or package code,
-that embedded Lux code remains available under `MIT OR Apache-2.0`.
+that embedded Lux code keeps its package license: most Lux code remains
+`MIT OR Apache-2.0`, while embedded MGFX code remains under the Lux MGFX
+Non-Commercial License.
 
 See [LICENSE](LICENSE), [LICENSE-MIT](LICENSE-MIT),
 [LICENSE-APACHE](LICENSE-APACHE), [LICENSE-DOCS](LICENSE-DOCS), and
-[NOTICE](NOTICE).
+[NOTICE](NOTICE). For MGFX, see `packages/LICENSE-MGFX-NC`.
