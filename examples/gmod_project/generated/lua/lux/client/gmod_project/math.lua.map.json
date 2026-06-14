@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "generated": { "line": 3, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 0, "byteEnd": 57, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 4, "columnStart": 3, "columnEnd": 12 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 10, "byteEnd": 13, "line": 1, "column": 11 }
+    },
+    {
+      "generated": { "line": 6, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 39, "byteEnd": 45, "line": 3, "column": 11 }
+    },
+    {
+      "generated": { "line": 8, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 0, "byteEnd": 57, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 9, "columnStart": 5, "columnEnd": 25 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 10, "byteEnd": 13, "line": 1, "column": 11 }
+    },
+    {
+      "generated": { "line": 10, "columnStart": 5, "columnEnd": 19 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 10, "byteEnd": 13, "line": 1, "column": 11 }
+    },
+    {
+      "generated": { "line": 11, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 10, "byteEnd": 13, "line": 1, "column": 11 }
+    },
+    {
+      "generated": { "line": 13, "columnStart": 5, "columnEnd": 27 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 39, "byteEnd": 45, "line": 3, "column": 11 }
+    },
+    {
+      "generated": { "line": 14, "columnStart": 5, "columnEnd": 17 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 39, "byteEnd": 45, "line": 3, "column": 11 }
+    },
+    {
+      "generated": { "line": 15, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 39, "byteEnd": 45, "line": 3, "column": 11 }
+    },
+    {
+      "generated": { "line": 17, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 0, "byteEnd": 57, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 19, "columnStart": 3, "columnEnd": 26 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 10, "byteEnd": 13, "line": 1, "column": 11 }
+    },
+    {
+      "generated": { "line": 21, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 39, "byteEnd": 45, "line": 3, "column": 11 }
+    },
+    {
+      "generated": { "line": 24, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 3, "file": "..\\examples\\gmod_project\\src\\shared\\math.lux", "byteStart": 0, "byteEnd": 57, "line": 1, "column": 1 }
+    }
+  ]
+}

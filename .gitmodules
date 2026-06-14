@@ -1,0 +1,6 @@
+[submodule "packages"]
+	path = packages
+	url = ./packages
+[submodule "docs-site"]
+	path = docs-site
+	url = ./docs-site

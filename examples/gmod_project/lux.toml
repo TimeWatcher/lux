@@ -1,0 +1,4 @@
+[gmod]
+source_root = "src"
+addon_root = "generated"
+source_comments = "boundary"

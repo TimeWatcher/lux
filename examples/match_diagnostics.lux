@@ -1,0 +1,19 @@
+enum RenderMode repr number {
+  Solid = 0,
+  Gradient = 1,
+  Image = 2
+}
+
+fn missingArm(mode) =
+  match mode {
+    RenderMode.Solid => "solid"
+    RenderMode.Image => "image"
+  }
+
+fn unreachableArm(mode) =
+  match mode {
+    RenderMode.Solid => "solid"
+    RenderMode.Solid => "duplicate"
+    _ => "fallback"
+    RenderMode.Gradient => "already covered by wildcard"
+  }

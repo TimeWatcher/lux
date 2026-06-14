@@ -1,0 +1,1997 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "generated": { "line": 1, "columnStart": 1, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 0, "byteEnd": 6549, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 2, "columnStart": 1, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3508, "byteEnd": 3569, "line": 175, "column": 1 }
+    },
+    {
+      "generated": { "line": 3, "columnStart": 1, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3053, "byteEnd": 3258, "line": 152, "column": 1 }
+    },
+    {
+      "generated": { "line": 4, "columnStart": 1, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1179, "byteEnd": 1247, "line": 57, "column": 1 }
+    },
+    {
+      "generated": { "line": 5, "columnStart": 1, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2492, "byteEnd": 2743, "line": 121, "column": 1 }
+    },
+    {
+      "generated": { "line": 6, "columnStart": 1, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4718, "byteEnd": 6496, "line": 226, "column": 8 }
+    },
+    {
+      "generated": { "line": 7, "columnStart": 1, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2926, "byteEnd": 3051, "line": 143, "column": 1 }
+    },
+    {
+      "generated": { "line": 8, "columnStart": 1, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1504, "byteEnd": 1650, "line": 72, "column": 1 }
+    },
+    {
+      "generated": { "line": 9, "columnStart": 1, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3819, "byteEnd": 4283, "line": 193, "column": 1 }
+    },
+    {
+      "generated": { "line": 10, "columnStart": 1, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 819, "byteEnd": 839, "line": 38, "column": 1 }
+    },
+    {
+      "generated": { "line": 11, "columnStart": 1, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1349, "byteEnd": 1502, "line": 66, "column": 1 }
+    },
+    {
+      "generated": { "line": 12, "columnStart": 1, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4624, "byteEnd": 4709, "line": 223, "column": 1 }
+    },
+    {
+      "generated": { "line": 13, "columnStart": 1, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4489, "byteEnd": 4622, "line": 218, "column": 1 }
+    },
+    {
+      "generated": { "line": 14, "columnStart": 1, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 842, "byteEnd": 874, "line": 40, "column": 1 }
+    },
+    {
+      "generated": { "line": 15, "columnStart": 1, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2745, "byteEnd": 2820, "line": 135, "column": 1 }
+    },
+    {
+      "generated": { "line": 16, "columnStart": 1, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4285, "byteEnd": 4485, "line": 211, "column": 1 }
+    },
+    {
+      "generated": { "line": 17, "columnStart": 1, "columnEnd": 20 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2144, "byteEnd": 2230, "line": 104, "column": 1 }
+    },
+    {
+      "generated": { "line": 18, "columnStart": 1, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3573, "byteEnd": 3635, "line": 178, "column": 1 }
+    },
+    {
+      "generated": { "line": 19, "columnStart": 1, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2234, "byteEnd": 2342, "line": 110, "column": 1 }
+    },
+    {
+      "generated": { "line": 20, "columnStart": 1, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 792, "byteEnd": 817, "line": 36, "column": 1 }
+    },
+    {
+      "generated": { "line": 21, "columnStart": 1, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2822, "byteEnd": 2924, "line": 138, "column": 1 }
+    },
+    {
+      "generated": { "line": 22, "columnStart": 1, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3637, "byteEnd": 3817, "line": 181, "column": 1 }
+    },
+    {
+      "generated": { "line": 23, "columnStart": 1, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1837, "byteEnd": 1928, "line": 91, "column": 1 }
+    },
+    {
+      "generated": { "line": 24, "columnStart": 1, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2418, "byteEnd": 2490, "line": 118, "column": 1 }
+    },
+    {
+      "generated": { "line": 25, "columnStart": 1, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2346, "byteEnd": 2414, "line": 115, "column": 1 }
+    },
+    {
+      "generated": { "line": 26, "columnStart": 1, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1652, "byteEnd": 1835, "line": 78, "column": 1 }
+    },
+    {
+      "generated": { "line": 27, "columnStart": 1, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1930, "byteEnd": 2141, "line": 96, "column": 1 }
+    },
+    {
+      "generated": { "line": 28, "columnStart": 1, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3262, "byteEnd": 3504, "line": 161, "column": 1 }
+    },
+    {
+      "generated": { "line": 29, "columnStart": 1, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1249, "byteEnd": 1347, "line": 60, "column": 1 }
+    },
+    {
+      "generated": { "line": 30, "columnStart": 1, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 878, "byteEnd": 1032, "line": 43, "column": 1 }
+    },
+    {
+      "generated": { "line": 31, "columnStart": 1, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1034, "byteEnd": 1177, "line": 50, "column": 1 }
+    },
+    {
+      "generated": { "line": 33, "columnStart": 1, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 0, "byteEnd": 6549, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 34, "columnStart": 1, "columnEnd": 42 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 0, "byteEnd": 6549, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 35, "columnStart": 1, "columnEnd": 48 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 0, "byteEnd": 30, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 36, "columnStart": 1, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 0, "byteEnd": 30, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 37, "columnStart": 1, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 31, "byteEnd": 62, "line": 2, "column": 1 }
+    },
+    {
+      "generated": { "line": 38, "columnStart": 1, "columnEnd": 53 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 63, "byteEnd": 107, "line": 3, "column": 1 }
+    },
+    {
+      "generated": { "line": 39, "columnStart": 1, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 63, "byteEnd": 107, "line": 3, "column": 1 }
+    },
+    {
+      "generated": { "line": 40, "columnStart": 1, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 63, "byteEnd": 107, "line": 3, "column": 1 }
+    },
+    {
+      "generated": { "line": 41, "columnStart": 1, "columnEnd": 49 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 156, "byteEnd": 217, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 42, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 156, "byteEnd": 217, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 43, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 156, "byteEnd": 217, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 44, "columnStart": 1, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 156, "byteEnd": 217, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 45, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 156, "byteEnd": 217, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 46, "columnStart": 1, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 156, "byteEnd": 217, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 47, "columnStart": 1, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 319, "byteEnd": 347, "line": 9, "column": 8 }
+    },
+    {
+      "generated": { "line": 48, "columnStart": 1, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 349, "byteEnd": 379, "line": 11, "column": 1 }
+    },
+    {
+      "generated": { "line": 50, "columnStart": 1, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 792, "byteEnd": 817, "line": 36, "column": 1 }
+    },
+    {
+      "generated": { "line": 51, "columnStart": 3, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 814, "byteEnd": 817, "line": 36, "column": 23 }
+    },
+    {
+      "generated": { "line": 52, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 792, "byteEnd": 817, "line": 36, "column": 1 }
+    },
+    {
+      "generated": { "line": 54, "columnStart": 1, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 819, "byteEnd": 839, "line": 38, "column": 1 }
+    },
+    {
+      "generated": { "line": 55, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 834, "byteEnd": 839, "line": 38, "column": 16 }
+    },
+    {
+      "generated": { "line": 56, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 819, "byteEnd": 839, "line": 38, "column": 1 }
+    },
+    {
+      "generated": { "line": 58, "columnStart": 1, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 842, "byteEnd": 874, "line": 40, "column": 1 }
+    },
+    {
+      "generated": { "line": 59, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 867, "byteEnd": 874, "line": 41, "column": 6 }
+    },
+    {
+      "generated": { "line": 60, "columnStart": 5, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 867, "byteEnd": 874, "line": 41, "column": 6 }
+    },
+    {
+      "generated": { "line": 61, "columnStart": 5, "columnEnd": 62 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 867, "byteEnd": 874, "line": 41, "column": 6 }
+    },
+    {
+      "generated": { "line": 62, "columnStart": 5, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 867, "byteEnd": 874, "line": 41, "column": 6 }
+    },
+    {
+      "generated": { "line": 63, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 867, "byteEnd": 874, "line": 41, "column": 6 }
+    },
+    {
+      "generated": { "line": 64, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 842, "byteEnd": 874, "line": 40, "column": 1 }
+    },
+    {
+      "generated": { "line": 66, "columnStart": 1, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 878, "byteEnd": 1032, "line": 43, "column": 1 }
+    },
+    {
+      "generated": { "line": 68, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 901, "byteEnd": 936, "line": 44, "column": 3 }
+    },
+    {
+      "generated": { "line": 69, "columnStart": 5, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 421, "byteEnd": 422, "line": 14, "column": 11 }
+    },
+    {
+      "generated": { "line": 70, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 901, "byteEnd": 936, "line": 44, "column": 3 }
+    },
+    {
+      "generated": { "line": 72, "columnStart": 3, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 939, "byteEnd": 971, "line": 45, "column": 3 }
+    },
+    {
+      "generated": { "line": 73, "columnStart": 5, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 421, "byteEnd": 422, "line": 14, "column": 11 }
+    },
+    {
+      "generated": { "line": 74, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 939, "byteEnd": 971, "line": 45, "column": 3 }
+    },
+    {
+      "generated": { "line": 76, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 974, "byteEnd": 1009, "line": 46, "column": 3 }
+    },
+    {
+      "generated": { "line": 77, "columnStart": 5, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 436, "byteEnd": 437, "line": 15, "column": 13 }
+    },
+    {
+      "generated": { "line": 78, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 974, "byteEnd": 1009, "line": 46, "column": 3 }
+    },
+    {
+      "generated": { "line": 79, "columnStart": 3, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 451, "byteEnd": 452, "line": 16, "column": 13 }
+    },
+    {
+      "generated": { "line": 80, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 878, "byteEnd": 1032, "line": 43, "column": 1 }
+    },
+    {
+      "generated": { "line": 82, "columnStart": 1, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1034, "byteEnd": 1177, "line": 50, "column": 1 }
+    },
+    {
+      "generated": { "line": 83, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1057, "byteEnd": 1177, "line": 51, "column": 3 }
+    },
+    {
+      "generated": { "line": 85, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1074, "byteEnd": 1101, "line": 52, "column": 5 }
+    },
+    {
+      "generated": { "line": 86, "columnStart": 5, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1094, "byteEnd": 1101, "line": 52, "column": 25 }
+    },
+    {
+      "generated": { "line": 88, "columnStart": 3, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1106, "byteEnd": 1137, "line": 53, "column": 5 }
+    },
+    {
+      "generated": { "line": 89, "columnStart": 5, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1128, "byteEnd": 1137, "line": 53, "column": 27 }
+    },
+    {
+      "generated": { "line": 91, "columnStart": 3, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1142, "byteEnd": 1173, "line": 54, "column": 5 }
+    },
+    {
+      "generated": { "line": 92, "columnStart": 5, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1164, "byteEnd": 1173, "line": 54, "column": 27 }
+    },
+    {
+      "generated": { "line": 93, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1057, "byteEnd": 1177, "line": 51, "column": 3 }
+    },
+    {
+      "generated": { "line": 94, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1034, "byteEnd": 1177, "line": 50, "column": 1 }
+    },
+    {
+      "generated": { "line": 96, "columnStart": 1, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1179, "byteEnd": 1247, "line": 57, "column": 1 }
+    },
+    {
+      "generated": { "line": 97, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 98, "columnStart": 3, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 100, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 101, "columnStart": 3, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 102, "columnStart": 3, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 103, "columnStart": 3, "columnEnd": 48 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 104, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 105, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1230, "byteEnd": 1240, "line": 58, "column": 30 }
+    },
+    {
+      "generated": { "line": 106, "columnStart": 3, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1224, "byteEnd": 1245, "line": 58, "column": 24 }
+    },
+    {
+      "generated": { "line": 107, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1224, "byteEnd": 1245, "line": 58, "column": 24 }
+    },
+    {
+      "generated": { "line": 108, "columnStart": 3, "columnEnd": 20 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1224, "byteEnd": 1245, "line": 58, "column": 24 }
+    },
+    {
+      "generated": { "line": 109, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1224, "byteEnd": 1245, "line": 58, "column": 24 }
+    },
+    {
+      "generated": { "line": 110, "columnStart": 3, "columnEnd": 44 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1203, "byteEnd": 1247, "line": 58, "column": 3 }
+    },
+    {
+      "generated": { "line": 111, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1179, "byteEnd": 1247, "line": 57, "column": 1 }
+    },
+    {
+      "generated": { "line": 113, "columnStart": 1, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1249, "byteEnd": 1347, "line": 60, "column": 1 }
+    },
+    {
+      "generated": { "line": 114, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1276, "byteEnd": 1347, "line": 61, "column": 3 }
+    },
+    {
+      "generated": { "line": 116, "columnStart": 3, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1294, "byteEnd": 1315, "line": 62, "column": 5 }
+    },
+    {
+      "generated": { "line": 117, "columnStart": 5, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1314, "byteEnd": 1315, "line": 62, "column": 25 }
+    },
+    {
+      "generated": { "line": 119, "columnStart": 3, "columnEnd": 43 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1320, "byteEnd": 1343, "line": 63, "column": 5 }
+    },
+    {
+      "generated": { "line": 120, "columnStart": 5, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1341, "byteEnd": 1343, "line": 63, "column": 26 }
+    },
+    {
+      "generated": { "line": 121, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1276, "byteEnd": 1347, "line": 61, "column": 3 }
+    },
+    {
+      "generated": { "line": 122, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1249, "byteEnd": 1347, "line": 60, "column": 1 }
+    },
+    {
+      "generated": { "line": 124, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1349, "byteEnd": 1502, "line": 66, "column": 1 }
+    },
+    {
+      "generated": { "line": 125, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1380, "byteEnd": 1502, "line": 67, "column": 3 }
+    },
+    {
+      "generated": { "line": 127, "columnStart": 3, "columnEnd": 96 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1399, "byteEnd": 1466, "line": 68, "column": 5 }
+    },
+    {
+      "generated": { "line": 128, "columnStart": 5, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1462, "byteEnd": 1466, "line": 68, "column": 68 }
+    },
+    {
+      "generated": { "line": 130, "columnStart": 3, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1471, "byteEnd": 1498, "line": 69, "column": 5 }
+    },
+    {
+      "generated": { "line": 131, "columnStart": 5, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1493, "byteEnd": 1498, "line": 69, "column": 27 }
+    },
+    {
+      "generated": { "line": 132, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1380, "byteEnd": 1502, "line": 67, "column": 3 }
+    },
+    {
+      "generated": { "line": 133, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1349, "byteEnd": 1502, "line": 66, "column": 1 }
+    },
+    {
+      "generated": { "line": 135, "columnStart": 1, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1504, "byteEnd": 1650, "line": 72, "column": 1 }
+    },
+    {
+      "generated": { "line": 136, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1534, "byteEnd": 1650, "line": 73, "column": 3 }
+    },
+    {
+      "generated": { "line": 137, "columnStart": 3, "columnEnd": 43 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1534, "byteEnd": 1650, "line": 73, "column": 3 }
+    },
+    {
+      "generated": { "line": 139, "columnStart": 3, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1551, "byteEnd": 1584, "line": 74, "column": 5 }
+    },
+    {
+      "generated": { "line": 140, "columnStart": 5, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1568, "byteEnd": 1573, "line": 74, "column": 22 }
+    },
+    {
+      "generated": { "line": 141, "columnStart": 5, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1579, "byteEnd": 1584, "line": 74, "column": 33 }
+    },
+    {
+      "generated": { "line": 143, "columnStart": 3, "columnEnd": 42 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1589, "byteEnd": 1646, "line": 75, "column": 5 }
+    },
+    {
+      "generated": { "line": 144, "columnStart": 5, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1607, "byteEnd": 1611, "line": 75, "column": 23 }
+    },
+    {
+      "generated": { "line": 145, "columnStart": 5, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1613, "byteEnd": 1615, "line": 75, "column": 29 }
+    },
+    {
+      "generated": { "line": 146, "columnStart": 5, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1621, "byteEnd": 1646, "line": 75, "column": 37 }
+    },
+    {
+      "generated": { "line": 147, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1534, "byteEnd": 1650, "line": 73, "column": 3 }
+    },
+    {
+      "generated": { "line": 148, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1504, "byteEnd": 1650, "line": 72, "column": 1 }
+    },
+    {
+      "generated": { "line": 150, "columnStart": 1, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1652, "byteEnd": 1835, "line": 78, "column": 1 }
+    },
+    {
+      "generated": { "line": 151, "columnStart": 3, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1684, "byteEnd": 1699, "line": 79, "column": 3 }
+    },
+    {
+      "generated": { "line": 153, "columnStart": 3, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 154, "columnStart": 5, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 155, "columnStart": 5, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 156, "columnStart": 7, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1728, "byteEnd": 1751, "line": 82, "column": 5 }
+    },
+    {
+      "generated": { "line": 158, "columnStart": 7, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1756, "byteEnd": 1779, "line": 83, "column": 5 }
+    },
+    {
+      "generated": { "line": 159, "columnStart": 9, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1756, "byteEnd": 1766, "line": 83, "column": 5 }
+    },
+    {
+      "generated": { "line": 160, "columnStart": 7, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1756, "byteEnd": 1779, "line": 83, "column": 5 }
+    },
+    {
+      "generated": { "line": 162, "columnStart": 7, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1784, "byteEnd": 1801, "line": 84, "column": 5 }
+    },
+    {
+      "generated": { "line": 163, "columnStart": 9, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1784, "byteEnd": 1791, "line": 84, "column": 5 }
+    },
+    {
+      "generated": { "line": 164, "columnStart": 9, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1784, "byteEnd": 1791, "line": 84, "column": 5 }
+    },
+    {
+      "generated": { "line": 165, "columnStart": 7, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1784, "byteEnd": 1801, "line": 84, "column": 5 }
+    },
+    {
+      "generated": { "line": 166, "columnStart": 7, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1806, "byteEnd": 1820, "line": 85, "column": 5 }
+    },
+    {
+      "generated": { "line": 168, "columnStart": 5, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 169, "columnStart": 5, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 170, "columnStart": 7, "columnEnd": 12 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 171, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 172, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1703, "byteEnd": 1824, "line": 81, "column": 3 }
+    },
+    {
+      "generated": { "line": 173, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1828, "byteEnd": 1833, "line": 88, "column": 3 }
+    },
+    {
+      "generated": { "line": 174, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1652, "byteEnd": 1835, "line": 78, "column": 1 }
+    },
+    {
+      "generated": { "line": 176, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1837, "byteEnd": 1928, "line": 91, "column": 1 }
+    },
+    {
+      "generated": { "line": 178, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1868, "byteEnd": 1908, "line": 92, "column": 3 }
+    },
+    {
+      "generated": { "line": 179, "columnStart": 5, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1893, "byteEnd": 1908, "line": 92, "column": 28 }
+    },
+    {
+      "generated": { "line": 180, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1868, "byteEnd": 1908, "line": 92, "column": 3 }
+    },
+    {
+      "generated": { "line": 181, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1911, "byteEnd": 1926, "line": 93, "column": 3 }
+    },
+    {
+      "generated": { "line": 182, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1837, "byteEnd": 1928, "line": 91, "column": 1 }
+    },
+    {
+      "generated": { "line": 184, "columnStart": 1, "columnEnd": 43 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1930, "byteEnd": 2141, "line": 96, "column": 1 }
+    },
+    {
+      "generated": { "line": 185, "columnStart": 3, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1969, "byteEnd": 2015, "line": 97, "column": 3 }
+    },
+    {
+      "generated": { "line": 186, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1969, "byteEnd": 2015, "line": 97, "column": 3 }
+    },
+    {
+      "generated": { "line": 187, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 188, "columnStart": 5, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 190, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 191, "columnStart": 5, "columnEnd": 51 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 192, "columnStart": 5, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 193, "columnStart": 5, "columnEnd": 53 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 194, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 195, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1988, "byteEnd": 1999, "line": 97, "column": 22 }
+    },
+    {
+      "generated": { "line": 196, "columnStart": 5, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1982, "byteEnd": 2015, "line": 97, "column": 16 }
+    },
+    {
+      "generated": { "line": 197, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1982, "byteEnd": 2015, "line": 97, "column": 16 }
+    },
+    {
+      "generated": { "line": 198, "columnStart": 5, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1982, "byteEnd": 2015, "line": 97, "column": 16 }
+    },
+    {
+      "generated": { "line": 199, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1982, "byteEnd": 2015, "line": 97, "column": 16 }
+    },
+    {
+      "generated": { "line": 200, "columnStart": 5, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1969, "byteEnd": 2015, "line": 97, "column": 3 }
+    },
+    {
+      "generated": { "line": 201, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1969, "byteEnd": 2015, "line": 97, "column": 3 }
+    },
+    {
+      "generated": { "line": 202, "columnStart": 3, "columnEnd": 12 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2018, "byteEnd": 2051, "line": 98, "column": 3 }
+    },
+    {
+      "generated": { "line": 203, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2018, "byteEnd": 2051, "line": 98, "column": 3 }
+    },
+    {
+      "generated": { "line": 204, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 205, "columnStart": 5, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 207, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 208, "columnStart": 5, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 209, "columnStart": 5, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 210, "columnStart": 5, "columnEnd": 53 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 211, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 212, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2036, "byteEnd": 2046, "line": 98, "column": 21 }
+    },
+    {
+      "generated": { "line": 213, "columnStart": 5, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2030, "byteEnd": 2051, "line": 98, "column": 15 }
+    },
+    {
+      "generated": { "line": 214, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2030, "byteEnd": 2051, "line": 98, "column": 15 }
+    },
+    {
+      "generated": { "line": 215, "columnStart": 5, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2030, "byteEnd": 2051, "line": 98, "column": 15 }
+    },
+    {
+      "generated": { "line": 216, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2030, "byteEnd": 2051, "line": 98, "column": 15 }
+    },
+    {
+      "generated": { "line": 217, "columnStart": 5, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2018, "byteEnd": 2051, "line": 98, "column": 3 }
+    },
+    {
+      "generated": { "line": 218, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2018, "byteEnd": 2051, "line": 98, "column": 3 }
+    },
+    {
+      "generated": { "line": 219, "columnStart": 3, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2054, "byteEnd": 2109, "line": 99, "column": 3 }
+    },
+    {
+      "generated": { "line": 221, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2068, "byteEnd": 2109, "line": 99, "column": 17 }
+    },
+    {
+      "generated": { "line": 222, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2082, "byteEnd": 2091, "line": 99, "column": 31 }
+    },
+    {
+      "generated": { "line": 223, "columnStart": 3, "columnEnd": 7 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2068, "byteEnd": 2109, "line": 99, "column": 17 }
+    },
+    {
+      "generated": { "line": 224, "columnStart": 5, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2097, "byteEnd": 2109, "line": 99, "column": 46 }
+    },
+    {
+      "generated": { "line": 225, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2068, "byteEnd": 2109, "line": 99, "column": 17 }
+    },
+    {
+      "generated": { "line": 226, "columnStart": 3, "columnEnd": 64 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2113, "byteEnd": 2139, "line": 101, "column": 3 }
+    },
+    {
+      "generated": { "line": 227, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 1930, "byteEnd": 2141, "line": 96, "column": 1 }
+    },
+    {
+      "generated": { "line": 229, "columnStart": 1, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2144, "byteEnd": 2230, "line": 104, "column": 1 }
+    },
+    {
+      "generated": { "line": 230, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2173, "byteEnd": 2189, "line": 105, "column": 3 }
+    },
+    {
+      "generated": { "line": 231, "columnStart": 3, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2193, "byteEnd": 2212, "line": 106, "column": 3 }
+    },
+    {
+      "generated": { "line": 232, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2216, "byteEnd": 2227, "line": 107, "column": 3 }
+    },
+    {
+      "generated": { "line": 233, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2144, "byteEnd": 2230, "line": 104, "column": 1 }
+    },
+    {
+      "generated": { "line": 235, "columnStart": 1, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2234, "byteEnd": 2342, "line": 110, "column": 1 }
+    },
+    {
+      "generated": { "line": 236, "columnStart": 3, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2291, "byteEnd": 2338, "line": 112, "column": 3 }
+    },
+    {
+      "generated": { "line": 237, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2234, "byteEnd": 2342, "line": 110, "column": 1 }
+    },
+    {
+      "generated": { "line": 239, "columnStart": 1, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2346, "byteEnd": 2414, "line": 115, "column": 1 }
+    },
+    {
+      "generated": { "line": 240, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2385, "byteEnd": 2401, "line": 116, "column": 6 }
+    },
+    {
+      "generated": { "line": 241, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2385, "byteEnd": 2401, "line": 116, "column": 6 }
+    },
+    {
+      "generated": { "line": 243, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2385, "byteEnd": 2401, "line": 116, "column": 6 }
+    },
+    {
+      "generated": { "line": 244, "columnStart": 3, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2385, "byteEnd": 2401, "line": 116, "column": 6 }
+    },
+    {
+      "generated": { "line": 245, "columnStart": 3, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2385, "byteEnd": 2401, "line": 116, "column": 6 }
+    },
+    {
+      "generated": { "line": 246, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2385, "byteEnd": 2401, "line": 116, "column": 6 }
+    },
+    {
+      "generated": { "line": 247, "columnStart": 3, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2382, "byteEnd": 2414, "line": 116, "column": 3 }
+    },
+    {
+      "generated": { "line": 248, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2382, "byteEnd": 2414, "line": 116, "column": 3 }
+    },
+    {
+      "generated": { "line": 249, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2382, "byteEnd": 2414, "line": 116, "column": 3 }
+    },
+    {
+      "generated": { "line": 250, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2382, "byteEnd": 2414, "line": 116, "column": 3 }
+    },
+    {
+      "generated": { "line": 251, "columnStart": 3, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2382, "byteEnd": 2414, "line": 116, "column": 3 }
+    },
+    {
+      "generated": { "line": 252, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2346, "byteEnd": 2414, "line": 115, "column": 1 }
+    },
+    {
+      "generated": { "line": 254, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2418, "byteEnd": 2490, "line": 118, "column": 1 }
+    },
+    {
+      "generated": { "line": 255, "columnStart": 3, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 256, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 258, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 259, "columnStart": 3, "columnEnd": 48 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 260, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 261, "columnStart": 3, "columnEnd": 58 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 262, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 263, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2453, "byteEnd": 2490, "line": 119, "column": 7 }
+    },
+    {
+      "generated": { "line": 264, "columnStart": 3, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2449, "byteEnd": 2490, "line": 119, "column": 3 }
+    },
+    {
+      "generated": { "line": 265, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2418, "byteEnd": 2490, "line": 118, "column": 1 }
+    },
+    {
+      "generated": { "line": 267, "columnStart": 1, "columnEnd": 56 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2492, "byteEnd": 2743, "line": 121, "column": 1 }
+    },
+    {
+      "generated": { "line": 268, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2525, "byteEnd": 2542, "line": 121, "column": 34 }
+    },
+    {
+      "generated": { "line": 269, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2525, "byteEnd": 2542, "line": 121, "column": 34 }
+    },
+    {
+      "generated": { "line": 270, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2525, "byteEnd": 2542, "line": 121, "column": 34 }
+    },
+    {
+      "generated": { "line": 271, "columnStart": 3, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2548, "byteEnd": 2598, "line": 122, "column": 3 }
+    },
+    {
+      "generated": { "line": 272, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2554, "byteEnd": 2589, "line": 122, "column": 9 }
+    },
+    {
+      "generated": { "line": 273, "columnStart": 5, "columnEnd": 40 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2554, "byteEnd": 2589, "line": 122, "column": 9 }
+    },
+    {
+      "generated": { "line": 274, "columnStart": 5, "columnEnd": 53 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2556, "byteEnd": 2560, "line": 122, "column": 11 }
+    },
+    {
+      "generated": { "line": 275, "columnStart": 5, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2556, "byteEnd": 2560, "line": 122, "column": 11 }
+    },
+    {
+      "generated": { "line": 276, "columnStart": 5, "columnEnd": 51 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2562, "byteEnd": 2564, "line": 122, "column": 17 }
+    },
+    {
+      "generated": { "line": 277, "columnStart": 5, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2562, "byteEnd": 2564, "line": 122, "column": 17 }
+    },
+    {
+      "generated": { "line": 278, "columnStart": 5, "columnEnd": 54 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2566, "byteEnd": 2587, "line": 122, "column": 21 }
+    },
+    {
+      "generated": { "line": 280, "columnStart": 5, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2566, "byteEnd": 2587, "line": 122, "column": 21 }
+    },
+    {
+      "generated": { "line": 281, "columnStart": 7, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2566, "byteEnd": 2587, "line": 122, "column": 21 }
+    },
+    {
+      "generated": { "line": 282, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2566, "byteEnd": 2587, "line": 122, "column": 21 }
+    },
+    {
+      "generated": { "line": 283, "columnStart": 5, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2566, "byteEnd": 2571, "line": 122, "column": 21 }
+    },
+    {
+      "generated": { "line": 284, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2554, "byteEnd": 2589, "line": 122, "column": 9 }
+    },
+    {
+      "generated": { "line": 285, "columnStart": 3, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2601, "byteEnd": 2650, "line": 123, "column": 3 }
+    },
+    {
+      "generated": { "line": 286, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2607, "byteEnd": 2620, "line": 123, "column": 9 }
+    },
+    {
+      "generated": { "line": 287, "columnStart": 5, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2623, "byteEnd": 2650, "line": 123, "column": 25 }
+    },
+    {
+      "generated": { "line": 289, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2623, "byteEnd": 2650, "line": 123, "column": 25 }
+    },
+    {
+      "generated": { "line": 290, "columnStart": 5, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2623, "byteEnd": 2650, "line": 123, "column": 25 }
+    },
+    {
+      "generated": { "line": 291, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2623, "byteEnd": 2650, "line": 123, "column": 25 }
+    },
+    {
+      "generated": { "line": 292, "columnStart": 5, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2607, "byteEnd": 2620, "line": 123, "column": 9 }
+    },
+    {
+      "generated": { "line": 293, "columnStart": 5, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2608, "byteEnd": 2609, "line": 123, "column": 10 }
+    },
+    {
+      "generated": { "line": 294, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2608, "byteEnd": 2609, "line": 123, "column": 10 }
+    },
+    {
+      "generated": { "line": 295, "columnStart": 5, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2611, "byteEnd": 2612, "line": 123, "column": 13 }
+    },
+    {
+      "generated": { "line": 296, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2611, "byteEnd": 2612, "line": 123, "column": 13 }
+    },
+    {
+      "generated": { "line": 297, "columnStart": 5, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2614, "byteEnd": 2619, "line": 123, "column": 16 }
+    },
+    {
+      "generated": { "line": 298, "columnStart": 5, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2614, "byteEnd": 2619, "line": 123, "column": 16 }
+    },
+    {
+      "generated": { "line": 299, "columnStart": 7, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2614, "byteEnd": 2619, "line": 123, "column": 16 }
+    },
+    {
+      "generated": { "line": 300, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2614, "byteEnd": 2619, "line": 123, "column": 16 }
+    },
+    {
+      "generated": { "line": 301, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2614, "byteEnd": 2615, "line": 123, "column": 16 }
+    },
+    {
+      "generated": { "line": 302, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2607, "byteEnd": 2620, "line": 123, "column": 9 }
+    },
+    {
+      "generated": { "line": 303, "columnStart": 3, "columnEnd": 70 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2655, "byteEnd": 2741, "line": 125, "column": 3 }
+    },
+    {
+      "generated": { "line": 304, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2492, "byteEnd": 2743, "line": 121, "column": 1 }
+    },
+    {
+      "generated": { "line": 306, "columnStart": 1, "columnEnd": 40 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2745, "byteEnd": 2820, "line": 135, "column": 1 }
+    },
+    {
+      "generated": { "line": 307, "columnStart": 3, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 308, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 310, "columnStart": 3, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 311, "columnStart": 3, "columnEnd": 60 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 312, "columnStart": 3, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 313, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 314, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2781, "byteEnd": 2788, "line": 136, "column": 3 }
+    },
+    {
+      "generated": { "line": 315, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2790, "byteEnd": 2802, "line": 136, "column": 12 }
+    },
+    {
+      "generated": { "line": 316, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2804, "byteEnd": 2818, "line": 136, "column": 26 }
+    },
+    {
+      "generated": { "line": 317, "columnStart": 3, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2779, "byteEnd": 2820, "line": 136, "column": 1 }
+    },
+    {
+      "generated": { "line": 318, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2745, "byteEnd": 2820, "line": 135, "column": 1 }
+    },
+    {
+      "generated": { "line": 320, "columnStart": 1, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2822, "byteEnd": 2924, "line": 138, "column": 1 }
+    },
+    {
+      "generated": { "line": 321, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2885, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 322, "columnStart": 3, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 323, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 324, "columnStart": 3, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 325, "columnStart": 3, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 326, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 327, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 328, "columnStart": 3, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 329, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 330, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 331, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 332, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 333, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2849, "byteEnd": 2924, "line": 139, "column": 3 }
+    },
+    {
+      "generated": { "line": 334, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2822, "byteEnd": 2924, "line": 138, "column": 1 }
+    },
+    {
+      "generated": { "line": 336, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2926, "byteEnd": 3051, "line": 143, "column": 1 }
+    },
+    {
+      "generated": { "line": 337, "columnStart": 3, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2957, "byteEnd": 3036, "line": 144, "column": 3 }
+    },
+    {
+      "generated": { "line": 338, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2975, "byteEnd": 3036, "line": 144, "column": 21 }
+    },
+    {
+      "generated": { "line": 339, "columnStart": 5, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2984, "byteEnd": 3016, "line": 145, "column": 5 }
+    },
+    {
+      "generated": { "line": 340, "columnStart": 5, "columnEnd": 7 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2984, "byteEnd": 3016, "line": 145, "column": 5 }
+    },
+    {
+      "generated": { "line": 341, "columnStart": 7, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3000, "byteEnd": 3016, "line": 145, "column": 21 }
+    },
+    {
+      "generated": { "line": 343, "columnStart": 7, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3000, "byteEnd": 3016, "line": 145, "column": 21 }
+    },
+    {
+      "generated": { "line": 344, "columnStart": 7, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3000, "byteEnd": 3016, "line": 145, "column": 21 }
+    },
+    {
+      "generated": { "line": 345, "columnStart": 7, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3000, "byteEnd": 3016, "line": 145, "column": 21 }
+    },
+    {
+      "generated": { "line": 346, "columnStart": 7, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2984, "byteEnd": 3016, "line": 145, "column": 5 }
+    },
+    {
+      "generated": { "line": 347, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2984, "byteEnd": 3016, "line": 145, "column": 5 }
+    },
+    {
+      "generated": { "line": 348, "columnStart": 5, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3021, "byteEnd": 3032, "line": 146, "column": 5 }
+    },
+    {
+      "generated": { "line": 349, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2975, "byteEnd": 3036, "line": 144, "column": 21 }
+    },
+    {
+      "generated": { "line": 350, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3040, "byteEnd": 3049, "line": 149, "column": 3 }
+    },
+    {
+      "generated": { "line": 351, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 2926, "byteEnd": 3051, "line": 143, "column": 1 }
+    },
+    {
+      "generated": { "line": 353, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3053, "byteEnd": 3258, "line": 152, "column": 1 }
+    },
+    {
+      "generated": { "line": 355, "columnStart": 3, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 356, "columnStart": 3, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 357, "columnStart": 3, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 358, "columnStart": 3, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 359, "columnStart": 3, "columnEnd": 9 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 360, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 361, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 362, "columnStart": 3, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 363, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3084, "byteEnd": 3204, "line": 153, "column": 3 }
+    },
+    {
+      "generated": { "line": 365, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 366, "columnStart": 3, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 367, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 368, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 369, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 370, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 371, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3209, "byteEnd": 3255, "line": 158, "column": 3 }
+    },
+    {
+      "generated": { "line": 372, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3053, "byteEnd": 3258, "line": 152, "column": 1 }
+    },
+    {
+      "generated": { "line": 374, "columnStart": 1, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3262, "byteEnd": 3504, "line": 161, "column": 1 }
+    },
+    {
+      "generated": { "line": 375, "columnStart": 3, "columnEnd": 70 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3295, "byteEnd": 3337, "line": 162, "column": 3 }
+    },
+    {
+      "generated": { "line": 376, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3423, "byteEnd": 3455, "line": 169, "column": 14 }
+    },
+    {
+      "generated": { "line": 378, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3423, "byteEnd": 3455, "line": 169, "column": 14 }
+    },
+    {
+      "generated": { "line": 379, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3439, "byteEnd": 3444, "line": 169, "column": 30 }
+    },
+    {
+      "generated": { "line": 380, "columnStart": 3, "columnEnd": 7 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3423, "byteEnd": 3455, "line": 169, "column": 14 }
+    },
+    {
+      "generated": { "line": 381, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3450, "byteEnd": 3455, "line": 169, "column": 41 }
+    },
+    {
+      "generated": { "line": 382, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3423, "byteEnd": 3455, "line": 169, "column": 14 }
+    },
+    {
+      "generated": { "line": 383, "columnStart": 3, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 384, "columnStart": 3, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 385, "columnStart": 3, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 386, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 387, "columnStart": 3, "columnEnd": 54 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 388, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 389, "columnStart": 3, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 390, "columnStart": 3, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 391, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 393, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 394, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 395, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 396, "columnStart": 3, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 397, "columnStart": 3, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 398, "columnStart": 3, "columnEnd": 9 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 399, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 400, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3343, "byteEnd": 3501, "line": 166, "column": 3 }
+    },
+    {
+      "generated": { "line": 401, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3262, "byteEnd": 3504, "line": 161, "column": 1 }
+    },
+    {
+      "generated": { "line": 403, "columnStart": 1, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3508, "byteEnd": 3569, "line": 175, "column": 1 }
+    },
+    {
+      "generated": { "line": 404, "columnStart": 3, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3533, "byteEnd": 3569, "line": 176, "column": 3 }
+    },
+    {
+      "generated": { "line": 405, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3533, "byteEnd": 3569, "line": 176, "column": 3 }
+    },
+    {
+      "generated": { "line": 406, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3533, "byteEnd": 3569, "line": 176, "column": 3 }
+    },
+    {
+      "generated": { "line": 407, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3533, "byteEnd": 3569, "line": 176, "column": 3 }
+    },
+    {
+      "generated": { "line": 408, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3533, "byteEnd": 3569, "line": 176, "column": 3 }
+    },
+    {
+      "generated": { "line": 409, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3533, "byteEnd": 3569, "line": 176, "column": 3 }
+    },
+    {
+      "generated": { "line": 410, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3508, "byteEnd": 3569, "line": 175, "column": 1 }
+    },
+    {
+      "generated": { "line": 412, "columnStart": 1, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3573, "byteEnd": 3635, "line": 178, "column": 1 }
+    },
+    {
+      "generated": { "line": 413, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3600, "byteEnd": 3635, "line": 179, "column": 3 }
+    },
+    {
+      "generated": { "line": 414, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3600, "byteEnd": 3635, "line": 179, "column": 3 }
+    },
+    {
+      "generated": { "line": 415, "columnStart": 3, "columnEnd": 16 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3600, "byteEnd": 3635, "line": 179, "column": 3 }
+    },
+    {
+      "generated": { "line": 416, "columnStart": 3, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3600, "byteEnd": 3635, "line": 179, "column": 3 }
+    },
+    {
+      "generated": { "line": 417, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3600, "byteEnd": 3635, "line": 179, "column": 3 }
+    },
+    {
+      "generated": { "line": 418, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3600, "byteEnd": 3635, "line": 179, "column": 3 }
+    },
+    {
+      "generated": { "line": 419, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3573, "byteEnd": 3635, "line": 178, "column": 1 }
+    },
+    {
+      "generated": { "line": 421, "columnStart": 1, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3637, "byteEnd": 3817, "line": 181, "column": 1 }
+    },
+    {
+      "generated": { "line": 422, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3663, "byteEnd": 3689, "line": 182, "column": 3 }
+    },
+    {
+      "generated": { "line": 423, "columnStart": 3, "columnEnd": 24 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3692, "byteEnd": 3731, "line": 183, "column": 3 }
+    },
+    {
+      "generated": { "line": 424, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3692, "byteEnd": 3731, "line": 183, "column": 3 }
+    },
+    {
+      "generated": { "line": 425, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3692, "byteEnd": 3731, "line": 183, "column": 3 }
+    },
+    {
+      "generated": { "line": 426, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3692, "byteEnd": 3731, "line": 183, "column": 3 }
+    },
+    {
+      "generated": { "line": 427, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3692, "byteEnd": 3731, "line": 183, "column": 3 }
+    },
+    {
+      "generated": { "line": 428, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3735, "byteEnd": 3753, "line": 185, "column": 3 }
+    },
+    {
+      "generated": { "line": 429, "columnStart": 3, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3765, "byteEnd": 3815, "line": 187, "column": 10 }
+    },
+    {
+      "generated": { "line": 430, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3637, "byteEnd": 3817, "line": 181, "column": 1 }
+    },
+    {
+      "generated": { "line": 432, "columnStart": 1, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3819, "byteEnd": 4283, "line": 193, "column": 1 }
+    },
+    {
+      "generated": { "line": 433, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 434, "columnStart": 3, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 435, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 436, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 437, "columnStart": 3, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 438, "columnStart": 3, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 439, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3845, "byteEnd": 3912, "line": 194, "column": 3 }
+    },
+    {
+      "generated": { "line": 440, "columnStart": 3, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 441, "columnStart": 3, "columnEnd": 7 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 442, "columnStart": 3, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 443, "columnStart": 3, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 444, "columnStart": 3, "columnEnd": 9 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 445, "columnStart": 3, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 446, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3915, "byteEnd": 3991, "line": 195, "column": 3 }
+    },
+    {
+      "generated": { "line": 447, "columnStart": 3, "columnEnd": 83 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3994, "byteEnd": 4090, "line": 196, "column": 3 }
+    },
+    {
+      "generated": { "line": 448, "columnStart": 3, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 449, "columnStart": 3, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 450, "columnStart": 3, "columnEnd": 49 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 451, "columnStart": 3, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 452, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 453, "columnStart": 3, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 454, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4101, "byteEnd": 4281, "line": 202, "column": 10 }
+    },
+    {
+      "generated": { "line": 455, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 3819, "byteEnd": 4283, "line": 193, "column": 1 }
+    },
+    {
+      "generated": { "line": 457, "columnStart": 1, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4285, "byteEnd": 4485, "line": 211, "column": 1 }
+    },
+    {
+      "generated": { "line": 458, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4312, "byteEnd": 4341, "line": 212, "column": 3 }
+    },
+    {
+      "generated": { "line": 459, "columnStart": 3, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4344, "byteEnd": 4391, "line": 213, "column": 3 }
+    },
+    {
+      "generated": { "line": 460, "columnStart": 3, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4394, "byteEnd": 4437, "line": 214, "column": 3 }
+    },
+    {
+      "generated": { "line": 461, "columnStart": 3, "columnEnd": 44 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4441, "byteEnd": 4482, "line": 215, "column": 3 }
+    },
+    {
+      "generated": { "line": 462, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4285, "byteEnd": 4485, "line": 211, "column": 1 }
+    },
+    {
+      "generated": { "line": 464, "columnStart": 1, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4489, "byteEnd": 4622, "line": 218, "column": 1 }
+    },
+    {
+      "generated": { "line": 465, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 466, "columnStart": 5, "columnEnd": 48 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 467, "columnStart": 5, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 469, "columnStart": 5, "columnEnd": 51 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 470, "columnStart": 5, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 471, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 472, "columnStart": 5, "columnEnd": 91 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 473, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4559, "byteEnd": 4619, "line": 220, "column": 13 }
+    },
+    {
+      "generated": { "line": 474, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4489, "byteEnd": 4622, "line": 218, "column": 1 }
+    },
+    {
+      "generated": { "line": 476, "columnStart": 1, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4624, "byteEnd": 4709, "line": 223, "column": 1 }
+    },
+    {
+      "generated": { "line": 477, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 478, "columnStart": 5, "columnEnd": 48 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 480, "columnStart": 5, "columnEnd": 51 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 481, "columnStart": 5, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 482, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 483, "columnStart": 5, "columnEnd": 49 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 484, "columnStart": 5, "columnEnd": 91 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 485, "columnStart": 5, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 486, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4666, "byteEnd": 4709, "line": 224, "column": 13 }
+    },
+    {
+      "generated": { "line": 487, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4624, "byteEnd": 4709, "line": 223, "column": 1 }
+    },
+    {
+      "generated": { "line": 489, "columnStart": 1, "columnEnd": 59 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4718, "byteEnd": 6496, "line": 226, "column": 8 }
+    },
+    {
+      "generated": { "line": 490, "columnStart": 3, "columnEnd": 47 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4773, "byteEnd": 4817, "line": 227, "column": 3 }
+    },
+    {
+      "generated": { "line": 491, "columnStart": 3, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4821, "byteEnd": 4850, "line": 228, "column": 3 }
+    },
+    {
+      "generated": { "line": 492, "columnStart": 3, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4853, "byteEnd": 4889, "line": 229, "column": 3 }
+    },
+    {
+      "generated": { "line": 493, "columnStart": 3, "columnEnd": 40 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4892, "byteEnd": 4929, "line": 230, "column": 3 }
+    },
+    {
+      "generated": { "line": 494, "columnStart": 3, "columnEnd": 42 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4932, "byteEnd": 4971, "line": 231, "column": 3 }
+    },
+    {
+      "generated": { "line": 495, "columnStart": 3, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4974, "byteEnd": 5020, "line": 232, "column": 3 }
+    },
+    {
+      "generated": { "line": 496, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4974, "byteEnd": 5020, "line": 232, "column": 3 }
+    },
+    {
+      "generated": { "line": 497, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 498, "columnStart": 5, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 500, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 501, "columnStart": 5, "columnEnd": 50 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 502, "columnStart": 5, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 503, "columnStart": 5, "columnEnd": 53 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 504, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 505, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5004, "byteEnd": 5014, "line": 232, "column": 33 }
+    },
+    {
+      "generated": { "line": 506, "columnStart": 5, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4998, "byteEnd": 5019, "line": 232, "column": 27 }
+    },
+    {
+      "generated": { "line": 507, "columnStart": 5, "columnEnd": 32 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4998, "byteEnd": 5019, "line": 232, "column": 27 }
+    },
+    {
+      "generated": { "line": 508, "columnStart": 5, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4998, "byteEnd": 5019, "line": 232, "column": 27 }
+    },
+    {
+      "generated": { "line": 509, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4998, "byteEnd": 5019, "line": 232, "column": 27 }
+    },
+    {
+      "generated": { "line": 510, "columnStart": 5, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4974, "byteEnd": 5020, "line": 232, "column": 3 }
+    },
+    {
+      "generated": { "line": 511, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4974, "byteEnd": 5020, "line": 232, "column": 3 }
+    },
+    {
+      "generated": { "line": 512, "columnStart": 3, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5023, "byteEnd": 5055, "line": 233, "column": 3 }
+    },
+    {
+      "generated": { "line": 513, "columnStart": 3, "columnEnd": 43 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5058, "byteEnd": 5105, "line": 234, "column": 3 }
+    },
+    {
+      "generated": { "line": 514, "columnStart": 3, "columnEnd": 49 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5108, "byteEnd": 5164, "line": 235, "column": 3 }
+    },
+    {
+      "generated": { "line": 515, "columnStart": 3, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5167, "byteEnd": 5305, "line": 236, "column": 3 }
+    },
+    {
+      "generated": { "line": 516, "columnStart": 3, "columnEnd": 90 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5167, "byteEnd": 5305, "line": 236, "column": 3 }
+    },
+    {
+      "generated": { "line": 517, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5167, "byteEnd": 5305, "line": 236, "column": 3 }
+    },
+    {
+      "generated": { "line": 518, "columnStart": 3, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5308, "byteEnd": 5343, "line": 241, "column": 3 }
+    },
+    {
+      "generated": { "line": 519, "columnStart": 3, "columnEnd": 44 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5346, "byteEnd": 5387, "line": 242, "column": 3 }
+    },
+    {
+      "generated": { "line": 520, "columnStart": 3, "columnEnd": 34 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5390, "byteEnd": 5421, "line": 243, "column": 3 }
+    },
+    {
+      "generated": { "line": 521, "columnStart": 3, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5424, "byteEnd": 5460, "line": 244, "column": 3 }
+    },
+    {
+      "generated": { "line": 522, "columnStart": 3, "columnEnd": 45 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5463, "byteEnd": 5505, "line": 245, "column": 3 }
+    },
+    {
+      "generated": { "line": 523, "columnStart": 3, "columnEnd": 42 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5508, "byteEnd": 5547, "line": 246, "column": 3 }
+    },
+    {
+      "generated": { "line": 524, "columnStart": 3, "columnEnd": 53 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5550, "byteEnd": 5600, "line": 247, "column": 3 }
+    },
+    {
+      "generated": { "line": 525, "columnStart": 3, "columnEnd": 67 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5603, "byteEnd": 5667, "line": 248, "column": 3 }
+    },
+    {
+      "generated": { "line": 526, "columnStart": 3, "columnEnd": 36 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5670, "byteEnd": 5703, "line": 249, "column": 3 }
+    },
+    {
+      "generated": { "line": 527, "columnStart": 3, "columnEnd": 44 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5706, "byteEnd": 5747, "line": 250, "column": 3 }
+    },
+    {
+      "generated": { "line": 528, "columnStart": 3, "columnEnd": 37 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5750, "byteEnd": 5784, "line": 251, "column": 3 }
+    },
+    {
+      "generated": { "line": 529, "columnStart": 3, "columnEnd": 51 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5787, "byteEnd": 5835, "line": 252, "column": 3 }
+    },
+    {
+      "generated": { "line": 530, "columnStart": 3, "columnEnd": 44 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5838, "byteEnd": 5879, "line": 253, "column": 3 }
+    },
+    {
+      "generated": { "line": 531, "columnStart": 3, "columnEnd": 11 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 532, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 533, "columnStart": 3, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 534, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 535, "columnStart": 3, "columnEnd": 29 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 536, "columnStart": 3, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 537, "columnStart": 3, "columnEnd": 17 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 538, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 539, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 540, "columnStart": 3, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 541, "columnStart": 3, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 542, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 543, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 544, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 545, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 546, "columnStart": 3, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 547, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 548, "columnStart": 3, "columnEnd": 33 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 549, "columnStart": 3, "columnEnd": 31 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 550, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 551, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 552, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 553, "columnStart": 3, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 554, "columnStart": 3, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 555, "columnStart": 3, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 556, "columnStart": 3, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 5890, "byteEnd": 6493, "line": 255, "column": 10 }
+    },
+    {
+      "generated": { "line": 557, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4718, "byteEnd": 6496, "line": 226, "column": 8 }
+    },
+    {
+      "generated": { "line": 559, "columnStart": 1, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 6500, "byteEnd": 6548, "line": 283, "column": 1 }
+    },
+    {
+      "generated": { "line": 560, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 6525, "byteEnd": 6545, "line": 284, "column": 3 }
+    },
+    {
+      "generated": { "line": 561, "columnStart": 1, "columnEnd": 4 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 6500, "byteEnd": 6548, "line": 283, "column": 1 }
+    },
+    {
+      "generated": { "line": 563, "columnStart": 1, "columnEnd": 46 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 325, "byteEnd": 339, "line": 9, "column": 14 }
+    },
+    {
+      "generated": { "line": 564, "columnStart": 1, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 4721, "byteEnd": 4725, "line": 226, "column": 11 }
+    },
+    {
+      "generated": { "line": 566, "columnStart": 1, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "..\\examples\\features.lux", "byteStart": 0, "byteEnd": 6549, "line": 1, "column": 1 }
+    }
+  ]
+}

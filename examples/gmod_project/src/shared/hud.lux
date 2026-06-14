@@ -1,0 +1,52 @@
+import { arr } from "@lux/std"
+import { add, values } from "math"
+
+enum HudMode repr string {
+  Compact = "compact",
+  Detailed = "detailed"
+}
+
+fn formatCount(count) =
+  `Count: ${count}`
+
+fn normalizeMode(mode) =
+  match mode {
+    HudMode.Detailed => HudMode.Detailed
+    _ => HudMode.Compact
+  }
+
+fn modeTitle(mode) =
+  match mode {
+    HudMode.Compact => "Compact HUD"
+    HudMode.Detailed => "Detailed HUD"
+  }
+
+fn formatPlayer(player, index, detailed) {
+  stopif player == nil, `#${index}: unknown`
+
+  local name = player?:Nick() ?? "unknown"
+  match detailed {
+    true => `#${index}: ${name} (${player?:Health() ?? 0} hp)`
+    false => `#${index}: ${name}`
+  }
+}
+
+export fn buildHud(count, players, mode = nil, ...) {
+  local normalizedMode = normalizeMode(mode)
+  local detailed = normalizedMode == HudMode.Detailed
+  local total = add(count, #players)
+  local labels = arr.map(players, (player, index) =>
+    formatPlayer(player, index, detailed)
+  )
+  local first, second = values(...);
+
+  {
+    total = total,
+    mode = normalizedMode,
+    title = modeTitle(normalizedMode),
+    text = formatCount(total),
+    labels = labels,
+    first = first,
+    second = second
+  }
+}

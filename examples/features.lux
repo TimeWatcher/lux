@@ -1,0 +1,285 @@
+import { arr } from "@lux/std"
+import * as std from "@lux/std"
+import { memo, signal } from "@lux/reactive"
+import { Button, Column, Label } from "@lux/ui"
+import { color, hookx, timerx, valid, vgui } from "@lux/gmod"
+import macro { dbg } from "@lux/macros"
+import macro * as gmodMacros from "@lux/gmod/macros"
+
+export const featureVersion = "0.1"
+
+const defaultTitle = "visitor"
+
+enum PlayerTier repr number {
+  Guest = 0,
+  Regular = 1,
+  Veteran = 2
+}
+
+enum HudTheme repr string {
+  Compact = "compact",
+  Spacious = "spacious"
+}
+
+enum FillView repr existing(kind = "kind") {
+  Solid(kind = FILL_SOLID, color: Color),
+  Linear(kind = FILL_LINEAR, from: Color, to: Color)
+}
+
+enum InputAction repr string {
+  Hover = "hover",
+  Press = "press",
+  Release = "release",
+  Cancel = "cancel"
+}
+
+fn passthrough(...) = ...
+
+fn helper(x) = x + 1
+
+fn macroValue(x) =
+  dbg(x + 1)
+
+fn tierForExp(exp) {
+  stopif exp == nil, PlayerTier.Guest
+  stopif exp < 5, PlayerTier.Guest
+  stopif exp < 25, PlayerTier.Regular
+  PlayerTier.Veteran
+}
+
+fn tierLabel(tier) =
+  match tier {
+    PlayerTier.Guest => "guest"
+    PlayerTier.Regular => "regular"
+    PlayerTier.Veteran => "veteran"
+  }
+
+fn classify(player) =
+  tierLabel(tierForExp(player?:GetExp() ?? 0))
+
+fn themePadding(theme) =
+  match theme {
+    HudTheme.Compact => 4
+    HudTheme.Spacious => 12
+  }
+
+fn isPointerAction(action) =
+  match action {
+    InputAction.Hover | InputAction.Press | InputAction.Release => true
+    InputAction.Cancel => false
+  }
+
+fn fillPreviewColor(fill) =
+  match fill {
+    FillView.Solid { color } => color
+    FillView.Linear { from, to } => color.lerp(0.5, from, to)
+  }
+
+fn sumUntilNegative(values) {
+  local total = 0
+
+  for i = 1, #values {
+    local value = values[i]
+    continueif value == nil
+    breakif value < 0
+    total += value
+  }
+
+  total
+}
+
+fn requirePanelName(panel) {
+  stopifn valid.is(panel), "invalid-panel"
+  panel:GetName()
+}
+
+fn summarize(player, fallbackName) {
+  local name = player?:GetName() ?? fallbackName
+  local exp = player?:GetExp() ?? 0
+  const title = exp > 10 then "veteran" else defaultTitle
+
+  `Player ${name}: ${title}`
+}
+
+fn mutateCounter(state) {
+  state.count += 1
+  state.label ..= "!"
+  state.count
+}
+
+fn noImplicitReturn() {
+  -- lux-lint: allow LINT002
+  mutateCounter({ count = 0, label = "dry-run" });
+}
+
+fn safeLookup(tbl, keyFactory) =
+  tbl?.[keyFactory()] ?? "missing"
+
+fn safeDotCall(mgfx, x, y) =
+  mgfx?.RoundedBox(expensiveRadius(), x, y)
+
+fn defaultAndDestructure(player, fallbackArmor = 0) {
+  const { name, hp, armor = fallbackArmor } = player
+  local [x, y, z = 0] = player.position ?? { 0, 0 };
+
+  {
+    name = name,
+    hp = hp,
+    armor = armor,
+    x = x,
+    y = y,
+    z = z
+  }
+}
+
+fn mergeTableProps(base, label) =
+{ ...base, text = label, visible = true }
+
+fn pipelineHelpers(xs) =
+  xs
+|> arr.filter(%, (x) => x ~= nil)
+|> arr.map(%, (x, index) => x + index)
+
+fn doExpressionDemo(state) {
+  local nextCount = do {
+    local current = state.count ?? 0
+    current + 1
+  }
+
+  nextCount
+}
+
+fn callbackExamples(panel) {
+  panel.Paint = (w, h) -> {
+    local color = self.isActive then "green" else "gray"
+    drawPanel(self, w, h, color);
+  }
+
+  panel.OnClick = () => helper(panel.count ?? 0)
+}
+
+fn tableAndTailCalls(count) {
+  Label {
+    text = `Count: ${count}`
+  }
+
+  Column { gap = 8 } {
+    Label { text = "child" },
+    Button {
+      text = count > 10 then "Big" else "Add",
+      onClick = () => count + 1
+    }
+  }
+}
+
+fn arrayHelpers(xs) =
+  arr.map(xs, (x, index) => x + index)
+
+fn namespaceImport(xs) =
+  std.arr.filter(xs, (x) => x ~= nil)
+
+fn reactiveDemo(seed) {
+  local count = signal(seed)
+  local doubled = memo(() => count() * 2)
+
+  count(count() + 1);
+
+  return {
+    count = count(),
+    doubled = doubled()
+  }
+}
+
+fn gmodStdDemo(panel) {
+  local hookHandle = hookx.add("Think", "LuxExampleThink", () => nil)
+  local timerHandle = timerx.after(1, () => print("later"), "LuxExampleTimer")
+  local mixed = color.lerp(
+    0.5,
+    Color(255, 64, 32, 255),
+    Color(32, 128, 255, 128)
+  )
+
+  return {
+    panelValid = valid.is(panel),
+    removedChildren = vgui.clearChildren(panel),
+    hookId = hookHandle.id,
+    timerId = timerHandle.id,
+    colorHex = color.toHex(mixed)
+  }
+}
+
+fn multivalueDemo(...) {
+  local a, b = passthrough(...)
+  local c, d = passthrough(...), passthrough(...)
+  local packed = { "head", passthrough(...) }
+  return passthrough(...), passthrough(...)
+}
+
+fn macroStatementExample() {
+  -- lux-lint: allow LINT002
+  gmodMacros.defineHook("HUDPaint", "LuxExampleHUD", () => drawLuxHud());
+}
+
+fn macroExpressionExample() =
+  gmodMacros.defineHook("HUDPaint", () => drawLuxHud())
+
+export fn demo(player, panel, state, xs, keyFactory, ...) {
+  local summary = summarize(player, "Unknown")
+  local kind = classify(player)
+  local changed = mutateCounter(state)
+  local suppressed = noImplicitReturn()
+  local item = safeLookup(xs, keyFactory)
+  local tier = tierForExp(player?:GetExp() ?? 0)
+  local tierText = tierLabel(tier)
+  local padding = themePadding(HudTheme.Spacious)
+  local pointerAction = isPointerAction(InputAction.Press)
+  local previewColor = fillPreviewColor({
+    kind = FILL_LINEAR,
+    from = Color(255, 64, 32, 255),
+    to = Color(32, 128, 255, 255)
+  })
+  local summed = sumUntilNegative(xs)
+  local panelName = requirePanelName(panel)
+  local mapped = arrayHelpers(xs)
+  local filtered = namespaceImport(xs)
+  local reactive = reactiveDemo(state.count)
+  local macroed = macroValue(state.count)
+  local destructured = defaultAndDestructure(player)
+  local mergedProps = mergeTableProps({ align = "left" }, summary)
+  local piped = pipelineHelpers(xs)
+  local nextCount = doExpressionDemo(state)
+  local gmodStd = gmodStdDemo(panel)
+  local removableHookId = macroExpressionExample()
+  local first, second = multivalueDemo(...)
+
+  return {
+    summary = summary,
+    kind = kind,
+    changed = changed,
+    suppressed = suppressed,
+    item = item,
+    tier = tier,
+    tierText = tierText,
+    padding = padding,
+    pointerAction = pointerAction,
+    previewColor = previewColor,
+    summed = summed,
+    panelName = panelName,
+    mapped = mapped,
+    filtered = filtered,
+    reactive = reactive,
+    macroed = macroed,
+    destructured = destructured,
+    mergedProps = mergedProps,
+    piped = piped,
+    nextCount = nextCount,
+    gmodStd = gmodStd,
+    removableHookId = removableHookId,
+    first = first,
+    second = second
+  }
+}
+
+fn PANEL:Paint(w, h) {
+  drawBody(self, w, h);
+}

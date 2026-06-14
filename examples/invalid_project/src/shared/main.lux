@@ -1,0 +1,3 @@
+import { missing } from "@lux/std"
+
+export fn fail() = missing()
