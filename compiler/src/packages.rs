@@ -41,6 +41,25 @@ impl fmt::Display for PackageLoadError {
 impl std::error::Error for PackageLoadError {}
 
 pub fn default_package_root() -> PathBuf {
+    if let Some(path) = std::env::var_os("LUX_PACKAGE_ROOT").filter(|value| !value.is_empty()) {
+        return PathBuf::from(path);
+    }
+
+    if let Some(exe_dir) = std::env::current_exe()
+        .ok()
+        .and_then(|path| path.parent().map(Path::to_path_buf))
+    {
+        let beside_exe = exe_dir.join("packages");
+        if beside_exe.is_dir() {
+            return beside_exe;
+        }
+
+        let beside_parent = exe_dir.join("../packages");
+        if beside_parent.is_dir() {
+            return beside_parent;
+        }
+    }
+
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../packages")
 }
 
