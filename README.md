@@ -243,5 +243,18 @@ GMod project build that imports the package being changed.
 
 ## License
 
-No license file has been added yet. Treat the repository as source-available
-until a license is chosen.
+Lux uses a split license model:
+
+- Source code is licensed under `MIT OR Apache-2.0`.
+- Documentation prose is licensed under `CC-BY-4.0`.
+- Code examples in documentation are licensed under `MIT OR Apache-2.0`.
+- The Lux name, logo, icon, and other branding assets are not licensed for
+  reuse by these open source licenses.
+
+Using `luxc` to compile your source code does not change the license of your
+addon or generated project. If generated Lua embeds Lux runtime or package code,
+that embedded Lux code remains available under `MIT OR Apache-2.0`.
+
+See [LICENSE](LICENSE), [LICENSE-MIT](LICENSE-MIT),
+[LICENSE-APACHE](LICENSE-APACHE), [LICENSE-DOCS](LICENSE-DOCS), and
+[NOTICE](NOTICE).

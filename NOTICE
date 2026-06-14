@@ -1,0 +1,12 @@
+Lux
+Copyright (c) 2026 TimeWatcher and Lux contributors.
+
+Source code is available under MIT OR Apache-2.0. Documentation prose is
+available under CC-BY-4.0. See LICENSE for the repository licensing policy.
+
+The Lux name, logo, icon, and other branding assets are not licensed for reuse
+by the open source licenses in this repository.
+
+Using luxc to compile user source code does not change the license of that user
+source code or of the resulting addon. Generated Lua that embeds Lux runtime or
+package code includes that embedded Lux code under MIT OR Apache-2.0.
