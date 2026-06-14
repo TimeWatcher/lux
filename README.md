@@ -1,55 +1,109 @@
+<div align="center">
+
 # Lux
 
-Lux is a compiler-first language and toolchain for Garry's Mod Lua development.
-It keeps the output close to GLua/Lua 5.1 while adding a modern module system,
-realm-aware project builds, explicit public APIs, macros, host transforms, source
-maps, and practical syntax improvements for everyday addon work.
+**A compiler-first language for building Garry's Mod addons without loader
+spaghetti.**
 
-Lux is not a runtime framework that takes over your addon. The compiler runs
-offline, emits ordinary Lua files, and generates the GMod loader code needed to
-mount client, server, and shared modules correctly.
+[![Release](https://img.shields.io/github/v/release/TimeWatcher/lux?label=release)](https://github.com/TimeWatcher/lux/releases)
+[![Docs](https://img.shields.io/badge/docs-online-2f6feb)](https://timewatcher.github.io/lux-docs-site/)
+[![Rust](https://img.shields.io/badge/compiler-Rust-f46623)](compiler/)
+[![Garry's Mod](https://img.shields.io/badge/target-Garry's%20Mod-1f6feb)](https://gmod.facepunch.com/)
+[![License](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue)](#license)
 
-## Status
+[Documentation](https://timewatcher.github.io/lux-docs-site/) ·
+[Quick Start](#quick-start) ·
+[Packages](https://github.com/TimeWatcher/lux-packages) ·
+[MGFX](https://timewatcher.github.io/mgfx-docs-site/) ·
+[Releases](https://github.com/TimeWatcher/lux/releases)
 
-Lux is currently an early `0.1.0` compiler release. The language, package
-layout, and GMod backend are usable for experimentation and migration work, but
-the project should still be treated as pre-1.0.
+English · [简体中文](README.zh-CN.md)
 
-- Documentation: <https://timewatcher.github.io/lux-docs-site/>
-- Release builds: <https://github.com/TimeWatcher/lux/releases>
-- Built-in packages: <https://github.com/TimeWatcher/lux-packages>
-- Documentation source: <https://github.com/TimeWatcher/lux-docs-site>
-- MGFX documentation: <https://timewatcher.github.io/mgfx-docs-site/>
-- MGFX documentation source: <https://github.com/TimeWatcher/mgfx-docs-site>
+</div>
+
+Lux is a Lua-oriented language and toolchain for Garry's Mod. It compiles
+offline to ordinary GLua/Lua 5.1, keeps the generated output inspectable, and
+lets the compiler own the parts that are usually fragile in real addons:
+module boundaries, realm loading, package discovery, exports, source maps, and
+diagnostics.
+
+Lux is not a runtime framework that takes over your addon. It is a compiler
+that helps you write clearer GLua projects and emits the loader code Garry's Mod
+expects.
 
 ## Why Lux
 
-GMod addon code usually has to solve three problems at the same time:
+GMod addon code tends to grow around three pain points:
 
-- Lua lacks a real module boundary, so private code and public API blur together.
-- GMod realm loading requires boilerplate such as `if SERVER then AddCSLuaFile(...) end`.
-- Large addons need compile-time checks, stable generated output, and readable
-  diagnostics without giving up normal GLua interoperability.
+| Problem in GLua projects | Lux answer |
+| --- | --- |
+| Private helpers become accidental global API. | Directory modules are private by default and export only explicit names. |
+| Realm loading turns into `AddCSLuaFile` boilerplate and fragile include order. | `client`, `server`, `shared`, realm blocks, and generated GMod loaders are first-class. |
+| Large addons need structure without losing GLua interoperability. | Lux compiles to readable Lua and still allows normal GMod and third-party API calls. |
 
-Lux targets those problems directly:
+## What It Feels Like
 
-- **Directory modules**: a module is a directory of part files sharing one
-  logical module scope.
-- **Explicit exports**: module internals stay private unless exported by name.
-- **Realm-aware code**: `client`, `server`, `shared`, and realm blocks are part
-  of the language model.
-- **Convention packages**: runtime, macro, compile-time, and host code are
-  discovered by directory layout instead of per-package manifests.
-- **Readable Lua output**: generated GLua remains inspectable and source-map
-  aware.
+```lux
+extern client drawHud
 
-## Install
+import { arr } from "@lux/std"
+import { hookx, valid } from "@lux/gmod"
 
-Download the latest Windows build from the release page:
+enum HudMode repr string {
+  Compact = "compact",
+  Detailed = "detailed"
+}
 
-<https://github.com/TimeWatcher/lux/releases/tag/v0.1.0>
+fn title(mode) =
+  match mode {
+    HudMode.Compact => "HUD"
+    HudMode.Detailed => "Detailed HUD"
+  }
 
-Unzip it and keep the bundled `packages` directory next to `luxc.exe`:
+fn playerLine(player, index, detailed) {
+  stopifn valid.is(player), `#${index}: missing`
+
+  local name = player?:Nick() ?? "unknown"
+  detailed then `#${index}: ${name} (${player?:Health() ?? 0} hp)` else name
+}
+
+client fn paintHud(players, mode = HudMode.Compact) {
+  local detailed = mode == HudMode.Detailed
+  local lines = arr.map(players, (player, index) =>
+    playerLine(player, index, detailed)
+  )
+
+  hookx.add("HUDPaint", "LuxHud", () => drawHud(title(mode), lines))
+}
+
+export client { paintHud }
+```
+
+This is still close to Lua, but with module-private declarations, explicit
+realm ownership, enums and `match`, expression returns, arrow callbacks,
+optional access, nil coalescing, and exports that describe the real public API.
+
+## Highlights
+
+- **Module directories, not manifest noise**: a module is a directory of part
+  files with one logical module-private scope.
+- **Explicit public interfaces**: `export { public_name = local_binding }`
+  maps internal names to API names without exposing everything else.
+- **Realm-aware by construction**: `client fn`, `server fn`, `shared` code, and
+  `client { ... }` / `server { ... }` blocks model GMod execution directly.
+- **Smart GMod output**: generated loaders batch client files, avoid global
+  filename collisions, and keep source-map/debug information available.
+- **Practical syntax**: `match`, `then/else`, arrow functions, optional calls,
+  destructuring, table spread, pipeline helpers, and implicit expression
+  returns.
+- **Packages by convention**: runtime, compile-time, macro, and host code are
+  discovered from directory layout instead of handwritten package manifests.
+
+## Quick Start
+
+Download the latest Windows build from
+[Releases](https://github.com/TimeWatcher/lux/releases), unzip it, and keep the
+bundled `packages` directory next to `luxc.exe`:
 
 ```text
 luxc-v0.1.0-x86_64-pc-windows-msvc/
@@ -57,57 +111,20 @@ luxc-v0.1.0-x86_64-pc-windows-msvc/
   packages/
 ```
 
-Then run:
+Run:
 
 ```powershell
 .\luxc.exe --help
-```
-
-If you want to use a different package root, set `LUX_PACKAGE_ROOT`:
-
-```powershell
-$env:LUX_PACKAGE_ROOT = "C:\path\to\lux-packages"
 .\luxc.exe compile .\src\module.lux
-```
-
-## Build From Source
-
-Clone with submodules:
-
-```powershell
-git clone --recurse-submodules https://github.com/TimeWatcher/lux.git
-cd lux
-```
-
-Build and test the compiler:
-
-```powershell
-cd compiler
-cargo test
-cargo build --release
-```
-
-The compiler binary will be written to:
-
-```text
-compiler/target/release/luxc.exe
-```
-
-## Quick Start
-
-Compile one Lux file to Lua:
-
-```powershell
-.\compiler\target\release\luxc.exe compile .\examples\features.lux
 ```
 
 Build a GMod addon project:
 
 ```powershell
-.\compiler\target\release\luxc.exe gmod build --manifest .\examples\gmod_project\lux.toml
+.\luxc.exe gmod build --manifest .\lux.toml
 ```
 
-A minimal GMod manifest looks like this:
+A small GMod manifest:
 
 ```toml
 [gmod]
@@ -120,73 +137,46 @@ bundle_id = "my_addon"
 unknown_external = "warn"
 ```
 
-## Language Shape
+## Build From Source
 
-Lux is designed as a Lua-oriented language, not as a replacement for the GMod
-API. Normal GLua calls stay recognizable, while Lux adds compile-time structure
-around them.
-
-```lux
-import { color, valid } from "@lux/gmod"
-
-fn displayName(ply) =
-  ply?:Nick() ?? "Unknown"
-
-server fn spawnCrate(pos) {
-  local ent = ents.Create("prop_physics")
-  ent:SetPos(pos)
-  ent:Spawn()
-  ent
-}
-
-client fn drawName(ply) {
-  stopifn valid.is(ply)
-
-  draw.SimpleText(
-    displayName(ply),
-    "DermaDefault",
-    12,
-    12,
-    color.white()
-  )
-}
-
-export client { drawName }
-export server { spawnCrate }
+```powershell
+git clone --recurse-submodules https://github.com/TimeWatcher/lux.git
+cd lux\compiler
+cargo test
+cargo build --release
 ```
 
-Key concepts:
-
-- Top-level declarations are module-private by default.
-- `export { public_name = local_binding }` maps internal bindings to public API
-  names.
-- Imports bind to exported API names, not filenames.
-- Shared modules can contain client-only and server-only declarations when those
-  declarations are explicitly marked.
-- `server { ... }`, `client { ... }`, and `shared { ... }` blocks express
-  fine-grained realm-specific code.
-
-## Repository Layout
+The compiler binary will be written to:
 
 ```text
-compiler/   Rust implementation of luxc
-packages/   Built-in Lux packages, tracked as a submodule
-docs-site/  Public documentation site, tracked as a submodule
-mgfx-docs-site/
-            MGFX package documentation site, tracked as a submodule
-docs/       Design notes and implementation references
-examples/   Small Lux and GMod project examples
+compiler/target/release/luxc.exe
 ```
 
-The `packages`, `docs-site`, and `mgfx-docs-site` directories are independent
-repositories. Use `--recurse-submodules` when cloning, or run this after
-cloning:
+Useful development commands:
+
+```powershell
+cargo run -- compile ..\examples\features.lux
+cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
+```
+
+## Repository Map
+
+```text
+compiler/        Rust implementation of luxc
+packages/        Built-in Lux packages, tracked as a submodule
+docs-site/       Public Lux documentation site, tracked as a submodule
+mgfx-docs-site/  MGFX documentation site, tracked as a submodule
+docs/            Design notes and implementation references
+examples/        Small Lux and GMod project examples
+```
+
+After cloning without submodules:
 
 ```powershell
 git submodule update --init --recursive
 ```
 
-## CLI
+## CLI Snapshot
 
 ```text
 luxc lex <path>
@@ -200,41 +190,32 @@ luxc gmod build --manifest <lux.toml> [--generated-root <path>] [--dry-run]
 luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--generated-root <path>]
 ```
 
-Common development commands:
-
-```powershell
-cd compiler
-cargo test
-cargo run -- compile ..\examples\features.lux
-cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
-```
-
 ## Documentation
 
-Start here:
+- [Getting started](https://timewatcher.github.io/lux-docs-site/guide/getting-started)
+- [Language overview](https://timewatcher.github.io/lux-docs-site/language/)
+- [Modules and parts](https://timewatcher.github.io/lux-docs-site/language/modules)
+- [Imports and exports](https://timewatcher.github.io/lux-docs-site/language/imports-exports)
+- [Realms](https://timewatcher.github.io/lux-docs-site/language/realms)
+- [GMod backend](https://timewatcher.github.io/lux-docs-site/gmod/)
+- [MGFX package docs](https://timewatcher.github.io/mgfx-docs-site/)
 
-- Getting started: <https://timewatcher.github.io/lux-docs-site/guide/getting-started>
-- Language overview: <https://timewatcher.github.io/lux-docs-site/language/>
-- Modules and parts: <https://timewatcher.github.io/lux-docs-site/language/modules>
-- Imports and exports: <https://timewatcher.github.io/lux-docs-site/language/imports-exports>
-- Realms: <https://timewatcher.github.io/lux-docs-site/language/realms>
-- GMod backend: <https://timewatcher.github.io/lux-docs-site/gmod/>
-- Generated Lua: <https://timewatcher.github.io/lux-docs-site/reference/generated-lua>
+## Status
 
-Chinese documentation is available under:
-
-<https://timewatcher.github.io/lux-docs-site/zh/>
+Lux is currently an early `0.1.0` compiler release. The language, package
+layout, and GMod backend are usable for experimentation and migration work, but
+the project should still be treated as pre-1.0.
 
 ## Contributing
 
-For compiler work:
+Compiler:
 
 ```powershell
 cd compiler
 cargo test
 ```
 
-For documentation work:
+Documentation:
 
 ```powershell
 cd docs-site
@@ -243,7 +224,7 @@ npm run dev -- --host 127.0.0.1 --port 4173
 npm run build
 ```
 
-For MGFX documentation work:
+MGFX documentation:
 
 ```powershell
 cd mgfx-docs-site
@@ -252,8 +233,9 @@ npm run dev -- --host 127.0.0.1 --port 4174
 npm run build
 ```
 
-For package work, edit the `packages` submodule and run compiler tests or a
-GMod project build that imports the package being changed.
+Packages live in the `packages` submodule. Edit that repository directly and
+validate with compiler tests or a GMod project build that imports the changed
+package.
 
 ## License
 
