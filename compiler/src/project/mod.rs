@@ -697,7 +697,11 @@ fn module_imports(module: &ParsedProjectModule) -> Vec<ModuleImport> {
         .collect()
 }
 
-fn resolve_import_target(package_id: &PackageId, module_path: &str, raw: &str) -> Option<ModuleId> {
+pub(crate) fn resolve_import_target(
+    package_id: &PackageId,
+    module_path: &str,
+    raw: &str,
+) -> Option<ModuleId> {
     if let Some(external) = raw.strip_prefix('@') {
         return Some(ModuleId::new(external));
     }
@@ -1691,7 +1695,7 @@ fn write_file(path: &Path, contents: &str) -> Result<(), ProjectError> {
     })
 }
 
-fn discover_lux_sources(root: &Path) -> Result<Vec<PathBuf>, ProjectError> {
+pub(crate) fn discover_lux_sources(root: &Path) -> Result<Vec<PathBuf>, ProjectError> {
     let mut paths = Vec::new();
     discover_lux_sources_into(root, &mut paths)?;
     paths.sort();
@@ -1725,7 +1729,7 @@ fn discover_lux_sources_into(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<(),
     Ok(())
 }
 
-fn infer_module_path(source_root: &Path, path: &Path) -> String {
+pub(crate) fn infer_module_path(source_root: &Path, path: &Path) -> String {
     let rel = path.strip_prefix(source_root).unwrap_or(path);
     let mut components = rel
         .parent()
@@ -1745,7 +1749,7 @@ fn infer_module_path(source_root: &Path, path: &Path) -> String {
     normalize_module_path(&components.join("/"))
 }
 
-fn infer_part_realm(
+pub(crate) fn infer_part_realm(
     source_root: &Path,
     path: &Path,
     file_id: crate::source::FileId,

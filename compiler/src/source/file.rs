@@ -52,6 +52,41 @@ impl SourceFile {
         (index + 1, clamped - line_start + 1)
     }
 
+    pub fn line_col_utf16(&self, offset: usize) -> (usize, usize) {
+        let clamped = self.floor_char_boundary(offset.min(self.text.len()));
+        let (line, _) = self.line_col(clamped);
+        let line_start = self.line_starts[line - 1];
+        let column = self.text[line_start..clamped].encode_utf16().count() + 1;
+        (line, column)
+    }
+
+    pub fn offset_at_line_col_utf16(
+        &self,
+        zero_based_line: usize,
+        zero_based_column: usize,
+    ) -> usize {
+        let Some(line_start) = self.line_starts.get(zero_based_line).copied() else {
+            return self.text.len();
+        };
+        let line_end = self
+            .line_starts
+            .get(zero_based_line + 1)
+            .copied()
+            .unwrap_or(self.text.len());
+        let line = &self.text[line_start..line_end];
+        let mut utf16 = 0usize;
+        for (byte_offset, ch) in line.char_indices() {
+            if utf16 >= zero_based_column {
+                return line_start + byte_offset;
+            }
+            utf16 += ch.len_utf16();
+            if utf16 > zero_based_column {
+                return line_start + byte_offset;
+            }
+        }
+        line_end
+    }
+
     pub fn line_text(&self, one_based_line: usize) -> Option<&str> {
         let index = one_based_line.checked_sub(1)?;
         let start = *self.line_starts.get(index)?;
@@ -69,6 +104,13 @@ impl SourceFile {
             slice = stripped;
         }
         Some(slice)
+    }
+
+    fn floor_char_boundary(&self, mut offset: usize) -> usize {
+        while offset > 0 && !self.text.is_char_boundary(offset) {
+            offset -= 1;
+        }
+        offset
     }
 }
 
@@ -93,5 +135,14 @@ mod tests {
         assert_eq!(file.line_col(2), (2, 1));
         assert_eq!(file.line_col(3), (2, 2));
         assert_eq!(file.line_col(5), (3, 1));
+    }
+
+    #[test]
+    fn utf16_positions_handle_non_ascii_text() {
+        let file = SourceFile::new(0, None, "你a\n😀b\n");
+        assert_eq!(file.line_col_utf16(0), (1, 1));
+        assert_eq!(file.line_col_utf16("你".len()), (1, 2));
+        assert_eq!(file.offset_at_line_col_utf16(0, 1), "你".len());
+        assert_eq!(file.offset_at_line_col_utf16(1, 2), "你a\n😀".len());
     }
 }

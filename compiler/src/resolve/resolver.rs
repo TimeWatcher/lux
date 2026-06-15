@@ -51,6 +51,12 @@ pub struct ResolvedSymbol {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedExternalSymbol {
+    pub path: Vec<String>,
+    pub availability: RealmAvailability,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Export {
     pub name: String,
     pub local_name: String,
@@ -83,6 +89,7 @@ pub struct ResolveOutput {
     pub exports: Vec<Export>,
     pub module_edges: Vec<ModuleEdge>,
     pub symbols_by_span: HashMap<SourceSpan, ResolvedSymbol>,
+    pub external_symbols_by_span: HashMap<SourceSpan, ResolvedExternalSymbol>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -207,6 +214,7 @@ pub struct Resolver {
     exports: Vec<Export>,
     module_edges: Vec<ModuleEdge>,
     symbols_by_span: HashMap<SourceSpan, ResolvedSymbol>,
+    external_symbols_by_span: HashMap<SourceSpan, ResolvedExternalSymbol>,
     diagnostics: Vec<Diagnostic>,
     externs: Vec<ExternSymbol>,
     unknown_external_diagnostics: HashSet<ExternalDiagnosticKey>,
@@ -278,6 +286,7 @@ impl Resolver {
             exports: Vec::new(),
             module_edges: Vec::new(),
             symbols_by_span: HashMap::new(),
+            external_symbols_by_span: HashMap::new(),
             diagnostics: Vec::new(),
             externs,
             unknown_external_diagnostics: HashSet::new(),
@@ -297,6 +306,7 @@ impl Resolver {
             exports: self.exports,
             module_edges: self.module_edges,
             symbols_by_span: self.symbols_by_span,
+            external_symbols_by_span: self.external_symbols_by_span,
             diagnostics: self.diagnostics,
         }
     }
@@ -1425,7 +1435,15 @@ impl Resolver {
             return;
         }
         let active = *self.active_realms.last().unwrap_or(&RealmSet::SHARED);
-        match self.external_availability(path) {
+        let availability = self.external_availability(path);
+        self.external_symbols_by_span.insert(
+            span,
+            ResolvedExternalSymbol {
+                path: path.to_vec(),
+                availability: availability.clone(),
+            },
+        );
+        match availability {
             RealmAvailability::Known(realms) => {
                 if !realms.contains_all(active) {
                     let path_name = path.join(".");
