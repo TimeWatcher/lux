@@ -201,7 +201,8 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 - [Imports and exports](https://timewatcher.github.io/lux-docs-site/language/imports-exports)
 - [Realms](https://timewatcher.github.io/lux-docs-site/language/realms)
 - [GMod backend](https://timewatcher.github.io/lux-docs-site/gmod/)
-- [LSP and VS Code standards](https://github.com/TimeWatcher/lux-lsp)
+- [VS Code and LSP](https://timewatcher.github.io/lux-docs-site/reference/vscode)
+- [LSP repository](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX package docs](https://timewatcher.github.io/mgfx-docs-site/)
 
 ## Status

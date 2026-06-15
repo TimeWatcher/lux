@@ -195,7 +195,8 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 - [导入和导出](https://timewatcher.github.io/lux-docs-site/zh/language/imports-exports)
 - [运行域](https://timewatcher.github.io/lux-docs-site/zh/language/realms)
 - [GMod 后端](https://timewatcher.github.io/lux-docs-site/zh/gmod/)
-- [LSP 和 VS Code 标准](https://github.com/TimeWatcher/lux-lsp)
+- [VS Code 和 LSP](https://timewatcher.github.io/lux-docs-site/zh/reference/vscode)
+- [LSP 仓库](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX package 文档](https://timewatcher.github.io/mgfx-docs-site/zh/)
 
 ## 状态
