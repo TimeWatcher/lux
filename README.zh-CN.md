@@ -15,7 +15,7 @@ realm 顺序。**
 [快速开始](#快速开始) ·
 [内置包](https://github.com/TimeWatcher/lux-packages) ·
 [LSP](https://github.com/TimeWatcher/lux-lsp) ·
-[MGFX](https://timewatcher.github.io/mgfx-docs-site/zh/) ·
+[MGFX](https://github.com/TimeWatcher/lux-mgfx) ·
 [发布下载](https://github.com/TimeWatcher/lux/releases)
 
 [English](README.md) · 简体中文
@@ -161,7 +161,6 @@ compiler/        luxc 的 Rust 实现
 packages/        内置 Lux packages，以 submodule 管理
 lsp/             Lux LSP、VS Code 支持和 GMod API 智能标准
 docs-site/       Lux 文档站源码，以 submodule 管理
-mgfx-docs-site/  MGFX 文档站源码，以 submodule 管理
 docs/            设计说明和实现参考
 examples/        Lux 和 GMod 示例项目
 ```
@@ -197,7 +196,8 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 - [GMod 后端](https://timewatcher.github.io/lux-docs-site/zh/gmod/)
 - [VS Code 和 LSP](https://timewatcher.github.io/lux-docs-site/zh/reference/vscode)
 - [LSP 仓库](https://github.com/TimeWatcher/lux-lsp)
-- [MGFX package 文档](https://timewatcher.github.io/mgfx-docs-site/zh/)
+- [MGFX 仓库](https://github.com/TimeWatcher/lux-mgfx)
+- [MGFX 文档](https://timewatcher.github.io/mgfx-docs-site/zh/)
 
 ## 状态
 
@@ -222,14 +222,7 @@ npm run dev -- --host 127.0.0.1 --port 4173
 npm run build
 ```
 
-MGFX 文档：
-
-```powershell
-cd mgfx-docs-site
-npm install
-npm run dev -- --host 127.0.0.1 --port 4174
-npm run build
-```
+MGFX 位于独立仓库。开发 MGFX 时应进入上面的 MGFX 仓库和文档。
 
 Package 位于 `packages` submodule。修改 package 时应直接进入该仓库，并通过编译器测试
 或导入该 package 的 GMod 项目构建验证。
@@ -242,15 +235,13 @@ hover、completion、diagnostics 或 quick fix 时，应直接进入该仓库修
 Lux 使用拆分授权：
 
 - 源码使用 `MIT OR Apache-2.0`，另有独立授权的 package 除外。
-- 内置 `@lux/mgfx` package 仅允许非商业使用；商业使用 MGFX 需要版权方单独书面授权。
 - 文档正文使用 `CC-BY-4.0`。
 - 文档中的代码示例使用 `MIT OR Apache-2.0`。
 - Lux 名称、logo、icon 和其他品牌资产不通过这些开源协议授权复用。
 
 使用 `luxc` 编译你的源码，不会改变你的 addon 或生成项目的授权。如果生成 Lua 嵌入了
-Lux runtime 或 package 代码，嵌入的 package 代码保留原授权：大部分 Lux 代码仍是
-`MIT OR Apache-2.0`，MGFX 代码仍受 Lux MGFX Non-Commercial License 约束。
+Lux runtime 或 package 代码，嵌入的 package 代码保留原授权。
 
 详见 [LICENSE](LICENSE)、[LICENSE-MIT](LICENSE-MIT)、
 [LICENSE-APACHE](LICENSE-APACHE)、[LICENSE-DOCS](LICENSE-DOCS) 和
-[NOTICE](NOTICE)。MGFX 见 `packages/LICENSE-MGFX-NC`。
+[NOTICE](NOTICE)。

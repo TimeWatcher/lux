@@ -3,5 +3,6 @@ dist/
 build/
 .idea/
 .vscode/
+mgfx-docs-site/
 *.pdb
 *.tmp

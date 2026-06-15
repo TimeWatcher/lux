@@ -15,7 +15,7 @@ spaghetti.**
 [Quick Start](#quick-start) ·
 [Packages](https://github.com/TimeWatcher/lux-packages) ·
 [LSP](https://github.com/TimeWatcher/lux-lsp) ·
-[MGFX](https://timewatcher.github.io/mgfx-docs-site/) ·
+[MGFX](https://github.com/TimeWatcher/lux-mgfx) ·
 [Releases](https://github.com/TimeWatcher/lux/releases)
 
 English · [简体中文](README.zh-CN.md)
@@ -167,7 +167,6 @@ compiler/        Rust implementation of luxc
 packages/        Built-in Lux packages, tracked as a submodule
 lsp/             Lux LSP, VS Code support, and GMod API intelligence standards
 docs-site/       Public Lux documentation site, tracked as a submodule
-mgfx-docs-site/  MGFX documentation site, tracked as a submodule
 docs/            Design notes and implementation references
 examples/        Small Lux and GMod project examples
 ```
@@ -203,7 +202,8 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 - [GMod backend](https://timewatcher.github.io/lux-docs-site/gmod/)
 - [VS Code and LSP](https://timewatcher.github.io/lux-docs-site/reference/vscode)
 - [LSP repository](https://github.com/TimeWatcher/lux-lsp)
-- [MGFX package docs](https://timewatcher.github.io/mgfx-docs-site/)
+- [MGFX repository](https://github.com/TimeWatcher/lux-mgfx)
+- [MGFX documentation](https://timewatcher.github.io/mgfx-docs-site/)
 
 ## Status
 
@@ -229,14 +229,8 @@ npm run dev -- --host 127.0.0.1 --port 4173
 npm run build
 ```
 
-MGFX documentation:
-
-```powershell
-cd mgfx-docs-site
-npm install
-npm run dev -- --host 127.0.0.1 --port 4174
-npm run build
-```
+MGFX lives in its own repository. Use the MGFX repo and docs links above when
+working on it.
 
 Packages live in the `packages` submodule. Edit that repository directly and
 validate with compiler tests or a GMod project build that imports the changed
@@ -252,9 +246,6 @@ Lux uses a split license model:
 
 - Source code is licensed under `MIT OR Apache-2.0`, except for separately
   licensed packages.
-- The bundled `@lux/mgfx` package is licensed for non-commercial use only.
-  Commercial use of MGFX requires a separate written license from the copyright
-  holder.
 - Documentation prose is licensed under `CC-BY-4.0`.
 - Code examples in documentation are licensed under `MIT OR Apache-2.0`.
 - The Lux name, logo, icon, and other branding assets are not licensed for
@@ -262,10 +253,8 @@ Lux uses a split license model:
 
 Using `luxc` to compile your source code does not change the license of your
 addon or generated project. If generated Lua embeds Lux runtime or package code,
-that embedded Lux code keeps its package license: most Lux code remains
-`MIT OR Apache-2.0`, while embedded MGFX code remains under the Lux MGFX
-Non-Commercial License.
+that embedded Lux code keeps its package license.
 
 See [LICENSE](LICENSE), [LICENSE-MIT](LICENSE-MIT),
 [LICENSE-APACHE](LICENSE-APACHE), [LICENSE-DOCS](LICENSE-DOCS), and
-[NOTICE](NOTICE). For MGFX, see `packages/LICENSE-MGFX-NC`.
+[NOTICE](NOTICE).

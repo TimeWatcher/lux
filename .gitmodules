@@ -4,9 +4,6 @@
 [submodule "docs-site"]
 	path = docs-site
 	url = https://github.com/TimeWatcher/lux-docs-site.git
-[submodule "mgfx-docs-site"]
-	path = mgfx-docs-site
-	url = https://github.com/TimeWatcher/mgfx-docs-site.git
 [submodule "lsp"]
 	path = lsp
 	url = https://github.com/TimeWatcher/lux-lsp.git

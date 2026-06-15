@@ -276,10 +276,10 @@ fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
     let root = temp_project("runtime_loader_order");
     let source_root = root.join("src");
     let addon_root = root.join("addon");
-    let source = source_root.join("cl_mgfx_test.lux");
+    let source = source_root.join("cl_ui_test.lux");
     write_lux(
         &source,
-        "import * as mgfx from \"@lux/mgfx\"\nmgfx.installGlobal(\"MGFX\")",
+        "import { mount, node } from \"@lux/ui\"\nmount(() => node(\"Label\", {}, {}), (tree) => tree)",
     );
 
     let mut options = GmodBuildOptions::new(&source_root, &addon_root, &addon_root);
@@ -290,21 +290,16 @@ fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
         .loader
         .client_loader
         .render(&output.build_plan.registry);
-    let capabilities_pos = lua
-        .find("include(\"lux/runtime_order/client/runtime/lux/mgfx/capabilities.lua\")")
-        .expect("capabilities runtime include");
-    let mgfx_pos = lua
-        .find("include(\"lux/runtime_order/client/runtime/lux/mgfx.lua\")")
-        .expect("mgfx runtime include");
-    let entry_pos = lua
-        .find("/mgfx_test.lua\")")
-        .expect("project entry include");
+    let reactive_pos = lua
+        .find("include(\"lux/runtime_order/client/runtime/lux/reactive.lua\")")
+        .expect("reactive runtime include");
+    let ui_pos = lua
+        .find("include(\"lux/runtime_order/client/runtime/lux/ui.lua\")")
+        .expect("ui runtime include");
+    let entry_pos = lua.find("/ui_test.lua\")").expect("project entry include");
 
-    assert!(!lua.contains("lux/mgfx/console#client"), "{lua}");
-    assert!(!lua.contains("lux/mgfx/demo#client"), "{lua}");
-    assert!(!lua.contains("lux/mgfx/wheel_demo#client"), "{lua}");
-    assert!(capabilities_pos < mgfx_pos, "{lua}");
-    assert!(mgfx_pos < entry_pos, "{lua}");
+    assert!(reactive_pos < ui_pos, "{lua}");
+    assert!(ui_pos < entry_pos, "{lua}");
 
     let _ = fs::remove_dir_all(root);
 }

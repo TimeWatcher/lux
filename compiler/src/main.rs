@@ -15,8 +15,8 @@ use luxc::lex::Lexer;
 use luxc::lint::{LintOptions, lint_module};
 use luxc::lower::Lowerer;
 use luxc::package_manager::{
-    DependencySource, InitOptions, InstallRequest, ProjectTemplate, doctor as package_doctor,
-    init_project, install_package, list_locked,
+    DependencySource, InitOptions, InstallRequest, doctor as package_doctor, init_project,
+    install_package, list_locked,
 };
 use luxc::pipeline::parse_expand_resolve;
 use luxc::project::{GmodBuildOptions, ProjectManifest, build_gmod_project};
@@ -30,7 +30,7 @@ fn usage() {
     eprintln!("  luxc parse <path>");
     eprintln!("  luxc lint <path>");
     eprintln!("  luxc format <path> [--check] [--write]");
-    eprintln!("  luxc init [path] [--name <name>] [--template gmod-addon|gmod-ui]");
+    eprintln!("  luxc init [path] [--name <name>] [--template gmod-addon]");
     eprintln!(
         "  luxc install <package-id> (--builtin|--from <builtin|github:owner/repo|url|path>) [--tag <tag>|--branch <branch>|--commit <commit>]"
     );
@@ -590,7 +590,6 @@ fn parse_compile_command(path: PathBuf, rest: &[OsString]) -> Command {
 fn parse_init_command(args: &[OsString]) -> Command {
     let mut root = None;
     let mut name = None;
-    let mut template = ProjectTemplate::GmodAddon;
     let mut index = 0;
 
     while index < args.len() {
@@ -606,10 +605,9 @@ fn parse_init_command(args: &[OsString]) -> Command {
                 let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
                     return Command::Invalid;
                 };
-                let Some(parsed) = ProjectTemplate::parse(value) else {
+                if value != "gmod-addon" {
                     return Command::Invalid;
-                };
-                template = parsed;
+                }
                 index += 2;
             }
             value if value.starts_with("--") => return Command::Invalid,
@@ -630,11 +628,7 @@ fn parse_init_command(args: &[OsString]) -> Command {
             .filter(|name| !name.is_empty() && name != ".")
             .unwrap_or_else(|| "lux-project".into())
     });
-    Command::Init(InitOptions {
-        root,
-        name,
-        template,
-    })
+    Command::Init(InitOptions { root, name })
 }
 
 fn parse_install_command(args: &[OsString]) -> Command {
@@ -1060,12 +1054,8 @@ fn gmod_api_update(args: Vec<String>) -> Result<ExitCode, String> {
 fn package_init(options: InitOptions) -> Result<ExitCode, String> {
     init_project(&options).map_err(|err| err.to_string())?;
     println!(
-        "initialized Lux project at {} using {} template",
-        options.root.display(),
-        match options.template {
-            ProjectTemplate::GmodAddon => "gmod-addon",
-            ProjectTemplate::GmodUi => "gmod-ui",
-        }
+        "initialized Lux project at {} using gmod-addon template",
+        options.root.display()
     );
     Ok(ExitCode::SUCCESS)
 }

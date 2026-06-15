@@ -17,23 +17,6 @@ const LOCKFILE: &str = "lux.lock";
 pub struct InitOptions {
     pub root: PathBuf,
     pub name: String,
-    pub template: ProjectTemplate,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProjectTemplate {
-    GmodAddon,
-    GmodUi,
-}
-
-impl ProjectTemplate {
-    pub fn parse(value: &str) -> Option<Self> {
-        match value {
-            "gmod-addon" => Some(Self::GmodAddon),
-            "gmod-ui" => Some(Self::GmodUi),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -264,7 +247,7 @@ pub fn init_project(options: &InitOptions) -> Result<(), PackageManagerError> {
     })?;
     write_new_file(
         &options.root.join(PROJECT_MANIFEST),
-        &project_manifest_template(&options.name, options.template),
+        &project_manifest_template(&options.name),
     )?;
     write_new_file(&source_root.join("module.lux"), "export fn main() = true\n")?;
     Ok(())
@@ -338,15 +321,12 @@ pub fn list_locked(project_root: &Path) -> Result<Vec<LockedPackage>, PackageMan
     Ok(read_toml::<Lockfile>(&lock_path)?.package)
 }
 
-fn project_manifest_template(name: &str, template: ProjectTemplate) -> String {
-    let mut text = format!(
-        "name = \"{}\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\nsource_comments = \"boundary\"\n\n[dependencies]\n",
+fn project_manifest_template(name: &str) -> String {
+    format!(
+        "package_id = \"{}\"\nbundle_id = \"{}\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\nsource_comments = \"boundary\"\n\n[dependencies]\n",
+        escape_toml_string(name),
         escape_toml_string(name)
-    );
-    if template == ProjectTemplate::GmodUi {
-        text.push_str("\"@lux/ui\" = \"builtin\"\n");
-    }
-    text
+    )
 }
 
 #[derive(Debug, Clone, Default)]
@@ -361,7 +341,8 @@ impl ProjectDependencyManifest {
         if !path.is_file() {
             return Ok(Self {
                 pre_dependencies: vec![
-                    "name = \"lux-project\"".into(),
+                    "package_id = \"lux-project\"".into(),
+                    "bundle_id = \"lux-project\"".into(),
                     "".into(),
                     "[gmod]".into(),
                     "source_root = \"src\"".into(),
@@ -996,8 +977,6 @@ fn is_builtin_package(id: &str) -> bool {
             | "@lux/reactive"
             | "@lux/gmod"
             | "@lux/ui"
-            | "@lux/ui-core"
-            | "@lux/ui-vgui"
             | "@lux/macros"
             | "@lux/gmod/macros"
             | "@lux/compile/macro"
@@ -1365,14 +1344,34 @@ mod tests {
     }
 
     #[test]
+    fn init_project_manifest_is_valid_for_gmod_build() {
+        let root = temp_root("init_manifest");
+        init_project(&InitOptions {
+            root: root.clone(),
+            name: "demo".into(),
+        })
+        .expect("init project");
+
+        let text = fs::read_to_string(root.join("lux.toml")).expect("manifest");
+        assert!(text.contains("package_id = \"demo\""), "{text}");
+        assert!(text.contains("bundle_id = \"demo\""), "{text}");
+        assert!(!text.contains("name ="), "{text}");
+
+        crate::project::ProjectManifest::load(root.join("lux.toml"))
+            .expect("generated manifest should parse");
+
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn project_manifest_dependency_section_is_command_written() {
         let mut manifest = parse_project_dependency_manifest(
-            "name = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
+            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
         );
         manifest.set_dependency(
-            "@lux/ui-mgfx",
+            "@vendor/ui-ext",
             &DependencySource::Github {
-                repo: "TimeWatcher/lux-mgfx".into(),
+                repo: "vendor/ui-ext".into(),
                 tag: Some("v0.1.0".into()),
                 branch: None,
                 commit: None,
@@ -1385,45 +1384,45 @@ mod tests {
         manifest.write(&path).expect("write manifest");
         let text = fs::read_to_string(&path).expect("manifest text");
         assert!(text.contains("[dependencies]"), "{text}");
-        assert!(text.contains("\"@lux/ui-mgfx\""), "{text}");
-        assert!(text.contains("github = \"TimeWatcher/lux-mgfx\""), "{text}");
+        assert!(text.contains("\"@vendor/ui-ext\""), "{text}");
+        assert!(text.contains("github = \"vendor/ui-ext\""), "{text}");
         let _ = fs::remove_dir_all(path.parent().expect("parent"));
     }
 
     #[test]
     fn install_path_dependency_writes_transitive_lock() {
         let source = temp_root("source");
-        fs::create_dir_all(source.join("packages/mgfx/src")).expect("source package");
-        fs::create_dir_all(source.join("packages/ui-mgfx/src")).expect("ui package");
+        fs::create_dir_all(source.join("packages/core/src")).expect("source package");
+        fs::create_dir_all(source.join("packages/ui/src")).expect("ui package");
         fs::write(
             source.join("lux.package.toml"),
             r#"
-name = "lux-mgfx"
+name = "ui-ext"
 
 [[package]]
-id = "@lux/mgfx"
+id = "@vendor/core"
 version = "0.1.0"
-path = "packages/mgfx"
+path = "packages/core"
 
 [[package]]
-id = "@lux/ui-mgfx"
+id = "@vendor/ui-ext"
 version = "0.1.0"
-path = "packages/ui-mgfx"
+path = "packages/ui"
 depends = [
-  "@lux/mgfx 0.1.0",
-  "@lux/ui-core >=0.1 <0.2",
+  "@vendor/core 0.1.0",
+  "@lux/ui >=0.1 <0.2",
 ]
 "#,
         )
         .expect("source manifest");
         fs::write(
-            source.join("packages/mgfx/src/module.lux"),
+            source.join("packages/core/src/module.lux"),
             "export fn draw() = true\n",
         )
-        .expect("mgfx module");
+        .expect("core module");
         fs::write(
-            source.join("packages/ui-mgfx/src/module.lux"),
-            "import { draw } from \"@lux/mgfx\"\nexport fn mount() = draw()\n",
+            source.join("packages/ui/src/module.lux"),
+            "import { draw } from \"@vendor/core\"\nexport fn mount() = draw()\n",
         )
         .expect("ui module");
 
@@ -1437,16 +1436,16 @@ depends = [
 
         let output = install_package(&InstallRequest {
             project_root: project.clone(),
-            package: "@lux/ui-mgfx".into(),
+            package: "@vendor/ui-ext".into(),
             source: DependencySource::Path(source.clone()),
         })
         .expect("install");
 
         assert_eq!(output.total_count, 3);
         let lock = fs::read_to_string(project.join("lux.lock")).expect("lock");
-        assert!(lock.contains("@lux/ui-mgfx"), "{lock}");
-        assert!(lock.contains("@lux/mgfx"), "{lock}");
-        assert!(lock.contains("@lux/ui-core"), "{lock}");
+        assert!(lock.contains("@vendor/ui-ext"), "{lock}");
+        assert!(lock.contains("@vendor/core"), "{lock}");
+        assert!(lock.contains("@lux/ui"), "{lock}");
         let roots = lockfile_package_roots(&project).expect("roots");
         assert!(
             roots
@@ -1461,52 +1460,52 @@ depends = [
     #[test]
     fn package_source_hints_resolve_external_transitive_dependencies() {
         let base = temp_root("external_source");
-        let mgfx_source = base.join("mgfx-set");
+        let core_source = base.join("core-set");
         let ui_source = base.join("ui-set");
-        fs::create_dir_all(mgfx_source.join("packages/mgfx/src")).expect("mgfx package");
-        fs::create_dir_all(ui_source.join("packages/ui-mgfx/src")).expect("ui package");
+        fs::create_dir_all(core_source.join("packages/core/src")).expect("core package");
+        fs::create_dir_all(ui_source.join("packages/ui/src")).expect("ui package");
         fs::write(
-            mgfx_source.join("lux.package.toml"),
+            core_source.join("lux.package.toml"),
             r#"
-name = "lux-mgfx"
+name = "core-set"
 
 [[package]]
-id = "@lux/mgfx"
+id = "@vendor/core"
 version = "0.1.0"
-path = "packages/mgfx"
+path = "packages/core"
 "#,
         )
-        .expect("mgfx manifest");
+        .expect("core manifest");
         fs::write(
             ui_source.join("lux.package.toml"),
             format!(
                 r#"
-name = "lux-ui-mgfx"
+name = "ui-set"
 
 [[package]]
-id = "@lux/ui-mgfx"
+id = "@vendor/ui-ext"
 version = "0.1.0"
-path = "packages/ui-mgfx"
+path = "packages/ui"
 depends = [
-  "@lux/mgfx >=0.1 <0.2",
+  "@vendor/core >=0.1 <0.2",
 ]
 
 [[source]]
-package = "@lux/mgfx"
+package = "@vendor/core"
 path = "{}"
 "#,
-                mgfx_source.to_string_lossy().replace('\\', "\\\\")
+                core_source.to_string_lossy().replace('\\', "\\\\")
             ),
         )
         .expect("ui manifest");
         fs::write(
-            mgfx_source.join("packages/mgfx/src/module.lux"),
+            core_source.join("packages/core/src/module.lux"),
             "export fn draw() = true\n",
         )
-        .expect("mgfx module");
+        .expect("core module");
         fs::write(
-            ui_source.join("packages/ui-mgfx/src/module.lux"),
-            "import { draw } from \"@lux/mgfx\"\nexport fn mount() = draw()\n",
+            ui_source.join("packages/ui/src/module.lux"),
+            "import { draw } from \"@vendor/core\"\nexport fn mount() = draw()\n",
         )
         .expect("ui module");
 
@@ -1520,7 +1519,7 @@ path = "{}"
 
         let output = install_package(&InstallRequest {
             project_root: project.clone(),
-            package: "@lux/ui-mgfx".into(),
+            package: "@vendor/ui-ext".into(),
             source: DependencySource::Path(ui_source.clone()),
         })
         .expect("install");
@@ -1530,12 +1529,12 @@ path = "{}"
         assert!(
             locked
                 .iter()
-                .any(|package| package.id == "@lux/ui-mgfx" && package.direct)
+                .any(|package| package.id == "@vendor/ui-ext" && package.direct)
         );
         assert!(
             locked
                 .iter()
-                .any(|package| package.id == "@lux/mgfx" && !package.direct)
+                .any(|package| package.id == "@vendor/core" && !package.direct)
         );
         let roots = lockfile_package_roots(&project).expect("roots");
         assert!(
@@ -1545,7 +1544,7 @@ path = "{}"
                     == &strip_windows_verbatim_prefix(ui_source.canonicalize().unwrap()))
         );
         assert!(roots.iter().any(
-            |root| root == &strip_windows_verbatim_prefix(mgfx_source.canonicalize().unwrap())
+            |root| root == &strip_windows_verbatim_prefix(core_source.canonicalize().unwrap())
         ));
 
         let _ = fs::remove_dir_all(base);
@@ -1589,7 +1588,7 @@ name = "demo"
 
 [dependencies]
 "@lux/ui" = { builtin = true }
-"@lux/mgfx" = { github = "TimeWatcher/lux-mgfx", tag = "v0.1.0" }
+"@vendor/core" = { github = "vendor/core", tag = "v0.1.0" }
 "#,
         );
 
@@ -1600,39 +1599,42 @@ name = "demo"
         .expect("ui source parsed");
         assert!(matches!(ui, DependencySource::Builtin));
 
-        let mgfx = dependency_source_from_toml_value(
-            manifest.dependencies.get("@lux/mgfx").expect("mgfx source"),
+        let core = dependency_source_from_toml_value(
+            manifest
+                .dependencies
+                .get("@vendor/core")
+                .expect("core source"),
             Path::new("."),
         )
-        .expect("mgfx source parsed");
+        .expect("core source parsed");
         assert!(matches!(
-            mgfx,
+            core,
             DependencySource::Github {
                 ref repo,
                 tag: Some(ref tag),
                 branch: None,
                 commit: None
-            } if repo == "TimeWatcher/lux-mgfx" && tag == "v0.1.0"
+            } if repo == "vendor/core" && tag == "v0.1.0"
         ));
     }
 
     #[test]
     fn github_archive_urls_use_correct_ref_forms() {
         assert_eq!(
-            github_archive_url("TimeWatcher/lux-mgfx", Some("v0.1.0"), None, None),
-            "https://github.com/TimeWatcher/lux-mgfx/archive/refs/tags/v0.1.0.zip"
+            github_archive_url("vendor/core", Some("v0.1.0"), None, None),
+            "https://github.com/vendor/core/archive/refs/tags/v0.1.0.zip"
         );
         assert_eq!(
-            github_archive_url("TimeWatcher/lux-mgfx", None, Some("develop"), None),
-            "https://github.com/TimeWatcher/lux-mgfx/archive/refs/heads/develop.zip"
+            github_archive_url("vendor/core", None, Some("develop"), None),
+            "https://github.com/vendor/core/archive/refs/heads/develop.zip"
         );
         assert_eq!(
-            github_archive_url("TimeWatcher/lux-mgfx", None, None, Some("abc123")),
-            "https://github.com/TimeWatcher/lux-mgfx/archive/abc123.zip"
+            github_archive_url("vendor/core", None, None, Some("abc123")),
+            "https://github.com/vendor/core/archive/abc123.zip"
         );
         assert_eq!(
-            github_archive_url("TimeWatcher/lux-mgfx", None, None, None),
-            "https://github.com/TimeWatcher/lux-mgfx/archive/refs/heads/main.zip"
+            github_archive_url("vendor/core", None, None, None),
+            "https://github.com/vendor/core/archive/refs/heads/main.zip"
         );
     }
 
