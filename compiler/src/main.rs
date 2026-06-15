@@ -14,6 +14,10 @@ use luxc::host::HostRegistry;
 use luxc::lex::Lexer;
 use luxc::lint::{LintOptions, lint_module};
 use luxc::lower::Lowerer;
+use luxc::package_manager::{
+    DependencySource, InitOptions, InstallRequest, ProjectTemplate, doctor as package_doctor,
+    init_project, install_package, list_locked,
+};
 use luxc::pipeline::parse_expand_resolve;
 use luxc::project::{GmodBuildOptions, ProjectManifest, build_gmod_project};
 use luxc::runtime_map::map_generated_line;
@@ -26,6 +30,12 @@ fn usage() {
     eprintln!("  luxc parse <path>");
     eprintln!("  luxc lint <path>");
     eprintln!("  luxc format <path> [--check] [--write]");
+    eprintln!("  luxc init [path] [--name <name>] [--template gmod-addon|gmod-ui]");
+    eprintln!(
+        "  luxc install <package-id> (--builtin|--from <builtin|github:owner/repo|url|path>) [--tag <tag>|--branch <branch>|--commit <commit>]"
+    );
+    eprintln!("  luxc list [project-root]");
+    eprintln!("  luxc doctor [project-root]");
     eprintln!(
         "  luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]"
     );
@@ -362,6 +372,34 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        Command::Init(options) => match package_init(options) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
+        Command::Install(request) => match package_install(request) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
+        Command::List { project_root } => match package_list(project_root) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
+        Command::Doctor { project_root } => match package_doctor_command(project_root) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
         Command::GmodBuild {
             manifest,
             source_root,
@@ -420,6 +458,14 @@ enum Command {
         map_path: PathBuf,
         generated_line: usize,
     },
+    Init(InitOptions),
+    Install(InstallRequest),
+    List {
+        project_root: PathBuf,
+    },
+    Doctor {
+        project_root: PathBuf,
+    },
     GmodBuild {
         manifest: Option<PathBuf>,
         source_root: Option<PathBuf>,
@@ -460,6 +506,20 @@ fn parse_command(args: Vec<OsString>) -> Command {
                 generated_line,
             }
         }
+        [command, rest @ ..] if command == "init" => parse_init_command(rest),
+        [command, rest @ ..] if command == "install" => parse_install_command(rest),
+        [command] if command == "list" => Command::List {
+            project_root: PathBuf::from("."),
+        },
+        [command, project_root] if command == "list" => Command::List {
+            project_root: project_root.into(),
+        },
+        [command] if command == "doctor" => Command::Doctor {
+            project_root: PathBuf::from("."),
+        },
+        [command, project_root] if command == "doctor" => Command::Doctor {
+            project_root: project_root.into(),
+        },
         [scope, command, rest @ ..] if scope == "gmod" && command == "build" => {
             parse_gmod_build_command(rest)
         }
@@ -525,6 +585,173 @@ fn parse_compile_command(path: PathBuf, rest: &[OsString]) -> Command {
         map_path,
         source_comments,
     }
+}
+
+fn parse_init_command(args: &[OsString]) -> Command {
+    let mut root = None;
+    let mut name = None;
+    let mut template = ProjectTemplate::GmodAddon;
+    let mut index = 0;
+
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--name" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                name = Some(value.to_string());
+                index += 2;
+            }
+            "--template" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                let Some(parsed) = ProjectTemplate::parse(value) else {
+                    return Command::Invalid;
+                };
+                template = parsed;
+                index += 2;
+            }
+            value if value.starts_with("--") => return Command::Invalid,
+            _ => {
+                if root.is_some() {
+                    return Command::Invalid;
+                }
+                root = Some(PathBuf::from(&args[index]));
+                index += 1;
+            }
+        }
+    }
+
+    let root = root.unwrap_or_else(|| PathBuf::from("."));
+    let name = name.unwrap_or_else(|| {
+        root.file_name()
+            .map(|name| name.to_string_lossy().to_string())
+            .filter(|name| !name.is_empty() && name != ".")
+            .unwrap_or_else(|| "lux-project".into())
+    });
+    Command::Init(InitOptions {
+        root,
+        name,
+        template,
+    })
+}
+
+fn parse_install_command(args: &[OsString]) -> Command {
+    let Some(package) = args
+        .first()
+        .and_then(|arg| arg.to_str())
+        .map(str::to_string)
+    else {
+        return Command::Invalid;
+    };
+    let mut from = None;
+    let mut tag = None;
+    let mut branch = None;
+    let mut commit = None;
+    let mut project_root = PathBuf::from(".");
+    let mut index = 1;
+
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--from" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                from = Some(value.to_string());
+                index += 2;
+            }
+            "--tag" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                tag = Some(value.to_string());
+                index += 2;
+            }
+            "--branch" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                branch = Some(value.to_string());
+                index += 2;
+            }
+            "--commit" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                commit = Some(value.to_string());
+                index += 2;
+            }
+            "--builtin" => {
+                if from.is_some() {
+                    return Command::Invalid;
+                }
+                from = Some("builtin".into());
+                index += 1;
+            }
+            "--project" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                project_root = PathBuf::from(value);
+                index += 2;
+            }
+            _ => return Command::Invalid,
+        }
+    }
+
+    if [tag.as_ref(), branch.as_ref(), commit.as_ref()]
+        .into_iter()
+        .flatten()
+        .count()
+        > 1
+    {
+        return Command::Invalid;
+    }
+
+    let Some(from) = from else {
+        return Command::Invalid;
+    };
+    let Some(source) = parse_dependency_source(&from, tag, branch, commit) else {
+        return Command::Invalid;
+    };
+    Command::Install(InstallRequest {
+        project_root,
+        package,
+        source,
+    })
+}
+
+fn parse_dependency_source(
+    value: &str,
+    tag: Option<String>,
+    branch: Option<String>,
+    commit: Option<String>,
+) -> Option<DependencySource> {
+    if value == "builtin" {
+        if tag.is_some() || branch.is_some() || commit.is_some() {
+            return None;
+        }
+        return Some(DependencySource::Builtin);
+    }
+    if let Some(repo) = value.strip_prefix("github:") {
+        if repo.trim().is_empty() {
+            return None;
+        }
+        return Some(DependencySource::Github {
+            repo: repo.to_string(),
+            tag,
+            branch,
+            commit,
+        });
+    }
+    if value.starts_with("http://") || value.starts_with("https://") {
+        return Some(DependencySource::Url(value.to_string()));
+    }
+    if tag.is_some() || branch.is_some() || commit.is_some() {
+        return None;
+    }
+    Some(DependencySource::Path(PathBuf::from(value)))
 }
 
 fn parse_gmod_package_command(args: &[OsString]) -> Command {
@@ -826,6 +1053,67 @@ fn gmod_api_update(args: Vec<String>) -> Result<ExitCode, String> {
     println!("database: {}", summary.database_path.display());
     if let Some(path) = summary.coverage_path {
         println!("coverage manifest: {}", path.display());
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn package_init(options: InitOptions) -> Result<ExitCode, String> {
+    init_project(&options).map_err(|err| err.to_string())?;
+    println!(
+        "initialized Lux project at {} using {} template",
+        options.root.display(),
+        match options.template {
+            ProjectTemplate::GmodAddon => "gmod-addon",
+            ProjectTemplate::GmodUi => "gmod-ui",
+        }
+    );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn package_install(request: InstallRequest) -> Result<ExitCode, String> {
+    let output = install_package(&request).map_err(|err| err.to_string())?;
+    println!(
+        "installed {} into {} ({} direct, {} total packages)",
+        output.package_id,
+        output.package_root.display(),
+        output.direct_count,
+        output.total_count
+    );
+    println!("lockfile: {}", output.lock_path.display());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn package_list(project_root: PathBuf) -> Result<ExitCode, String> {
+    let packages = list_locked(&project_root).map_err(|err| err.to_string())?;
+    if packages.is_empty() {
+        println!("no locked packages in {}", project_root.display());
+        return Ok(ExitCode::SUCCESS);
+    }
+    for package in packages {
+        println!(
+            "{} {} {} {}",
+            package.id,
+            package.version,
+            if package.direct {
+                "direct"
+            } else {
+                "transitive"
+            },
+            package.root.display()
+        );
+    }
+    Ok(ExitCode::SUCCESS)
+}
+
+fn package_doctor_command(project_root: PathBuf) -> Result<ExitCode, String> {
+    let report = package_doctor(&project_root).map_err(|err| err.to_string())?;
+    println!("project: {}", report.project_root.display());
+    println!("manifest: {}", report.manifest_path.display());
+    println!("lockfile: {}", report.lock_path.display());
+    println!("direct dependencies: {}", report.dependency_count);
+    println!("locked packages: {}", report.locked_count);
+    for root in report.package_roots {
+        println!("package root: {}", root.display());
     }
     Ok(ExitCode::SUCCESS)
 }

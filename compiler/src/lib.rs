@@ -12,6 +12,7 @@ pub mod lint;
 pub mod lower;
 pub mod macro_expansion;
 pub mod module;
+pub mod package_manager;
 pub mod packages;
 pub mod parse;
 pub(crate) mod part_order;

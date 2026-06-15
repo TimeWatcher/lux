@@ -262,7 +262,9 @@ pub fn compile_paths(
     paths: &[PathBuf],
 ) -> Result<CompileProjectOutput, ProjectError> {
     let package_id = config.effective_package_id();
-    let runtime_registry = RuntimePackageRegistry::load_default().map_err(ProjectError::Runtime)?;
+    let runtime_registry =
+        RuntimePackageRegistry::load_default_with_package_roots(&config.package_roots)
+            .map_err(ProjectError::Runtime)?;
     let compile_time_registry =
         CompileTimePackageRegistry::load_default_with_package_roots(&config.package_roots)
             .map_err(ProjectError::CompileTime)?;
@@ -397,7 +399,9 @@ pub fn build_gmod_project(options: &GmodBuildOptions) -> Result<GmodProjectOutpu
     };
     let package_id = project_config.effective_package_id();
     let project = compile_project(&project_config)?;
-    let runtime_registry = RuntimePackageRegistry::load_default().map_err(ProjectError::Runtime)?;
+    let runtime_registry =
+        RuntimePackageRegistry::load_default_with_package_roots(&options.package_roots)
+            .map_err(ProjectError::Runtime)?;
     let mut backend_config = GmodBackendConfig::new(
         &options.source_root,
         &options.addon_root,

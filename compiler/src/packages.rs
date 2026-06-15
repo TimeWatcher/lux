@@ -3,6 +3,8 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
+use serde::Deserialize;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PackagePhaseKind {
     Runtime,
@@ -14,6 +16,7 @@ pub enum PackagePhaseKind {
 pub struct PackagePhase {
     pub package_id: String,
     pub kind: PackagePhaseKind,
+    pub package_dir: PathBuf,
     pub source_dir: PathBuf,
     pub source_path: PathBuf,
     pub source_paths: Vec<PathBuf>,
@@ -22,6 +25,7 @@ pub struct PackagePhase {
 #[derive(Debug)]
 pub enum PackageLoadError {
     Io { path: PathBuf, source: io::Error },
+    Parse { path: PathBuf, message: String },
 }
 
 impl fmt::Display for PackageLoadError {
@@ -31,6 +35,13 @@ impl fmt::Display for PackageLoadError {
                 write!(
                     f,
                     "failed to discover Lux packages under {}: {source}",
+                    path.display()
+                )
+            }
+            Self::Parse { path, message } => {
+                write!(
+                    f,
+                    "invalid Lux package manifest {}: {message}",
                     path.display()
                 )
             }
@@ -82,9 +93,47 @@ fn discover_phases(
     root: &Path,
     kind: PackagePhaseKind,
 ) -> Result<Vec<PackagePhase>, PackageLoadError> {
+    if root.join("lux.package.toml").is_file() {
+        return discover_manifest_phases(root, kind);
+    }
+
     let mut phases = Vec::new();
     discover_phases_into(root, root, kind, &mut phases)?;
     phases.sort_by(|a, b| a.package_id.cmp(&b.package_id));
+    Ok(phases)
+}
+
+fn discover_manifest_phases(
+    root: &Path,
+    kind: PackagePhaseKind,
+) -> Result<Vec<PackagePhase>, PackageLoadError> {
+    let manifest_path = root.join("lux.package.toml");
+    let manifest = PackageSetManifest::load(&manifest_path)?;
+    let mut phases = Vec::new();
+    for package in manifest.package {
+        let package_dir = root.join(&package.path);
+        if let Some((source_dir, source_paths)) = phase_source_paths(&package_dir, kind)? {
+            let source_path = source_paths
+                .iter()
+                .find(|path| path.file_name().is_some_and(|name| name == "module.lux"))
+                .cloned()
+                .or_else(|| source_paths.first().cloned())
+                .unwrap_or_else(|| source_dir.join("module.lux"));
+            phases.push(PackagePhase {
+                package_id: normalize_package_id(&package.id),
+                kind,
+                package_dir,
+                source_dir,
+                source_path,
+                source_paths,
+            });
+        }
+    }
+    phases.sort_by(|a, b| {
+        a.package_id
+            .cmp(&b.package_id)
+            .then(a.source_path.cmp(&b.source_path))
+    });
     Ok(phases)
 }
 
@@ -123,6 +172,7 @@ fn discover_phases_into(
             out.push(PackagePhase {
                 package_id: package_id_for_dir(root, &path),
                 kind,
+                package_dir: path.clone(),
                 source_dir,
                 source_path,
                 source_paths,
@@ -185,14 +235,52 @@ fn discover_lux_sources_into(dir: &Path, paths: &mut Vec<PathBuf>) -> Result<(),
 }
 
 fn package_id_for_dir(root: &Path, package_dir: &Path) -> String {
-    package_dir
-        .strip_prefix(root)
-        .unwrap_or(package_dir)
-        .components()
-        .filter_map(|component| match component {
-            std::path::Component::Normal(part) => Some(part.to_string_lossy().to_string()),
-            _ => None,
-        })
+    normalize_package_id(
+        &package_dir
+            .strip_prefix(root)
+            .unwrap_or(package_dir)
+            .components()
+            .filter_map(|component| match component {
+                std::path::Component::Normal(part) => Some(part.to_string_lossy().to_string()),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+            .join("/"),
+    )
+}
+
+fn normalize_package_id(value: &str) -> String {
+    value
+        .trim()
+        .trim_start_matches('@')
+        .replace('\\', "/")
+        .split('/')
+        .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join("/")
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageSetManifest {
+    #[serde(default)]
+    package: Vec<PackageManifestEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct PackageManifestEntry {
+    id: String,
+    path: PathBuf,
+}
+
+impl PackageSetManifest {
+    fn load(path: &Path) -> Result<Self, PackageLoadError> {
+        let text = fs::read_to_string(path).map_err(|source| PackageLoadError::Io {
+            path: path.to_path_buf(),
+            source,
+        })?;
+        toml::from_str(&text).map_err(|source| PackageLoadError::Parse {
+            path: path.to_path_buf(),
+            message: source.to_string(),
+        })
+    }
 }

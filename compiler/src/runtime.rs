@@ -31,48 +31,72 @@ impl RuntimePackageRegistry {
         Self::load(default_package_root())
     }
 
+    pub fn load_default_with_package_roots(
+        extra_roots: &[PathBuf],
+    ) -> Result<Self, RuntimePackageError> {
+        let mut roots = Vec::with_capacity(extra_roots.len() + 1);
+        roots.push(default_package_root());
+        roots.extend(extra_roots.iter().cloned());
+        Self::load_roots_with_compile_time_extra(roots, extra_roots)
+    }
+
     pub fn load(root: impl Into<PathBuf>) -> Result<Self, RuntimePackageError> {
-        let root = root.into();
+        Self::load_roots(vec![root.into()])
+    }
+
+    pub fn load_roots(roots: Vec<PathBuf>) -> Result<Self, RuntimePackageError> {
+        Self::load_roots_with_compile_time_extra(roots, &[])
+    }
+
+    fn load_roots_with_compile_time_extra(
+        roots: Vec<PathBuf>,
+        compile_time_extra_roots: &[PathBuf],
+    ) -> Result<Self, RuntimePackageError> {
+        let root = roots.first().cloned().unwrap_or_else(default_package_root);
         let mut packages = BTreeMap::new();
         let mut next_file_id = 10_000u32;
         let mut macro_registry = MacroRegistry::empty();
-        CompileTimePackageRegistry::load_default()
+        CompileTimePackageRegistry::load_default_with_package_roots(compile_time_extra_roots)
             .map_err(|err| RuntimePackageError::Diagnostics(vec![err.to_string()]))?
             .register_macros(&mut macro_registry)
             .map_err(|err| RuntimePackageError::Diagnostics(vec![err.to_string()]))?;
-        for phase in discover_runtime_phases(&root).map_err(RuntimePackageError::Package)? {
-            let id = ModuleId::new(&phase.package_id);
-            let parts = parse_runtime_parts(&phase, &macro_registry, &mut next_file_id)?;
-            let resolve_parts = parts
-                .iter()
-                .map(|part| ResolvePart {
-                    module: &part.module,
-                    default_realm: part.default_realm,
-                })
-                .collect::<Vec<_>>();
-            let resolved = Resolver::resolve_parts(&resolve_parts);
-            if resolved.has_errors() {
-                return Err(RuntimePackageError::Diagnostics(
-                    render_runtime_diagnostics_by_part(&parts, &resolved.diagnostics),
-                ));
-            }
-            let metadata = runtime_metadata_from_resolved(&resolved);
-            let package = RuntimePackage {
-                id: id.clone(),
-                path: phase.source_path.clone(),
-                source_dir: phase.source_dir.clone(),
-                parts,
-                resolved,
-                exports: metadata.exports,
-                imports: metadata.imports,
-            };
+        for package_root in &roots {
+            for phase in
+                discover_runtime_phases(package_root).map_err(RuntimePackageError::Package)?
+            {
+                let id = ModuleId::new(&phase.package_id);
+                let parts = parse_runtime_parts(&phase, &macro_registry, &mut next_file_id)?;
+                let resolve_parts = parts
+                    .iter()
+                    .map(|part| ResolvePart {
+                        module: &part.module,
+                        default_realm: part.default_realm,
+                    })
+                    .collect::<Vec<_>>();
+                let resolved = Resolver::resolve_parts(&resolve_parts);
+                if resolved.has_errors() {
+                    return Err(RuntimePackageError::Diagnostics(
+                        render_runtime_diagnostics_by_part(&parts, &resolved.diagnostics),
+                    ));
+                }
+                let metadata = runtime_metadata_from_resolved(&resolved);
+                let package = RuntimePackage {
+                    id: id.clone(),
+                    path: phase.source_path.clone(),
+                    source_dir: phase.source_dir.clone(),
+                    parts,
+                    resolved,
+                    exports: metadata.exports,
+                    imports: metadata.imports,
+                };
 
-            if let Some(existing) = packages.insert(id.clone(), package) {
-                return Err(RuntimePackageError::DuplicatePackage {
-                    id: id.as_str().to_string(),
-                    first: existing.path,
-                    second: phase.source_path,
-                });
+                if let Some(existing) = packages.insert(id.clone(), package) {
+                    return Err(RuntimePackageError::DuplicatePackage {
+                        id: id.as_str().to_string(),
+                        first: existing.path,
+                        second: phase.source_path,
+                    });
+                }
             }
         }
         Ok(Self { root, packages })

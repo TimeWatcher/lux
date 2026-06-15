@@ -3,6 +3,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use crate::ast::Realm;
+use crate::package_manager::lockfile_package_roots;
 use crate::resolve::{ExternSymbol, UnknownExternalPolicy};
 use crate::sourcemap::SourceCommentMode;
 
@@ -82,34 +83,42 @@ impl ProjectManifest {
                 ));
             };
             let key = key.trim();
-            let value = parse_string_value(path, line_index, value.trim())?;
+            let raw_value = value.trim();
 
             match (section.as_str(), key) {
+                ("dependencies", _) => {}
                 ("", "package_id") | ("project", "package_id") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     package_id = Some(value);
                 }
                 ("", "bundle_id") | ("project", "bundle_id") | ("gmod", "bundle_id") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     bundle_id = Some(value);
                 }
                 ("", "source_root") | ("project", "source_root") | ("gmod", "source_root") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     source_root = Some(resolve_path(base, &value));
                 }
                 ("", "addon_root") | ("project", "addon_root") | ("gmod", "addon_root") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     addon_root = Some(resolve_path(base, &value));
                 }
                 ("", "generated_root")
                 | ("project", "generated_root")
                 | ("gmod", "generated_root") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     generated_root = Some(resolve_path(base, &value));
                 }
                 ("", "package_roots")
                 | ("project", "package_roots")
                 | ("gmod", "package_roots") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     package_roots = parse_path_list(base, &value);
                 }
                 ("", "source_comments")
                 | ("project", "source_comments")
                 | ("gmod", "source_comments") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     let Some(mode) = SourceCommentMode::parse(&value) else {
                         return Err(parse_error(
                             path,
@@ -120,6 +129,7 @@ impl ProjectManifest {
                     source_comments = Some(mode);
                 }
                 ("target.gmod.realm", "unknown_external") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     let Some(policy) = UnknownExternalPolicy::parse(&value) else {
                         return Err(parse_error(
                             path,
@@ -130,6 +140,7 @@ impl ProjectManifest {
                     gmod_unknown_external = Some(policy);
                 }
                 ("target.gmod.extern", extern_path) => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     let Some(realm) = Realm::parse(&value) else {
                         return Err(parse_error(
                             path,
@@ -140,6 +151,7 @@ impl ProjectManifest {
                     gmod_externs.push(manifest_extern(extern_path, realm));
                 }
                 (section_name, "realm") if section_name.starts_with("target.gmod.extern.") => {
+                    let value = parse_string_value(path, line_index, raw_value)?;
                     let Some(realm) = Realm::parse(&value) else {
                         return Err(parse_error(
                             path,
@@ -166,7 +178,7 @@ impl ProjectManifest {
             source_root.ok_or_else(|| parse_error(path, 0, "missing `source_root`"))?;
         let addon_root = addon_root.ok_or_else(|| parse_error(path, 0, "missing `addon_root`"))?;
 
-        Ok(Self {
+        let mut manifest = Self {
             package_id,
             bundle_id,
             source_root,
@@ -176,7 +188,19 @@ impl ProjectManifest {
             source_comments,
             gmod_unknown_external,
             gmod_externs,
-        })
+        };
+        if let Ok(lock_roots) = lockfile_package_roots(base) {
+            for root in lock_roots {
+                if !manifest
+                    .package_roots
+                    .iter()
+                    .any(|existing| existing == &root)
+                {
+                    manifest.package_roots.push(root);
+                }
+            }
+        }
+        Ok(manifest)
     }
 }
 

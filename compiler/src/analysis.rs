@@ -396,7 +396,7 @@ pub fn analyze_file_map(
     }
 
     let module_vec = modules.into_values().collect::<Vec<_>>();
-    let external_exports = runtime_external_exports(&mut diagnostics);
+    let external_exports = runtime_external_exports(&config, &mut diagnostics);
     let graph = match build_analysis_graph(&module_vec, external_exports.clone()) {
         Ok(graph) => Some(graph),
         Err(graph_diagnostics) => {
@@ -565,7 +565,7 @@ impl AnalysisWorkspace {
         }
 
         let module_vec = existing_modules.into_values().collect::<Vec<_>>();
-        let external_exports = runtime_external_exports(&mut unaffected_diagnostics);
+        let external_exports = runtime_external_exports(&self.config, &mut unaffected_diagnostics);
         let graph = match build_analysis_graph(&module_vec, external_exports.clone()) {
             Ok(graph) => Some(graph),
             Err(graph_diagnostics) => {
@@ -2199,9 +2199,10 @@ fn build_analysis_graph(
 }
 
 fn runtime_external_exports(
+    config: &AnalysisConfig,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> BTreeMap<ModuleId, Vec<ModuleExport>> {
-    match RuntimePackageRegistry::load_default() {
+    match RuntimePackageRegistry::load_default_with_package_roots(&config.package_roots) {
         Ok(runtime_registry) => runtime_registry.export_metadata(),
         Err(err) => {
             diagnostics.push(Diagnostic::error(format!(
