@@ -687,6 +687,21 @@ impl ProjectAnalysis {
                         });
                     }
                 }
+                "REALM002" => {
+                    if let Some(label) = diagnostic.labels.first()
+                        && let Some(target_realm) = narrowed_export_realm(&diagnostic.message)
+                        && let Some(edit) =
+                            export_realm_narrowing_edit(file, label.span, target_realm)
+                    {
+                        actions.push(AnalysisCodeAction {
+                            title: format!("Change export realm to {target_realm}"),
+                            kind: AnalysisEditKind::Guided,
+                            diagnostics: vec![code.to_string()],
+                            edits: vec![edit],
+                            command: None,
+                        });
+                    }
+                }
                 "MODULE008" => {
                     if let Some(help) = &diagnostic.help {
                         actions.push(AnalysisCodeAction {
@@ -1561,6 +1576,38 @@ fn module_input(module: &AnalyzedModule) -> crate::module::ModuleInput {
     )
 }
 
+fn narrowed_export_realm(message: &str) -> Option<&'static str> {
+    if message.contains(" from server to ") {
+        Some("server")
+    } else if message.contains(" from client to ") {
+        Some("client")
+    } else {
+        None
+    }
+}
+
+fn export_realm_narrowing_edit(
+    file: &SourceFile,
+    span: SourceSpan,
+    target_realm: &str,
+) -> Option<AnalysisTextEdit> {
+    let line_start = file.text[..span.byte_start]
+        .rfind('\n')
+        .map_or(0, |index| index + 1);
+    let line_end = file.text[span.byte_start..]
+        .find('\n')
+        .map_or(file.text.len(), |offset| span.byte_start + offset);
+    let line = &file.text[line_start..line_end];
+    let shared_offset = line.find("shared")?;
+    let start = line_start + shared_offset;
+    let end = start + "shared".len();
+    Some(AnalysisTextEdit {
+        path: file.path.clone()?,
+        range: range_for_span(file, SourceSpan::new(file.id, start, end)),
+        new_text: target_realm.to_string(),
+    })
+}
+
 fn module_exports(module: &AnalyzedModule) -> Vec<ModuleExport> {
     module
         .resolved
@@ -2023,5 +2070,35 @@ mod tests {
                 .iter()
                 .any(|action| action.title == "Add extern server ThirdPartyAddon.DoThing")
         );
+    }
+
+    #[test]
+    fn export_realm_widening_has_narrowing_quick_fix() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("module.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [AnalysisFile {
+                path: path.clone(),
+                text: "server fn grant() = 1\nexport shared { grant }".into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("REALM002")),
+            "{:#?}",
+            output.diagnostics
+        );
+        let actions = output.code_actions_for_path(&path);
+        let action = actions
+            .iter()
+            .find(|action| action.title == "Change export realm to server")
+            .expect("realm narrowing action");
+        assert_eq!(action.edits.len(), 1);
+        assert_eq!(action.edits[0].new_text, "server");
     }
 }
