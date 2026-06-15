@@ -5,6 +5,7 @@ use super::{
 use crate::ast::Realm;
 use crate::module::{ArtifactRealm, ModuleId};
 use crate::resolve::{ExternSymbol, ResolverOptions};
+use crate::test_support::test_std_package_root;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -274,6 +275,7 @@ fn gmod_project_surfaces_unknown_external_warnings() {
 #[test]
 fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
     let root = temp_project("runtime_loader_order");
+    let std_root = test_std_package_root();
     let source_root = root.join("src");
     let addon_root = root.join("addon");
     let source = source_root.join("cl_ui_test.lux");
@@ -284,6 +286,7 @@ fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
 
     let mut options = GmodBuildOptions::new(&source_root, &addon_root, &addon_root);
     options.bundle_id = Some("runtime_order".into());
+    options.package_roots = vec![std_root.clone()];
     let output = build_gmod_project(&options).expect("build gmod project");
     let lua = output
         .build_plan
@@ -302,4 +305,5 @@ fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
     assert!(ui_pos < entry_pos, "{lua}");
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }

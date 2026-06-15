@@ -52,26 +52,21 @@ impl fmt::Display for PackageLoadError {
 impl std::error::Error for PackageLoadError {}
 
 pub fn default_package_root() -> PathBuf {
-    if let Some(path) = std::env::var_os("LUX_PACKAGE_ROOT").filter(|value| !value.is_empty()) {
-        return PathBuf::from(path);
-    }
+    default_package_roots()
+        .into_iter()
+        .next()
+        .unwrap_or_default()
+}
 
-    if let Some(exe_dir) = std::env::current_exe()
-        .ok()
-        .and_then(|path| path.parent().map(Path::to_path_buf))
-    {
-        let beside_exe = exe_dir.join("packages");
-        if beside_exe.is_dir() {
-            return beside_exe;
-        }
-
-        let beside_parent = exe_dir.join("../packages");
-        if beside_parent.is_dir() {
-            return beside_parent;
-        }
-    }
-
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../packages")
+pub fn default_package_roots() -> Vec<PathBuf> {
+    std::env::var_os("LUX_PACKAGE_ROOT")
+        .map(|value| {
+            std::env::split_paths(&value)
+                .filter(|path| !path.as_os_str().is_empty())
+                .collect::<Vec<_>>()
+        })
+        .filter(|paths| !paths.is_empty())
+        .unwrap_or_default()
 }
 
 pub fn discover_runtime_phases(root: &Path) -> Result<Vec<PackagePhase>, PackageLoadError> {
@@ -93,6 +88,10 @@ fn discover_phases(
     root: &Path,
     kind: PackagePhaseKind,
 ) -> Result<Vec<PackagePhase>, PackageLoadError> {
+    if !root.is_dir() {
+        return Ok(Vec::new());
+    }
+
     if root.join("lux.package.toml").is_file() {
         return discover_manifest_phases(root, kind);
     }

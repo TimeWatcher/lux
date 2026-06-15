@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::ast::*;
 use crate::diag::{Diagnostic, Label, Severity};
+use crate::package_manager::LUX_STD_REPO;
 use crate::source::{SourceFile, SourceSpan};
 
 const MAX_EXPANSION_DEPTH: usize = 32;
@@ -77,14 +78,16 @@ impl MacroEnv {
                 match specifier {
                     ImportSpecifier::Named { imported, local } => {
                         if !registry.knows_source(&import.source) {
-                            diagnostics.push(
-                                Diagnostic::error(format!(
-                                    "unknown macro package `{}`",
-                                    import.source
-                                ))
-                                .with_code("MACRO001")
-                                .with_label(Label::primary(stmt.span, "unknown macro package")),
-                            );
+                            let mut diagnostic = Diagnostic::error(format!(
+                                "unknown macro package `{}`",
+                                import.source
+                            ))
+                            .with_code("MACRO001")
+                            .with_label(Label::primary(stmt.span, "unknown macro package"));
+                            if let Some(help) = official_macro_install_help(&import.source) {
+                                diagnostic = diagnostic.with_help(help);
+                            }
+                            diagnostics.push(diagnostic);
                             unavailable_sources.insert(import.source.clone());
                         } else if !registry.contains(&import.source, &imported.name) {
                             diagnostics.push(
@@ -110,14 +113,16 @@ impl MacroEnv {
                     }
                     ImportSpecifier::Namespace { local } => {
                         if !registry.knows_source(&import.source) {
-                            diagnostics.push(
-                                Diagnostic::error(format!(
-                                    "unknown macro package `{}`",
-                                    import.source
-                                ))
-                                .with_code("MACRO001")
-                                .with_label(Label::primary(stmt.span, "unknown macro package")),
-                            );
+                            let mut diagnostic = Diagnostic::error(format!(
+                                "unknown macro package `{}`",
+                                import.source
+                            ))
+                            .with_code("MACRO001")
+                            .with_label(Label::primary(stmt.span, "unknown macro package"));
+                            if let Some(help) = official_macro_install_help(&import.source) {
+                                diagnostic = diagnostic.with_help(help);
+                            }
+                            diagnostics.push(diagnostic);
                             unavailable_sources.insert(import.source.clone());
                         } else if !registry.has_macros_from_source(&import.source) {
                             diagnostics.push(
@@ -249,6 +254,17 @@ impl MacroRegistry {
 
 fn canonical_import_source(source: &str) -> String {
     source.strip_prefix('@').unwrap_or(source).to_string()
+}
+
+fn official_macro_install_help(source: &str) -> Option<String> {
+    let source = canonical_import_source(source);
+    if matches!(source.as_str(), "lux/macros" | "lux/gmod/macros") {
+        Some(format!(
+            "install it with `luxc install @{source} --from github:{LUX_STD_REPO}`"
+        ))
+    } else {
+        None
+    }
 }
 
 pub trait MacroProvider: std::fmt::Debug + Send + Sync {
@@ -1387,6 +1403,7 @@ mod tests {
     use crate::parse::Parser;
     use crate::resolve::Resolver;
     use crate::source::SourceFile;
+    use crate::test_support::test_std_package_root;
 
     use super::{MacroExpansion, MacroProvider, expand_macros_with_registry};
 
@@ -1396,13 +1413,17 @@ mod tests {
         assert!(lex.diagnostics.is_empty(), "{:#?}", lex.diagnostics);
         let parsed = Parser::new(&lex.tokens).parse_module();
         assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
+        let std_root = test_std_package_root();
         let compile_time =
-            CompileTimePackageRegistry::load_default().expect("compile-time registry");
+            CompileTimePackageRegistry::load_default_with_package_roots(&[std_root.clone()])
+                .expect("compile-time registry");
         let mut registry = super::MacroRegistry::empty();
         compile_time
             .register_macros(&mut registry)
             .expect("register compile-time macros");
-        expand_macros_with_registry(&file, &parsed.module, &registry)
+        let output = expand_macros_with_registry(&file, &parsed.module, &registry);
+        let _ = std::fs::remove_dir_all(std_root);
+        output
     }
 
     fn lua_for_expanded(output: &super::MacroExpandOutput) -> String {
@@ -1605,10 +1626,10 @@ mod tests {
         assert!(output.has_errors());
         assert!(
             output.diagnostics.iter().any(|diagnostic| {
-                diagnostic.code.as_deref() == Some("MACRO004")
+                diagnostic.code.as_deref() == Some("MACRO002")
                     && diagnostic
                         .message
-                        .contains("can only be used as a statement")
+                        .contains("statement macro cannot be used in expression position")
             }),
             "{:#?}",
             output.diagnostics
@@ -1776,6 +1797,29 @@ mod tests {
                     && diagnostic
                         .message
                         .contains("unknown macro package `lux/gmod/realm`")
+            }),
+            "{:#?}",
+            output.diagnostics
+        );
+    }
+
+    #[test]
+    fn missing_official_macro_package_suggests_install_command() {
+        let file = SourceFile::new(0, None, "import macro { dbg } from \"@lux/macros\"\ndbg(1)");
+        let lex = Lexer::new(&file).lex_all();
+        assert!(lex.diagnostics.is_empty(), "{:#?}", lex.diagnostics);
+        let parsed = Parser::new(&lex.tokens).parse_module();
+        assert!(parsed.diagnostics.is_empty(), "{:#?}", parsed.diagnostics);
+
+        let output =
+            expand_macros_with_registry(&file, &parsed.module, &super::MacroRegistry::empty());
+        assert!(output.has_errors());
+        assert!(
+            output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("MACRO001")
+                    && diagnostic.help.as_deref().is_some_and(|help| {
+                        help.contains("luxc install @lux/macros --from github:TimeWatcher/lux-std")
+                    })
             }),
             "{:#?}",
             output.diagnostics

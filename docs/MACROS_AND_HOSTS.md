@@ -4,7 +4,8 @@ Lux keeps language extension offline and self-contained:
 
 - syntax macros run before resolution/lowering and rewrite surface AST
 - host transforms run after resolution/lowering and rewrite normalized IR
-- macro, host, and runtime implementations are Lux source files under `packages/`
+- macro, host, and runtime implementations are Lux source files in installed
+  package sets such as `lux-std`
 
 Rust owns the compiler ABI, diagnostics, hygiene, source spans, sandboxed
 evaluation, and structured AST/IR builders. Package behavior lives in Lux code.
@@ -19,28 +20,23 @@ import macro { dbg } from "lux/macros"
 import macro * as gmodMacros from "lux/gmod/macros"
 ```
 
-The default package root is:
-
-```text
-packages/
-```
-
 Project builds may add package roots through `lux.toml`:
 
 ```toml
 [gmod]
-package_roots = "packages, vendor/lux-packages"
+package_roots = "vendor/lux-std, vendor/project-packages"
 ```
 
-The compiler always loads its built-in compile-time packages first, then loads
-project package roots. Duplicate package ids are rejected instead of overwritten, so a
+Package roots are normally populated from `lux.lock` after `luxc install`, but
+`package_roots` remains available for local vendoring and development
+checkouts. Duplicate package ids are rejected instead of overwritten, so a
 project cannot silently replace `lux/macros` or `lux/compile/macro`.
 
 Each package is discovered by directory convention. The package id is its
 directory path under the package root:
 
 ```text
-packages/lux/ui/
+vendor/lux-std/lux/ui/
   src/*.lux
   host/*.lux
 ```
@@ -55,7 +51,7 @@ A package may combine runtime, compile-time, and host phases by adding the
 corresponding directories. This is how `lux/ui` stays one logical package while
 still separating shipped runtime code from offline host transform code.
 
-Current built-in package ids:
+Official `lux-std` compile-time package ids:
 
 - `lux/macros`
 - `lux/gmod/macros`
@@ -421,7 +417,8 @@ The compiler may return a different name than `preferredLocal` to avoid
 colliding with user bindings or other generated imports.
 
 For example, `lux/ui` folds component calls into calls to its runtime `node`
-export while keeping `node` implemented in `packages/lux/ui/src/module.lux`.
+export while keeping `node` implemented in the `lux/ui/src/module.lux` package
+source.
 
 No legacy alias is provided. Host packages must use `ctx.importRuntime(...)`.
 
@@ -451,7 +448,7 @@ ambiguous props such as `Name { dynamic }` are left untouched.
 
 ## 8. Package Boundary
 
-Runtime, macro, and host code live under `packages/`, but phase sources remain
+Runtime, macro, and host code live in package sets, but phase sources remain
 separate. Runtime phase files compile to ordinary Lua modules. Compile-time and
 host phase files are evaluated offline and never ship as runtime Lua. Each
 phase may be split into multiple `.lux` part files that share one package phase

@@ -304,7 +304,6 @@ Minimal manifest:
 source_root = "src"
 addon_root = "."
 generated_root = "generated"
-package_roots = "packages"
 source_comments = "readable"
 
 [target.gmod.realm]
@@ -317,10 +316,10 @@ net.Start = "server"
 ```
 
 `package_roots` is optional. When present, it is a comma-separated string of
-project-local package roots using the same package directory conventions as the
-compiler-shipped `packages/` tree. These roots are loaded in addition to the
-compiler-shipped packages, so project runtime libraries, macros, and host
-transforms can stay in Lux source without being embedded in Rust.
+project-local package roots using the same package directory conventions as
+installed package sets. `lux.lock` roots are also loaded automatically, so
+project runtime libraries, macros, and host transforms can stay in Lux source
+without being embedded in Rust.
 
 `unknown_external` controls globals that are neither Lux bindings nor known
 GMod API symbols:

@@ -55,7 +55,7 @@
 
 ## Phase 5 - UI Host
 
-- node factories in `packages/lux/ui/src/module.lux` [implemented outside luxc]
+- node factories in the `lux-std` `lux/ui/src/module.lux` package [implemented outside luxc]
 - reactive-backed UI runtime boundary [initial]
 - specialized lowering for known UI constructs [initial tail-table chain folding]
 - generated GLua/VGUI host code

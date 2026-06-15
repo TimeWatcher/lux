@@ -13,7 +13,7 @@ realm 顺序。**
 
 [中文文档](https://timewatcher.github.io/lux-docs-site/zh/) ·
 [快速开始](#快速开始) ·
-[内置包](https://github.com/TimeWatcher/lux-packages) ·
+[标准包](https://github.com/TimeWatcher/lux-std) ·
 [LSP](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://github.com/TimeWatcher/lux-mgfx) ·
 [发布下载](https://github.com/TimeWatcher/lux/releases)
@@ -97,13 +97,12 @@ export client { paintHud }
 
 ## 快速开始
 
-从 [Releases](https://github.com/TimeWatcher/lux/releases) 下载最新 Windows 构建，解压
-后保持 `packages` 目录和 `luxc.exe` 放在一起：
+从 [Releases](https://github.com/TimeWatcher/lux/releases) 下载最新 Windows 构建，解压后
+直接运行 `luxc`：
 
 ```text
 luxc-v0.1.0-x86_64-pc-windows-msvc/
   luxc.exe
-  packages/
 ```
 
 运行：
@@ -111,6 +110,19 @@ luxc-v0.1.0-x86_64-pc-windows-msvc/
 ```powershell
 .\luxc.exe --help
 .\luxc.exe compile .\src\module.lux
+```
+
+默认初始化不访问网络：
+
+```powershell
+.\luxc.exe init .\my_addon
+```
+
+需要官方标准 package set 时显式安装：
+
+```powershell
+.\luxc.exe init .\my_addon --std
+.\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
 ```
 
 构建一个 GMod addon 项目：
@@ -135,7 +147,7 @@ unknown_external = "warn"
 ## 从源码构建
 
 ```powershell
-git clone --recurse-submodules https://github.com/TimeWatcher/lux.git
+git clone https://github.com/TimeWatcher/lux.git
 cd lux\compiler
 cargo test
 cargo build --release
@@ -158,17 +170,16 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 
 ```text
 compiler/        luxc 的 Rust 实现
-packages/        内置 Lux packages，以 submodule 管理
 lsp/             Lux LSP、VS Code 支持和 GMod API 智能标准
 docs-site/       Lux 文档站源码，以 submodule 管理
 docs/            设计说明和实现参考
 examples/        Lux 和 GMod 示例项目
 ```
 
-如果 clone 时没有拉取 submodule：
+开发 LSP 或文档站时再初始化对应 submodule：
 
 ```powershell
-git submodule update --init --recursive
+git submodule update --init lsp docs-site
 ```
 
 ## CLI 概览
@@ -178,6 +189,10 @@ luxc lex <path>
 luxc parse <path>
 luxc lint <path>
 luxc format <path> [--check] [--write]
+luxc init [path] [--name <name>] [--std] [--template gmod-addon]
+luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]
+luxc list [project-root]
+luxc doctor [project-root]
 luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]
 luxc map-error <map.json> <generated-line>
 luxc gmod build <source-root> <addon-root> [--generated-root <path>] [--dry-run]
@@ -224,8 +239,8 @@ npm run build
 
 MGFX 位于独立仓库。开发 MGFX 时应进入上面的 MGFX 仓库和文档。
 
-Package 位于 `packages` submodule。修改 package 时应直接进入该仓库，并通过编译器测试
-或导入该 package 的 GMod 项目构建验证。
+官方标准 package 位于独立的 [`lux-std`](https://github.com/TimeWatcher/lux-std) 仓库。
+修改 package 时应直接进入该仓库，并通过编译器测试或导入该 package 的 GMod 项目构建验证。
 
 语言服务和 VS Code 支持标准位于 `lsp` submodule。开发编辑器集成、GMod API 智能、
 hover、completion、diagnostics 或 quick fix 时，应直接进入该仓库修改。

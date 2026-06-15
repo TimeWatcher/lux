@@ -7,14 +7,22 @@ use crate::macro_expansion::expand_macros_with_registry;
 use crate::parse::Parser;
 use crate::pipeline::parse_expand_resolve;
 use crate::source::SourceFile;
+use crate::test_support::test_std_package_root;
 
 use super::CompileTimePackageRegistry;
 use std::fs;
 use std::time::{SystemTime, UNIX_EPOCH};
 
+fn test_registry() -> (CompileTimePackageRegistry, std::path::PathBuf) {
+    let root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
+        .expect("compile-time registry");
+    (registry, root)
+}
+
 #[test]
 fn loads_lux_macro_modules() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -35,11 +43,12 @@ fn loads_lux_macro_modules() {
         "{:#?}",
         expanded.diagnostics
     );
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn compile_time_packages_can_import_lux_helpers() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -60,11 +69,12 @@ fn compile_time_packages_can_import_lux_helpers() {
         "{:#?}",
         expanded.diagnostics
     );
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn compile_time_macro_helpers_cache_many_locals() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -114,6 +124,7 @@ fn compile_time_macro_helpers_cache_many_locals() {
     assert!(!lua.contains("if SERVER then"), "{lua}");
     assert!(lua.contains("util.AddNetworkString(__lux_macro_net_name_"));
     assert!(lua.contains("net.Receive(__lux_macro_net_name_"));
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
@@ -143,8 +154,12 @@ fn macro_helpers_generate_exported_function_declarations() {
         )
         .expect("write temp compile-time package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -192,6 +207,7 @@ fn macro_helpers_generate_exported_function_declarations() {
     assert!(lua.contains("__lux_exports.generated = generated"), "{lua}");
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
@@ -221,8 +237,12 @@ fn macro_helpers_read_declarative_data_tables() {
         )
         .expect("write temp compile-time package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -257,6 +277,7 @@ fn macro_helpers_read_declarative_data_tables() {
     assert!(lua.contains("__lux_exports.generated = generated"), "{lua}");
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
@@ -283,8 +304,12 @@ fn compile_time_table_mutation_through_function_parameters_is_visible() {
     )
     .expect("write temp compile-time package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -312,6 +337,7 @@ fn compile_time_table_mutation_through_function_parameters_is_visible() {
     assert!(matches!(values[0].kind, ExprKind::String(ref value) if value == "ok"));
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
@@ -339,8 +365,12 @@ fn compile_time_tail_recursive_helpers_do_not_grow_the_rust_stack() {
     )
     .expect("write temp compile-time package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -369,6 +399,7 @@ fn compile_time_tail_recursive_helpers_do_not_grow_the_rust_stack() {
     assert!(matches!(values[0].kind, ExprKind::Number(ref value) if value == "128"));
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
@@ -391,8 +422,12 @@ fn compile_time_non_tail_recursion_reports_depth_error() {
     )
     .expect("write temp compile-time package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -414,6 +449,7 @@ fn compile_time_non_tail_recursion_reports_depth_error() {
     );
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
@@ -435,8 +471,12 @@ fn phase_qualified_macro_exports_are_registered() {
     )
     .expect("write temp compile-time package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut macros)
@@ -459,6 +499,7 @@ fn phase_qualified_macro_exports_are_registered() {
     );
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
@@ -487,8 +528,12 @@ fn compile_time_packages_export_const_values() {
     )
     .expect("write macros source");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let mut registry_macros = crate::macro_expansion::MacroRegistry::empty();
     registry
         .register_macros(&mut registry_macros)
@@ -518,22 +563,24 @@ fn compile_time_packages_export_const_values() {
     assert_eq!(value, "ok");
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }
 
 #[test]
 fn loads_lux_host_transform_specs() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let specs = registry.host_transform_specs().expect("host specs");
     assert!(
         specs
             .iter()
             .any(|spec| spec.target == "lux/ui" && spec.runtime == "lux/ui")
     );
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn lux_host_transform_rewrites_ui_calls() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let host_registry =
         HostRegistry::from_specs(registry.host_transform_specs().expect("host specs"));
     let file = SourceFile::new(
@@ -553,11 +600,12 @@ fn lux_host_transform_rewrites_ui_calls() {
         .lua;
     assert!(lua.contains("__lux_ui_node(\"Column\""));
     assert!(lua.contains("__lux_ui_node(\"Label\""));
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn lux_host_transform_uses_original_import_name_for_aliases() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let host_registry =
         HostRegistry::from_specs(registry.host_transform_specs().expect("host specs"));
     let file = SourceFile::new(
@@ -578,11 +626,12 @@ fn lux_host_transform_uses_original_import_name_for_aliases() {
     assert!(lua.contains("__lux_ui_node(\"Column\""), "{lua}");
     assert!(lua.contains("__lux_ui_node(\"Label\""), "{lua}");
     assert!(!lua.contains("__lux_ui_node(\"Stack\""), "{lua}");
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
 fn lux_host_transform_ignores_non_dsl_ui_call_shapes() {
-    let registry = CompileTimePackageRegistry::load_default().expect("compile-time registry");
+    let (registry, root) = test_registry();
     let host_registry =
         HostRegistry::from_specs(registry.host_transform_specs().expect("host specs"));
     let file = SourceFile::new(
@@ -602,6 +651,7 @@ fn lux_host_transform_ignores_non_dsl_ui_call_shapes() {
         .lua;
     assert!(!lua.contains("__lux_ui_node"), "{lua}");
     assert!(lua.contains("local Column = __lux_import_"), "{lua}");
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]
@@ -630,8 +680,12 @@ fn project_host_package_can_target_external_runtime_source() {
     )
     .expect("write host package");
 
-    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[root.clone()])
-        .expect("compile-time registry");
+    let std_root = test_std_package_root();
+    let registry = CompileTimePackageRegistry::load_default_with_package_roots(&[
+        std_root.clone(),
+        root.clone(),
+    ])
+    .expect("compile-time registry");
     let host_registry =
         HostRegistry::from_specs(registry.host_transform_specs().expect("host specs"));
     let file = SourceFile::new(
@@ -658,4 +712,5 @@ fn project_host_package_can_target_external_runtime_source() {
     assert!(!lua.contains("__lux_import(\"my/ui\")"), "{lua}");
 
     let _ = fs::remove_dir_all(root);
+    let _ = fs::remove_dir_all(std_root);
 }

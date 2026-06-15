@@ -73,10 +73,10 @@ export table. For example, `import { foo } from "bar"` fails during project
 compilation if `bar` does not export `foo`.
 
 Runtime external artifacts are computed after host transforms from the final IR.
-Runtime libraries such as `lux/std` and `lux/ui` live as runtime phases under
-`packages/`; Rust discovers phase sources by directory convention and loads
-export metadata for graph validation. The GMod backend compiles only the
-referenced runtime packages into generated artifacts. Host transforms may
+Runtime libraries such as `lux/std` and `lux/ui` live as runtime phases in
+installed package sets. Rust discovers phase sources by directory convention
+and loads export metadata for graph validation. The GMod backend compiles only
+the referenced runtime packages into generated artifacts. Host transforms may
 rewrite calls to runtime package APIs, but runtime behavior itself should not
 be embedded in the Rust code generator.
 
@@ -929,7 +929,7 @@ Never let host transforms parse raw syntax from scratch.
 
 The implemented host registry is transform-list based. Host transforms are
 registered by phase-qualified declarations in package host phases, for example
-`export host expr fn foldNode(ctx, call)` in `packages/lux/ui/host/module.lux`;
+`export host expr fn foldNode(ctx, call)` in `lux/ui/host/module.lux`;
 future VGUI/reactive/data hosts should plug into the same registry rather than
 adding host-specific syntax to the core language.
 
@@ -944,7 +944,7 @@ HostTransformOutput
 Transforms should express support-code needs as ordinary runtime package
 imports. For example, the UI transform consumes imported component symbols such
 as `Column`, then inserts an import of `node` from `lux/ui` and emits calls to
-that helper. The actual helper is implemented in `packages/lux/ui/src/module.lux`.
+that helper. The actual helper is implemented in `lux/ui/src/module.lux`.
 
 This keeps the compiler boundary narrow: Rust owns structured IR rewriting,
 symbol provenance checks, and backend packaging; runtime behavior belongs to Lux
@@ -957,19 +957,19 @@ Syntax macros run before name resolution and return structured AST.
 The current registry is convention based:
 
 ```text
-packages/<package-id>/compiletime/*.lux
-packages/<package-id>/host/*.lux
+<package-set>/<package-id>/compiletime/*.lux
+<package-set>/<package-id>/host/*.lux
 ```
 
 Macro packages receive AST arguments and source spans through the compiler ABI,
 and they report diagnostics through `MacroContext`. They must not return raw Lua
 strings.
 
-Default compile-time package phases currently include:
+Official `lux-std` compile-time package phases currently include:
 
-- `packages/lux/macros/compiletime/*.lux`
-- `packages/lux/gmod/macros/compiletime/*.lux`
-- `packages/lux/ui/host/*.lux`
+- `lux/macros/compiletime/*.lux`
+- `lux/gmod/macros/compiletime/*.lux`
+- `lux/ui/host/*.lux`
 
 Rust exposes only the stable compiler-side interface:
 

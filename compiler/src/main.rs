@@ -30,9 +30,9 @@ fn usage() {
     eprintln!("  luxc parse <path>");
     eprintln!("  luxc lint <path>");
     eprintln!("  luxc format <path> [--check] [--write]");
-    eprintln!("  luxc init [path] [--name <name>] [--template gmod-addon]");
+    eprintln!("  luxc init [path] [--name <name>] [--std] [--template gmod-addon]");
     eprintln!(
-        "  luxc install <package-id> (--builtin|--from <builtin|github:owner/repo|url|path>) [--tag <tag>|--branch <branch>|--commit <commit>]"
+        "  luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]"
     );
     eprintln!("  luxc list [project-root]");
     eprintln!("  luxc doctor [project-root]");
@@ -590,6 +590,7 @@ fn parse_compile_command(path: PathBuf, rest: &[OsString]) -> Command {
 fn parse_init_command(args: &[OsString]) -> Command {
     let mut root = None;
     let mut name = None;
+    let mut install_std = false;
     let mut index = 0;
 
     while index < args.len() {
@@ -610,6 +611,10 @@ fn parse_init_command(args: &[OsString]) -> Command {
                 }
                 index += 2;
             }
+            "--std" => {
+                install_std = true;
+                index += 1;
+            }
             value if value.starts_with("--") => return Command::Invalid,
             _ => {
                 if root.is_some() {
@@ -628,7 +633,11 @@ fn parse_init_command(args: &[OsString]) -> Command {
             .filter(|name| !name.is_empty() && name != ".")
             .unwrap_or_else(|| "lux-project".into())
     });
-    Command::Init(InitOptions { root, name })
+    Command::Init(InitOptions {
+        root,
+        name,
+        install_std,
+    })
 }
 
 fn parse_install_command(args: &[OsString]) -> Command {
@@ -676,13 +685,6 @@ fn parse_install_command(args: &[OsString]) -> Command {
                 commit = Some(value.to_string());
                 index += 2;
             }
-            "--builtin" => {
-                if from.is_some() {
-                    return Command::Invalid;
-                }
-                from = Some("builtin".into());
-                index += 1;
-            }
             "--project" => {
                 let Some(value) = args.get(index + 1) else {
                     return Command::Invalid;
@@ -722,12 +724,6 @@ fn parse_dependency_source(
     branch: Option<String>,
     commit: Option<String>,
 ) -> Option<DependencySource> {
-    if value == "builtin" {
-        if tag.is_some() || branch.is_some() || commit.is_some() {
-            return None;
-        }
-        return Some(DependencySource::Builtin);
-    }
     if let Some(repo) = value.strip_prefix("github:") {
         if repo.trim().is_empty() {
             return None;
@@ -1057,6 +1053,9 @@ fn package_init(options: InitOptions) -> Result<ExitCode, String> {
         "initialized Lux project at {} using gmod-addon template",
         options.root.display()
     );
+    if options.install_std {
+        println!("installed @lux/std from github:TimeWatcher/lux-std");
+    }
     Ok(ExitCode::SUCCESS)
 }
 
@@ -1106,4 +1105,41 @@ fn package_doctor_command(project_root: PathBuf) -> Result<ExitCode, String> {
         println!("package root: {}", root.display());
     }
     Ok(ExitCode::SUCCESS)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args(values: &[&str]) -> Vec<OsString> {
+        values.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn init_defaults_to_no_std_dependency() {
+        let Command::Init(options) = parse_command(args(&["init", "demo"])) else {
+            panic!("expected init command");
+        };
+
+        assert_eq!(options.root, PathBuf::from("demo"));
+        assert_eq!(options.name, "demo");
+        assert!(!options.install_std);
+    }
+
+    #[test]
+    fn init_std_requests_official_std_install() {
+        let Command::Init(options) = parse_command(args(&["init", "demo", "--std"])) else {
+            panic!("expected init command");
+        };
+
+        assert!(options.install_std);
+    }
+
+    #[test]
+    fn install_rejects_removed_builtin_source() {
+        assert!(matches!(
+            parse_command(args(&["install", "@lux/std", "--builtin"])),
+            Command::Invalid
+        ));
+    }
 }

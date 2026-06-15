@@ -11,7 +11,8 @@ use crate::lower::{LowerError, Lowerer};
 use crate::macro_expansion::{MacroRegistry, expand_macros_with_registry};
 use crate::module::{ArtifactRealm, ModuleExport, ModuleId};
 use crate::packages::{
-    PackageLoadError, PackagePhase, default_package_root, discover_runtime_phases,
+    PackageLoadError, PackagePhase, default_package_root, default_package_roots,
+    discover_runtime_phases,
 };
 use crate::parse::Parser;
 use crate::part_order::{PartOrderInput, is_module_entry_path, sort_module_parts};
@@ -28,14 +29,13 @@ pub struct RuntimePackageRegistry {
 
 impl RuntimePackageRegistry {
     pub fn load_default() -> Result<Self, RuntimePackageError> {
-        Self::load(default_package_root())
+        Self::load_roots(default_package_roots())
     }
 
     pub fn load_default_with_package_roots(
         extra_roots: &[PathBuf],
     ) -> Result<Self, RuntimePackageError> {
-        let mut roots = Vec::with_capacity(extra_roots.len() + 1);
-        roots.push(default_package_root());
+        let mut roots = default_package_roots();
         roots.extend(extra_roots.iter().cloned());
         Self::load_roots_with_compile_time_extra(roots, extra_roots)
     }
@@ -60,7 +60,11 @@ impl RuntimePackageRegistry {
             .map_err(|err| RuntimePackageError::Diagnostics(vec![err.to_string()]))?
             .register_macros(&mut macro_registry)
             .map_err(|err| RuntimePackageError::Diagnostics(vec![err.to_string()]))?;
+        let mut seen_roots = BTreeSet::new();
         for package_root in &roots {
+            if !seen_roots.insert(package_root.clone()) {
+                continue;
+            }
             for phase in
                 discover_runtime_phases(package_root).map_err(RuntimePackageError::Package)?
             {
@@ -590,6 +594,7 @@ fn render_runtime_diagnostics_by_part(
 mod tests {
     use super::RuntimePackageRegistry;
     use crate::module::ModuleId;
+    use crate::test_support::test_std_package_root;
 
     fn has_export(
         exports: &std::collections::BTreeMap<ModuleId, Vec<crate::module::ModuleExport>>,
@@ -602,8 +607,16 @@ mod tests {
     }
 
     #[test]
-    fn loads_default_runtime_packages_and_exports() {
+    fn default_runtime_registry_is_empty_without_package_roots() {
         let registry = RuntimePackageRegistry::load_default().expect("runtime registry");
+        assert!(registry.package_ids().is_empty());
+    }
+
+    #[test]
+    fn loads_std_runtime_packages_and_exports_from_explicit_root() {
+        let root = test_std_package_root();
+        let registry = RuntimePackageRegistry::load_default_with_package_roots(&[root.clone()])
+            .expect("runtime registry");
         let exports = registry.export_metadata();
         assert!(has_export(&exports, "lux/std", "arr"));
         assert!(has_export(&exports, "lux/std", "dict"));
@@ -622,11 +635,14 @@ mod tests {
                 .imports
                 .contains(&ModuleId::new("lux/reactive"))
         );
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
     fn compiles_runtime_package_from_lux_source() {
-        let registry = RuntimePackageRegistry::load_default().expect("runtime registry");
+        let root = test_std_package_root();
+        let registry = RuntimePackageRegistry::load_default_with_package_roots(&[root.clone()])
+            .expect("runtime registry");
         let package = registry
             .package(&ModuleId::new("lux/std"))
             .expect("std package");
@@ -642,11 +658,14 @@ mod tests {
             .expect("compile gmod runtime");
         assert!(gmod.lua.contains("__lux_exports.valid = valid"));
         assert!(gmod.lua.contains("__lux_exports.netx = netx"));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
     fn compiles_reactive_and_ui_runtime_packages() {
-        let registry = RuntimePackageRegistry::load_default().expect("runtime registry");
+        let root = test_std_package_root();
+        let registry = RuntimePackageRegistry::load_default_with_package_roots(&[root.clone()])
+            .expect("runtime registry");
         let reactive = registry
             .package(&ModuleId::new("lux/reactive"))
             .expect("reactive package")
@@ -666,11 +685,14 @@ mod tests {
             ui.lua
         );
         assert!(ui.lua.contains("__lux_exports.mount = mount"));
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
     fn runtime_dependency_closure_orders_dependencies_first() {
-        let registry = RuntimePackageRegistry::load_default().expect("runtime registry");
+        let root = test_std_package_root();
+        let registry = RuntimePackageRegistry::load_default_with_package_roots(&[root.clone()])
+            .expect("runtime registry");
         let closure = registry
             .dependency_closure([ModuleId::new("lux/ui")])
             .expect("runtime closure");
@@ -678,5 +700,6 @@ mod tests {
             closure.iter().map(|id| id.as_str()).collect::<Vec<_>>(),
             vec!["lux/reactive", "lux/ui"]
         );
+        let _ = std::fs::remove_dir_all(root);
     }
 }

@@ -159,6 +159,6 @@ possible.
 The current intended project split is:
 
 - `compiler/` - parser, AST, lowering, codegen, CLI
-- `packages/` - std library, reactive layer, macros, and host/runtime phases
+- `lux-std` - official std library, reactive layer, macros, and host/runtime phases
 - `examples/` - source and generated output samples
 - `docs/` - language and system specs

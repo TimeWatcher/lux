@@ -274,7 +274,7 @@ mod tests {
             source_root = "src"
             addon_root = "."
             generated_root = "generated"
-            package_roots = "packages, vendor/lux-packages"
+            package_roots = "packages, vendor/project-packages"
             source_comments = "boundary"
             bundle_id = "docs_bundle"
             "#,
@@ -292,7 +292,7 @@ mod tests {
         );
         assert_eq!(manifest.package_roots.len(), 2);
         assert!(manifest.package_roots[0].ends_with("packages"));
-        assert!(manifest.package_roots[1].ends_with("vendor/lux-packages"));
+        assert!(manifest.package_roots[1].ends_with("vendor/project-packages"));
         assert_eq!(
             manifest.source_comments,
             Some(crate::sourcemap::SourceCommentMode::Boundary)

@@ -12,11 +12,14 @@ use zip::ZipArchive;
 const PROJECT_MANIFEST: &str = "lux.toml";
 const PACKAGE_SET_MANIFEST: &str = "lux.package.toml";
 const LOCKFILE: &str = "lux.lock";
+pub const LUX_STD_REPO: &str = "TimeWatcher/lux-std";
+pub const LUX_STD_PACKAGE: &str = "@lux/std";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct InitOptions {
     pub root: PathBuf,
     pub name: String,
+    pub install_std: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -28,7 +31,6 @@ pub struct InstallRequest {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencySource {
-    Builtin,
     Github {
         repo: String,
         tag: Option<String>,
@@ -59,7 +61,6 @@ impl DependencySource {
 
     pub fn stable_key(&self) -> String {
         match self {
-            Self::Builtin => "builtin".into(),
             Self::Github {
                 repo,
                 tag,
@@ -86,7 +87,6 @@ impl DependencySource {
 
     fn manifest_value(&self) -> TomlValue {
         match self {
-            Self::Builtin => TomlValue::String("builtin".into()),
             Self::Github {
                 repo,
                 tag,
@@ -153,7 +153,6 @@ pub struct PackageSourceHint {
     pub commit: Option<String>,
     pub url: Option<String>,
     pub path: Option<PathBuf>,
-    pub builtin: Option<bool>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
@@ -176,7 +175,6 @@ pub struct LockedPackage {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum LockedSource {
-    Builtin,
     Github {
         repo: String,
         tag: Option<String>,
@@ -250,7 +248,23 @@ pub fn init_project(options: &InitOptions) -> Result<(), PackageManagerError> {
         &project_manifest_template(&options.name),
     )?;
     write_new_file(&source_root.join("module.lux"), "export fn main() = true\n")?;
+    if options.install_std {
+        install_package(&InstallRequest {
+            project_root: options.root.clone(),
+            package: LUX_STD_PACKAGE.into(),
+            source: lux_std_source(),
+        })?;
+    }
     Ok(())
+}
+
+pub fn lux_std_source() -> DependencySource {
+    DependencySource::Github {
+        repo: LUX_STD_REPO.into(),
+        tag: None,
+        branch: None,
+        commit: None,
+    }
 }
 
 pub fn install_package(request: &InstallRequest) -> Result<InstallOutput, PackageManagerError> {
@@ -283,9 +297,6 @@ pub fn lockfile_package_roots(project_root: &Path) -> Result<Vec<PathBuf>, Packa
     let lockfile = read_toml::<Lockfile>(&lock_path)?;
     let mut roots = BTreeSet::new();
     for package in lockfile.package {
-        if matches!(package.source, LockedSource::Builtin) {
-            continue;
-        }
         roots.insert(package.root);
     }
     Ok(roots.into_iter().collect())
@@ -454,27 +465,6 @@ fn resolve_manifest_dependencies(
     for (package, source_spec) in &manifest.dependencies {
         let package_id = normalize_package_display(package);
         let source = dependency_source_from_toml_value(source_spec, project_root)?;
-        if matches!(source, DependencySource::Builtin) {
-            if !is_builtin_package(&package_id) {
-                return Err(PackageManagerError::Invalid(format!(
-                    "dependency `{package_id}` is marked builtin, but it is not a Lux builtin package"
-                )));
-            }
-            resolved.insert(
-                package_id.clone(),
-                LockedPackage {
-                    id: package_id,
-                    version: "builtin".into(),
-                    direct: true,
-                    root: PathBuf::from("builtin"),
-                    package_path: PathBuf::new(),
-                    source: LockedSource::Builtin,
-                    sha256: None,
-                },
-            );
-            continue;
-        }
-
         let package_set = source_sets.load_source(source)?;
         ensure_source_provides(&package_id, &package_set)?;
         resolve_package_tree(
@@ -539,23 +529,6 @@ fn resolve_package_tree(
             .entry(dep_id.clone())
             .or_default()
             .push(dep_req.requirement.clone());
-        if is_builtin_package(&dep_id) {
-            if !resolved.contains_key(&dep_id) {
-                resolved.insert(
-                    dep_id.clone(),
-                    LockedPackage {
-                        id: dep_id.clone(),
-                        version: "builtin".into(),
-                        direct: false,
-                        root: PathBuf::from("builtin"),
-                        package_path: PathBuf::new(),
-                        source: LockedSource::Builtin,
-                        sha256: None,
-                    },
-                );
-            }
-            continue;
-        }
         if let Some(locked) = resolved.get(&dep_id) {
             if let Ok(version) = Version::parse(&locked.version) {
                 check_package_version(&dep_id, &version, requirements)?;
@@ -751,9 +724,6 @@ fn resolve_dependency_source_root(
     cache: &CacheLayout,
     project_root: &Path,
 ) -> Result<PathBuf, PackageManagerError> {
-    if matches!(source, DependencySource::Builtin) {
-        return Ok(PathBuf::from("builtin"));
-    }
     fetch_source(source, cache, project_root)
 }
 
@@ -762,7 +732,6 @@ fn dependency_source_from_hint(
     source_root: &Path,
 ) -> Result<DependencySource, PackageManagerError> {
     let count = [
-        hint.builtin == Some(true),
         hint.github.is_some(),
         hint.url.is_some(),
         hint.path.is_some(),
@@ -772,18 +741,9 @@ fn dependency_source_from_hint(
     .count();
     if count != 1 {
         return Err(PackageManagerError::Invalid(format!(
-            "[[source]] for `{}` must set exactly one of builtin, github, url, or path",
+            "[[source]] for `{}` must set exactly one of github, url, or path",
             hint.package
         )));
-    }
-    if hint.builtin == Some(true) {
-        if hint.tag.is_some() || hint.branch.is_some() || hint.commit.is_some() {
-            return Err(PackageManagerError::Invalid(format!(
-                "[[source]] for builtin package `{}` cannot set tag, branch, or commit",
-                hint.package
-            )));
-        }
-        return Ok(DependencySource::Builtin);
     }
     if let Some(repo) = &hint.github {
         return Ok(DependencySource::Github {
@@ -822,7 +782,6 @@ fn dependency_source_from_toml_value(
     project_root: &Path,
 ) -> Result<DependencySource, PackageManagerError> {
     match value {
-        TomlValue::String(value) if value == "builtin" => Ok(DependencySource::Builtin),
         TomlValue::String(value) => Ok(DependencySource::Path(project_root.join(value))),
         TomlValue::Raw(value) => dependency_source_from_raw_toml(value, project_root),
         TomlValue::InlineTable(fields) => dependency_source_from_toml_fields(fields, project_root),
@@ -835,7 +794,6 @@ fn dependency_source_from_raw_toml(
 ) -> Result<DependencySource, PackageManagerError> {
     let parsed = parse_toml_value_fragment(value)?;
     match parsed {
-        toml::Value::String(value) if value == "builtin" => Ok(DependencySource::Builtin),
         toml::Value::String(value) => Ok(DependencySource::Path(project_root.join(value))),
         toml::Value::Table(table) => {
             let fields = table
@@ -845,7 +803,7 @@ fn dependency_source_from_raw_toml(
             dependency_source_from_toml_fields(&fields, project_root)
         }
         _ => Err(PackageManagerError::Invalid(format!(
-            "dependency source must be \"builtin\", a path string, or an inline table, got `{value}`"
+            "dependency source must be a path string or an inline table, got `{value}`"
         ))),
     }
 }
@@ -889,16 +847,6 @@ fn dependency_source_from_toml_fields(
         ))),
         None => Ok(None),
     };
-    let bool_field = |name: &str| match fields.get(name) {
-        Some(TomlValue::Raw(value)) => Ok(value == "true"),
-        Some(TomlValue::String(value)) => Ok(value == "true"),
-        Some(_) => Err(PackageManagerError::Invalid(format!(
-            "dependency source field `{name}` must be boolean"
-        ))),
-        None => Ok(false),
-    };
-
-    let builtin = bool_field("builtin")?;
     let github = string_field("github")?;
     let url = string_field("url")?;
     let path = string_field("path")?;
@@ -906,13 +854,13 @@ fn dependency_source_from_toml_fields(
     let branch = string_field("branch")?;
     let commit = string_field("commit")?;
 
-    let source_count = [builtin, github.is_some(), url.is_some(), path.is_some()]
+    let source_count = [github.is_some(), url.is_some(), path.is_some()]
         .into_iter()
         .filter(|value| *value)
         .count();
     if source_count != 1 {
         return Err(PackageManagerError::Invalid(
-            "dependency source must set exactly one of builtin, github, url, or path".into(),
+            "dependency source must set exactly one of github, url, or path".into(),
         ));
     }
     if [tag.as_ref(), branch.as_ref(), commit.as_ref()]
@@ -926,14 +874,6 @@ fn dependency_source_from_toml_fields(
         ));
     }
 
-    if builtin {
-        if tag.is_some() || branch.is_some() || commit.is_some() {
-            return Err(PackageManagerError::Invalid(
-                "builtin dependency source cannot set tag, branch, or commit".into(),
-            ));
-        }
-        return Ok(DependencySource::Builtin);
-    }
     if let Some(repo) = github {
         return Ok(DependencySource::Github {
             repo,
@@ -970,23 +910,8 @@ fn dependency_source_string_from_raw(value: &str) -> Result<String, PackageManag
     })
 }
 
-fn is_builtin_package(id: &str) -> bool {
-    matches!(
-        id,
-        "@lux/std"
-            | "@lux/reactive"
-            | "@lux/gmod"
-            | "@lux/ui"
-            | "@lux/macros"
-            | "@lux/gmod/macros"
-            | "@lux/compile/macro"
-            | "@lux/compile/host"
-    )
-}
-
 fn locked_source(source: &DependencySource) -> LockedSource {
     match source {
-        DependencySource::Builtin => LockedSource::Builtin,
         DependencySource::Github {
             repo,
             tag,
@@ -1015,7 +940,6 @@ fn fetch_source(
     project_root: &Path,
 ) -> Result<PathBuf, PackageManagerError> {
     match source {
-        DependencySource::Builtin => Ok(PathBuf::from("builtin")),
         DependencySource::Path(path) => {
             let path = if path.is_absolute() {
                 path.clone()
@@ -1151,7 +1075,7 @@ fn source_digest(
     source_root: &Path,
 ) -> Result<Option<String>, PackageManagerError> {
     match source {
-        DependencySource::Builtin | DependencySource::Path(_) => Ok(None),
+        DependencySource::Path(_) => Ok(None),
         DependencySource::Github { .. } | DependencySource::Url(_) => {
             let cache = CacheLayout::new()?;
             let archive = cache
@@ -1349,6 +1273,7 @@ mod tests {
         init_project(&InitOptions {
             root: root.clone(),
             name: "demo".into(),
+            install_std: false,
         })
         .expect("init project");
 
@@ -1390,13 +1315,32 @@ mod tests {
     }
 
     #[test]
+    fn std_dependency_source_targets_lux_std_repo() {
+        let source = lux_std_source();
+        assert_eq!(source.stable_key(), "github:TimeWatcher/lux-std");
+
+        let mut manifest = ProjectDependencyManifest::default();
+        manifest.set_dependency(LUX_STD_PACKAGE, &source);
+        let path = temp_root("std_manifest").join("lux.toml");
+        fs::create_dir_all(path.parent().expect("parent")).expect("temp");
+        manifest.write(&path).expect("write manifest");
+        let text = fs::read_to_string(&path).expect("manifest text");
+        assert!(
+            text.contains("\"@lux/std\" = { github = \"TimeWatcher/lux-std\" }"),
+            "{text}"
+        );
+        let _ = fs::remove_dir_all(path.parent().expect("parent"));
+    }
+
+    #[test]
     fn install_path_dependency_writes_transitive_lock() {
         let source = temp_root("source");
         fs::create_dir_all(source.join("packages/core/src")).expect("source package");
         fs::create_dir_all(source.join("packages/ui/src")).expect("ui package");
         fs::write(
             source.join("lux.package.toml"),
-            r#"
+            format!(
+                r#"
 name = "ui-ext"
 
 [[package]]
@@ -1410,11 +1354,23 @@ version = "0.1.0"
 path = "packages/ui"
 depends = [
   "@vendor/core 0.1.0",
-  "@lux/ui >=0.1 <0.2",
+  "@vendor/reactive >=0.1 <0.2",
 ]
+
+[[package]]
+id = "@vendor/reactive"
+version = "0.1.0"
+path = "packages/reactive"
+
+[[source]]
+package = "@vendor/reactive"
+path = "{}"
 "#,
+                source.to_string_lossy().replace('\\', "\\\\")
+            ),
         )
         .expect("source manifest");
+        fs::create_dir_all(source.join("packages/reactive/src")).expect("reactive package");
         fs::write(
             source.join("packages/core/src/module.lux"),
             "export fn draw() = true\n",
@@ -1425,6 +1381,11 @@ depends = [
             "import { draw } from \"@vendor/core\"\nexport fn mount() = draw()\n",
         )
         .expect("ui module");
+        fs::write(
+            source.join("packages/reactive/src/module.lux"),
+            "export fn signal(value) = value\n",
+        )
+        .expect("reactive module");
 
         let project = temp_root("project");
         fs::create_dir_all(&project).expect("project");
@@ -1445,7 +1406,7 @@ depends = [
         let lock = fs::read_to_string(project.join("lux.lock")).expect("lock");
         assert!(lock.contains("@vendor/ui-ext"), "{lock}");
         assert!(lock.contains("@vendor/core"), "{lock}");
-        assert!(lock.contains("@lux/ui"), "{lock}");
+        assert!(lock.contains("@vendor/reactive"), "{lock}");
         let roots = lockfile_package_roots(&project).expect("roots");
         assert!(
             roots
@@ -1552,52 +1513,15 @@ path = "{}"
     }
 
     #[test]
-    fn builtin_install_writes_direct_lock_entry() {
-        let project = temp_root("builtin_project");
-        fs::create_dir_all(&project).expect("project");
-        fs::write(
-            project.join("lux.toml"),
-            "name = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
-        )
-        .expect("project manifest");
-
-        let output = install_package(&InstallRequest {
-            project_root: project.clone(),
-            package: "@lux/ui".into(),
-            source: DependencySource::Builtin,
-        })
-        .expect("install builtin");
-
-        assert_eq!(output.package_id, "@lux/ui");
-        assert_eq!(output.total_count, 1);
-        let locked = list_locked(&project).expect("locked");
-        assert_eq!(locked.len(), 1);
-        assert_eq!(locked[0].id, "@lux/ui");
-        assert!(locked[0].direct);
-        assert!(matches!(locked[0].source, LockedSource::Builtin));
-        assert!(lockfile_package_roots(&project).expect("roots").is_empty());
-
-        let _ = fs::remove_dir_all(project);
-    }
-
-    #[test]
-    fn inline_table_dependency_sources_parse_builtin_and_github() {
+    fn inline_table_dependency_sources_parse_github() {
         let manifest = parse_project_dependency_manifest(
             r#"
 name = "demo"
 
 [dependencies]
-"@lux/ui" = { builtin = true }
 "@vendor/core" = { github = "vendor/core", tag = "v0.1.0" }
 "#,
         );
-
-        let ui = dependency_source_from_toml_value(
-            manifest.dependencies.get("@lux/ui").expect("ui source"),
-            Path::new("."),
-        )
-        .expect("ui source parsed");
-        assert!(matches!(ui, DependencySource::Builtin));
 
         let core = dependency_source_from_toml_value(
             manifest

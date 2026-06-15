@@ -2446,10 +2446,13 @@ mod tests {
 
     #[test]
     fn import_completion_without_source_lists_runtime_exports() {
+        let std_root = crate::test_support::test_std_package_root();
         let root = std::path::PathBuf::from("src");
         let consumer = root.join("client/ui.lux");
         let output = analyze_files(
-            AnalysisConfig::new(&root).with_package_id("game"),
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![std_root.clone()]),
             [AnalysisFile {
                 path: consumer.clone(),
                 text: "import { Bu".into(),
@@ -2465,15 +2468,19 @@ mod tests {
         assert_eq!(button.source.as_deref(), Some("@lux/ui"));
         assert!(exports.iter().any(|candidate| candidate.label == "signal"
             && candidate.source.as_deref() == Some("@lux/reactive")));
+        let _ = std::fs::remove_dir_all(std_root);
     }
 
     #[test]
     fn visible_binding_completion_includes_parameters_and_locals() {
+        let std_root = crate::test_support::test_std_package_root();
         let root = std::path::PathBuf::from("src");
         let path = root.join("client/ui.lux");
         let text = "import { Button } from \"@lux/ui\"\nlocal module_state = {}\nexport fn mount(panel, players, mode = \"compact\") {\n  local selected = players\n  pla\n}\n";
         let output = analyze_files(
-            AnalysisConfig::new(&root).with_package_id("game"),
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![std_root.clone()]),
             [AnalysisFile {
                 path: path.clone(),
                 text: text.into(),
@@ -2499,13 +2506,17 @@ mod tests {
             "{labels:#?}"
         );
         assert!(labels.iter().any(|label| label == "Button"), "{labels:#?}");
+        let _ = std::fs::remove_dir_all(std_root);
     }
 
     #[test]
-    fn analysis_accepts_default_runtime_package_imports() {
+    fn analysis_accepts_installed_runtime_package_imports() {
+        let std_root = crate::test_support::test_std_package_root();
         let root = std::path::PathBuf::from("src");
         let output = analyze_files(
-            AnalysisConfig::new(&root).with_package_id("game"),
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![std_root.clone()]),
             [AnalysisFile {
                 path: root.join("client/ui.lux"),
                 text: "import { signal } from \"@lux/reactive\"\nimport { Button } from \"@lux/ui\"\nexport fn run() = signal(0)"
@@ -2522,6 +2533,7 @@ mod tests {
             "{:#?}",
             output.diagnostics
         );
+        let _ = std::fs::remove_dir_all(std_root);
     }
 
     #[test]

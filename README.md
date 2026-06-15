@@ -13,7 +13,7 @@ spaghetti.**
 
 [Documentation](https://timewatcher.github.io/lux-docs-site/) ·
 [Quick Start](#quick-start) ·
-[Packages](https://github.com/TimeWatcher/lux-packages) ·
+[Std Packages](https://github.com/TimeWatcher/lux-std) ·
 [LSP](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://github.com/TimeWatcher/lux-mgfx) ·
 [Releases](https://github.com/TimeWatcher/lux/releases)
@@ -103,13 +103,12 @@ optional access, nil coalescing, and exports that describe the real public API.
 ## Quick Start
 
 Download the latest Windows build from
-[Releases](https://github.com/TimeWatcher/lux/releases), unzip it, and keep the
-bundled `packages` directory next to `luxc.exe`:
+[Releases](https://github.com/TimeWatcher/lux/releases), unzip it, and run
+`luxc` directly:
 
 ```text
 luxc-v0.1.0-x86_64-pc-windows-msvc/
   luxc.exe
-  packages/
 ```
 
 Run:
@@ -117,6 +116,19 @@ Run:
 ```powershell
 .\luxc.exe --help
 .\luxc.exe compile .\src\module.lux
+```
+
+Initialize a project without network access:
+
+```powershell
+.\luxc.exe init .\my_addon
+```
+
+Install the official standard package set only when you need it:
+
+```powershell
+.\luxc.exe init .\my_addon --std
+.\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
 ```
 
 Build a GMod addon project:
@@ -141,7 +153,7 @@ unknown_external = "warn"
 ## Build From Source
 
 ```powershell
-git clone --recurse-submodules https://github.com/TimeWatcher/lux.git
+git clone https://github.com/TimeWatcher/lux.git
 cd lux\compiler
 cargo test
 cargo build --release
@@ -164,17 +176,17 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 
 ```text
 compiler/        Rust implementation of luxc
-packages/        Built-in Lux packages, tracked as a submodule
 lsp/             Lux LSP, VS Code support, and GMod API intelligence standards
 docs-site/       Public Lux documentation site, tracked as a submodule
 docs/            Design notes and implementation references
 examples/        Small Lux and GMod project examples
 ```
 
-After cloning without submodules:
+Initialize the remaining submodules when working on LSP or the documentation
+site:
 
 ```powershell
-git submodule update --init --recursive
+git submodule update --init lsp docs-site
 ```
 
 ## CLI Snapshot
@@ -184,6 +196,10 @@ luxc lex <path>
 luxc parse <path>
 luxc lint <path>
 luxc format <path> [--check] [--write]
+luxc init [path] [--name <name>] [--std] [--template gmod-addon]
+luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]
+luxc list [project-root]
+luxc doctor [project-root]
 luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]
 luxc map-error <map.json> <generated-line>
 luxc gmod build <source-root> <addon-root> [--generated-root <path>] [--dry-run]
@@ -232,9 +248,10 @@ npm run build
 MGFX lives in its own repository. Use the MGFX repo and docs links above when
 working on it.
 
-Packages live in the `packages` submodule. Edit that repository directly and
-validate with compiler tests or a GMod project build that imports the changed
-package.
+Official standard packages live in the separate
+[`lux-std`](https://github.com/TimeWatcher/lux-std) repository. Edit that
+repository directly and validate with compiler tests or a GMod project build
+that imports the changed package.
 
 Language server and VS Code support standards live in the `lsp` submodule. Edit
 that repository directly when working on editor integration, GMod API

@@ -18,7 +18,9 @@ use crate::lex::Lexer;
 use crate::macro_expansion::{
     MacroCall, MacroContext, MacroExpansion, MacroProvider, MacroRegistry,
 };
-use crate::packages::{PackageLoadError, default_package_root, discover_compile_time_phases};
+use crate::packages::{
+    PackageLoadError, default_package_root, default_package_roots, discover_compile_time_phases,
+};
 use crate::parse::Parser;
 use crate::source::{SourceFile, SourceSpan};
 
@@ -32,14 +34,13 @@ pub struct CompileTimePackageRegistry {
 
 impl CompileTimePackageRegistry {
     pub fn load_default() -> Result<Self, CompileTimeError> {
-        Self::load(default_package_root())
+        Self::load_roots(default_package_roots())
     }
 
     pub fn load_default_with_package_roots(
         extra_roots: &[PathBuf],
     ) -> Result<Self, CompileTimeError> {
-        let mut roots = Vec::with_capacity(extra_roots.len() + 1);
-        roots.push(default_package_root());
+        let mut roots = default_package_roots();
         roots.extend(extra_roots.iter().cloned());
         Self::load_roots(roots)
     }
@@ -51,7 +52,11 @@ impl CompileTimePackageRegistry {
     pub fn load_roots(roots: Vec<PathBuf>) -> Result<Self, CompileTimeError> {
         let root = roots.first().cloned().unwrap_or_else(default_package_root);
         let mut packages = BTreeMap::new();
+        let mut seen_roots = BTreeSet::new();
         for package_root in &roots {
+            if !seen_roots.insert(package_root.clone()) {
+                continue;
+            }
             discover_compile_time_packages(package_root, &mut packages)?;
         }
         Ok(Self {
