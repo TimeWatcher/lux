@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -29,6 +29,17 @@ pub struct AnalysisConfig {
     pub package_roots: Vec<PathBuf>,
     pub resolver_options: ResolverOptions,
 }
+
+impl PartialEq for AnalysisConfig {
+    fn eq(&self, other: &Self) -> bool {
+        same_path(&self.source_root, &other.source_root)
+            && self.package_id == other.package_id
+            && paths_equal(&self.package_roots, &other.package_roots)
+            && self.resolver_options == other.resolver_options
+    }
+}
+
+impl Eq for AnalysisConfig {}
 
 impl AnalysisConfig {
     pub fn new(source_root: impl Into<PathBuf>) -> Self {
@@ -88,6 +99,32 @@ impl AnalysisConfig {
 pub struct AnalysisFile {
     pub path: PathBuf,
     pub text: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalysisChangeKind {
+    Full,
+    Incremental,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnalysisChange {
+    pub kind: AnalysisChangeKind,
+    pub affected_modules: Vec<ModuleId>,
+}
+
+#[derive(Debug, Clone)]
+struct CachedAnalysisFile {
+    path: PathBuf,
+    text: String,
+    module_id: ModuleId,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnalysisWorkspace {
+    config: AnalysisConfig,
+    files: BTreeMap<PathBuf, CachedAnalysisFile>,
+    analysis: ProjectAnalysis,
 }
 
 #[derive(Debug)]
@@ -257,17 +294,19 @@ pub fn analyze_source_root(
             files.insert(overlay.path, overlay.text);
         }
     }
-    analyze_files(
-        config,
-        files
-            .into_iter()
-            .map(|(path, text)| AnalysisFile { path, text }),
-    )
+    analyze_file_map(config, files)
 }
 
 pub fn analyze_files(
     config: AnalysisConfig,
     files: impl IntoIterator<Item = AnalysisFile>,
+) -> Result<ProjectAnalysis, AnalysisError> {
+    analyze_file_map(config, collect_file_map(files)?)
+}
+
+pub fn analyze_file_map(
+    config: AnalysisConfig,
+    files: BTreeMap<PathBuf, String>,
 ) -> Result<ProjectAnalysis, AnalysisError> {
     let package_id = config.effective_package_id();
     let mut diagnostics = Vec::<Diagnostic>::new();
@@ -275,16 +314,13 @@ pub fn analyze_files(
     let mut source_files = Vec::<SourceFile>::new();
     let macro_registry = load_macro_registry(&config, &mut diagnostics);
 
-    let mut input_files = files.into_iter().collect::<Vec<_>>();
-    input_files.sort_by(|a, b| a.path.cmp(&b.path));
-
-    for (index, input) in input_files.into_iter().enumerate() {
-        let file = SourceFile::new(index as u32, Some(input.path.clone()), input.text);
-        let module_path = infer_module_path(&config.source_root, &input.path);
+    for (index, (path, text)) in files.into_iter().enumerate() {
+        let file = SourceFile::new(index as u32, Some(path.clone()), text);
+        let module_path = infer_module_path(&config.source_root, &path);
         let module_id = ModuleId::from_package_path(&package_id, &module_path);
         source_files.push(file.clone());
 
-        let default_realm = match infer_part_realm(&config.source_root, &input.path, file.id) {
+        let default_realm = match infer_part_realm(&config.source_root, &path, file.id) {
             Ok(realm) => realm,
             Err(diagnostic) => {
                 diagnostics.push(diagnostic);
@@ -326,7 +362,7 @@ pub fn analyze_files(
             })
             .parts
             .push(AnalyzedPart {
-                path: input.path,
+                path,
                 default_realm,
                 module: expanded.module,
                 source_file: file,
@@ -334,42 +370,7 @@ pub fn analyze_files(
     }
 
     for module in modules.values_mut() {
-        module.parts.sort_by(|a, b| a.path.cmp(&b.path));
-        let inputs = module
-            .parts
-            .iter()
-            .map(|part| PartOrderInput {
-                path: &part.path,
-                module: &part.module,
-                is_entry: is_module_entry_path(&part.path),
-            })
-            .collect::<Vec<_>>();
-        match sort_module_parts(&inputs) {
-            Ok(order) => {
-                module.parts = order
-                    .into_iter()
-                    .map(|index| module.parts[index].clone())
-                    .collect();
-            }
-            Err(part_order_diagnostics) => {
-                diagnostics.extend(part_order_diagnostics);
-            }
-        }
-
-        let parts = module
-            .parts
-            .iter()
-            .map(|part| ResolvePart {
-                module: &part.module,
-                default_realm: part.default_realm,
-            })
-            .collect::<Vec<_>>();
-        let resolved =
-            Resolver::resolve_parts_with_options(&parts, config.resolver_options.clone());
-        diagnostics.extend(resolved.diagnostics.clone());
-        module.resolved = resolved;
-        module.exports = module_exports(module);
-        module.imports = module_imports(module);
+        finalize_analyzed_module(&config, module, &mut diagnostics);
     }
 
     let module_vec = modules.into_values().collect::<Vec<_>>();
@@ -409,6 +410,144 @@ pub fn analyze_text(path: impl Into<PathBuf>, text: impl Into<String>) -> Projec
 pub fn format_text(path: impl Into<PathBuf>, text: impl Into<String>) -> FormatOutput {
     let file = SourceFile::new(0, Some(path.into()), text.into());
     format_source(&file)
+}
+
+impl AnalysisWorkspace {
+    pub fn load(
+        config: AnalysisConfig,
+        overlays: impl IntoIterator<Item = AnalysisFile>,
+    ) -> Result<Self, AnalysisError> {
+        let files = load_source_root_files(&config, overlays)?;
+        Self::from_file_map(config, files)
+    }
+
+    pub fn from_files(
+        config: AnalysisConfig,
+        files: impl IntoIterator<Item = AnalysisFile>,
+    ) -> Result<Self, AnalysisError> {
+        Self::from_file_map(config, collect_file_map(files)?)
+    }
+
+    pub fn from_file_map(
+        config: AnalysisConfig,
+        files: BTreeMap<PathBuf, String>,
+    ) -> Result<Self, AnalysisError> {
+        let analysis = analyze_file_map(config.clone(), files.clone())?;
+        let files = cached_files(&config, files);
+        Ok(Self {
+            config,
+            files,
+            analysis,
+        })
+    }
+
+    pub fn analysis(&self) -> &ProjectAnalysis {
+        &self.analysis
+    }
+
+    pub fn into_analysis(self) -> ProjectAnalysis {
+        self.analysis
+    }
+
+    pub fn update_files(
+        &mut self,
+        config: AnalysisConfig,
+        files: impl IntoIterator<Item = AnalysisFile>,
+    ) -> Result<AnalysisChange, AnalysisError> {
+        self.update_file_map(config, collect_file_map(files)?)
+    }
+
+    pub fn update_file_map(
+        &mut self,
+        config: AnalysisConfig,
+        files: BTreeMap<PathBuf, String>,
+    ) -> Result<AnalysisChange, AnalysisError> {
+        if self.config != config || file_keys_changed(&self.files, &files) {
+            self.config = config;
+            self.files = cached_files(&self.config, files);
+            self.analysis = analyze_cached_files(&self.config, &self.files)?;
+            return Ok(AnalysisChange {
+                kind: AnalysisChangeKind::Full,
+                affected_modules: self
+                    .analysis
+                    .modules
+                    .iter()
+                    .map(|module| module.id.clone())
+                    .collect(),
+            });
+        }
+
+        let changed_modules = changed_modules(&self.files, &files);
+        if changed_modules.is_empty() {
+            return Ok(AnalysisChange {
+                kind: AnalysisChangeKind::Incremental,
+                affected_modules: Vec::new(),
+            });
+        }
+
+        self.files = cached_files(&config, files);
+        let affected_modules = affected_modules_for_change(&self.analysis, &changed_modules);
+        let affected_set = affected_modules.iter().cloned().collect::<BTreeSet<_>>();
+        self.reanalyze_modules(&affected_set)?;
+        Ok(AnalysisChange {
+            kind: AnalysisChangeKind::Incremental,
+            affected_modules,
+        })
+    }
+
+    fn reanalyze_modules(
+        &mut self,
+        affected_modules: &BTreeSet<ModuleId>,
+    ) -> Result<(), AnalysisError> {
+        let mut existing_modules = self
+            .analysis
+            .modules
+            .iter()
+            .cloned()
+            .map(|module| (module.id.clone(), module))
+            .collect::<BTreeMap<_, _>>();
+        let mut unaffected_diagnostics = self
+            .analysis
+            .diagnostics
+            .iter()
+            .filter(|diagnostic| {
+                !diagnostic_touches_modules(diagnostic, &self.analysis, affected_modules)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        let macro_registry = load_macro_registry(&self.config, &mut unaffected_diagnostics);
+
+        for module_id in affected_modules {
+            if let Some(module) = analyze_single_module(
+                &self.config,
+                &self.files,
+                module_id,
+                &macro_registry,
+                &mut unaffected_diagnostics,
+            )? {
+                existing_modules.insert(module_id.clone(), module);
+            } else {
+                existing_modules.remove(module_id);
+            }
+        }
+
+        let module_vec = existing_modules.into_values().collect::<Vec<_>>();
+        let graph = match ModuleGraph::build(module_vec.iter().map(module_input).collect()) {
+            Ok(graph) => Some(graph),
+            Err(graph_diagnostics) => {
+                unaffected_diagnostics.extend(graph_diagnostics);
+                None
+            }
+        };
+        self.analysis = ProjectAnalysis {
+            config: self.config.clone(),
+            files: source_files_from_cache(&self.files),
+            modules: module_vec,
+            graph,
+            diagnostics: unaffected_diagnostics,
+        };
+        Ok(())
+    }
 }
 
 impl ProjectAnalysis {
@@ -952,6 +1091,261 @@ fn active_realms_in_block(block: &Block, offset: usize, current: RealmSet) -> Re
     active_realms_in_stmts(&block.statements, offset, current)
 }
 
+fn collect_file_map(
+    files: impl IntoIterator<Item = AnalysisFile>,
+) -> Result<BTreeMap<PathBuf, String>, AnalysisError> {
+    let mut map = BTreeMap::new();
+    for file in files {
+        map.insert(file.path, file.text);
+    }
+    Ok(map)
+}
+
+fn load_source_root_files(
+    config: &AnalysisConfig,
+    overlays: impl IntoIterator<Item = AnalysisFile>,
+) -> Result<BTreeMap<PathBuf, String>, AnalysisError> {
+    let mut files = BTreeMap::<PathBuf, String>::new();
+    for path in discover_lux_sources(&config.source_root).map_err(project_error_to_analysis)? {
+        let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
+            path: path.clone(),
+            source,
+        })?;
+        files.insert(path, text);
+    }
+    for overlay in overlays {
+        if overlay
+            .path
+            .extension()
+            .is_some_and(|extension| extension == "lux")
+        {
+            files.insert(overlay.path, overlay.text);
+        }
+    }
+    Ok(files)
+}
+
+fn cached_files(
+    config: &AnalysisConfig,
+    files: BTreeMap<PathBuf, String>,
+) -> BTreeMap<PathBuf, CachedAnalysisFile> {
+    let package_id = config.effective_package_id();
+    files
+        .into_iter()
+        .map(|(path, text)| {
+            let module_path = infer_module_path(&config.source_root, &path);
+            let module_id = ModuleId::from_package_path(&package_id, &module_path);
+            (
+                path.clone(),
+                CachedAnalysisFile {
+                    path,
+                    text,
+                    module_id,
+                },
+            )
+        })
+        .collect()
+}
+
+fn analyze_cached_files(
+    config: &AnalysisConfig,
+    files: &BTreeMap<PathBuf, CachedAnalysisFile>,
+) -> Result<ProjectAnalysis, AnalysisError> {
+    analyze_file_map(
+        config.clone(),
+        files
+            .iter()
+            .map(|(path, file)| (path.clone(), file.text.clone()))
+            .collect(),
+    )
+}
+
+fn source_files_from_cache(files: &BTreeMap<PathBuf, CachedAnalysisFile>) -> Vec<SourceFile> {
+    files
+        .values()
+        .enumerate()
+        .map(|(index, file)| {
+            SourceFile::new(index as u32, Some(file.path.clone()), file.text.clone())
+        })
+        .collect()
+}
+
+fn file_keys_changed(
+    previous: &BTreeMap<PathBuf, CachedAnalysisFile>,
+    next: &BTreeMap<PathBuf, String>,
+) -> bool {
+    previous.keys().ne(next.keys())
+}
+
+fn changed_modules(
+    previous: &BTreeMap<PathBuf, CachedAnalysisFile>,
+    next: &BTreeMap<PathBuf, String>,
+) -> BTreeSet<ModuleId> {
+    previous
+        .iter()
+        .filter_map(|(path, old)| {
+            let new_text = next.get(path)?;
+            (old.text != *new_text).then(|| old.module_id.clone())
+        })
+        .collect()
+}
+
+fn affected_modules_for_change(
+    analysis: &ProjectAnalysis,
+    changed_modules: &BTreeSet<ModuleId>,
+) -> Vec<ModuleId> {
+    let mut affected = changed_modules.clone();
+    let mut queue = changed_modules.iter().cloned().collect::<VecDeque<_>>();
+    while let Some(changed) = queue.pop_front() {
+        let dependents = analysis
+            .modules
+            .iter()
+            .filter(|module| !affected.contains(&module.id))
+            .filter(|module| module.imports.iter().any(|import| import.target == changed))
+            .map(|module| module.id.clone())
+            .collect::<Vec<_>>();
+        for dependent in dependents {
+            if affected.insert(dependent.clone()) {
+                queue.push_back(dependent);
+            }
+        }
+    }
+    analysis
+        .modules
+        .iter()
+        .map(|module| module.id.clone())
+        .filter(|module_id| affected.contains(module_id))
+        .collect()
+}
+
+fn analyze_single_module(
+    config: &AnalysisConfig,
+    files: &BTreeMap<PathBuf, CachedAnalysisFile>,
+    module_id: &ModuleId,
+    macro_registry: &MacroRegistry,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<Option<AnalyzedModule>, AnalysisError> {
+    let module_files = files
+        .values()
+        .filter(|file| &file.module_id == module_id)
+        .map(|file| (file.path.clone(), file.text.clone()))
+        .collect::<BTreeMap<_, _>>();
+    if module_files.is_empty() {
+        return Ok(None);
+    }
+
+    let package_id = config.effective_package_id();
+    let mut module = None::<AnalyzedModule>;
+    for (index, (path, text)) in module_files.into_iter().enumerate() {
+        let source_file = SourceFile::new(index as u32, Some(path.clone()), text);
+        let module_path = infer_module_path(&config.source_root, &path);
+        let parsed_module_id = ModuleId::from_package_path(&package_id, &module_path);
+        let default_realm = match infer_part_realm(&config.source_root, &path, source_file.id) {
+            Ok(realm) => realm,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        let lex = Lexer::new(&source_file).lex_all();
+        if lex.has_errors() {
+            diagnostics.extend(lex.diagnostics);
+            continue;
+        }
+        let parsed = Parser::new(&lex.tokens).parse_module();
+        if parsed.has_errors() {
+            diagnostics.extend(parsed.diagnostics);
+            continue;
+        }
+        let expanded = expand_macros_with_registry(&source_file, &parsed.module, macro_registry);
+        if expanded.has_errors() {
+            diagnostics.extend(expanded.diagnostics);
+            continue;
+        }
+        module
+            .get_or_insert_with(|| AnalyzedModule {
+                id: parsed_module_id.clone(),
+                package_id: package_id.clone(),
+                module_path: module_path.clone(),
+                parts: Vec::new(),
+                resolved: Resolver::resolve(&Module {
+                    body: Vec::new(),
+                    span: expanded.module.span,
+                }),
+                exports: Vec::new(),
+                imports: Vec::new(),
+            })
+            .parts
+            .push(AnalyzedPart {
+                path,
+                default_realm,
+                module: expanded.module,
+                source_file,
+            });
+    }
+
+    let Some(mut module) = module else {
+        return Ok(None);
+    };
+    finalize_analyzed_module(config, &mut module, diagnostics);
+    Ok(Some(module))
+}
+
+fn finalize_analyzed_module(
+    config: &AnalysisConfig,
+    module: &mut AnalyzedModule,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    module.parts.sort_by(|a, b| a.path.cmp(&b.path));
+    let inputs = module
+        .parts
+        .iter()
+        .map(|part| PartOrderInput {
+            path: &part.path,
+            module: &part.module,
+            is_entry: is_module_entry_path(&part.path),
+        })
+        .collect::<Vec<_>>();
+    match sort_module_parts(&inputs) {
+        Ok(order) => {
+            module.parts = order
+                .into_iter()
+                .map(|index| module.parts[index].clone())
+                .collect();
+        }
+        Err(part_order_diagnostics) => {
+            diagnostics.extend(part_order_diagnostics);
+        }
+    }
+
+    let parts = module
+        .parts
+        .iter()
+        .map(|part| ResolvePart {
+            module: &part.module,
+            default_realm: part.default_realm,
+        })
+        .collect::<Vec<_>>();
+    let resolved = Resolver::resolve_parts_with_options(&parts, config.resolver_options.clone());
+    diagnostics.extend(resolved.diagnostics.clone());
+    module.resolved = resolved;
+    module.exports = module_exports(module);
+    module.imports = module_imports(module);
+}
+
+fn diagnostic_touches_modules(
+    diagnostic: &Diagnostic,
+    analysis: &ProjectAnalysis,
+    modules: &BTreeSet<ModuleId>,
+) -> bool {
+    diagnostic.labels.iter().any(|label| {
+        analysis
+            .path_for_span(label.span)
+            .and_then(|path| analysis.module_for_path(&path))
+            .is_some_and(|module| modules.contains(&module.id))
+    })
+}
+
 fn zero_range(file: &SourceFile) -> AnalysisRange {
     range_for_span(file, SourceSpan::new(file.id, 0, 0))
 }
@@ -1243,6 +1637,10 @@ fn same_path(a: &Path, b: &Path) -> bool {
     normalized_path(a) == normalized_path(b)
 }
 
+fn paths_equal(a: &[PathBuf], b: &[PathBuf]) -> bool {
+    a.len() == b.len() && a.iter().zip(b).all(|(a, b)| same_path(a, b))
+}
+
 fn normalized_path(path: &Path) -> String {
     let value = path.to_string_lossy().replace('\\', "/");
     if cfg!(windows) {
@@ -1264,6 +1662,7 @@ fn project_error_to_analysis(error: crate::project::ProjectError) -> AnalysisErr
 
 #[cfg(test)]
 mod tests {
+    use super::{AnalysisChangeKind, AnalysisWorkspace};
     use super::{AnalysisConfig, AnalysisFile, AnalysisSymbolKind, analyze_files};
     use crate::module::{RealmAvailability, RealmSet};
 
@@ -1453,6 +1852,71 @@ mod tests {
         let definition_span = symbol.definition_span.expect("definition span");
         let definition_file = output.file_by_id(definition_span.file_id).expect("file");
         assert_eq!(definition_file.slice(definition_span), "build_item");
+    }
+
+    #[test]
+    fn workspace_update_reanalyzes_changed_module_and_dependents() {
+        let root = std::path::PathBuf::from("src");
+        let api_path = root.join("api/module.lux");
+        let hud_path = root.join("hud/module.lux");
+        let other_path = root.join("other/module.lux");
+        let mut workspace = AnalysisWorkspace::from_files(
+            AnalysisConfig::new(&root),
+            [
+                AnalysisFile {
+                    path: api_path.clone(),
+                    text: "export fn old_name() = nil".into(),
+                },
+                AnalysisFile {
+                    path: hud_path.clone(),
+                    text: "import { old_name } from \"api\"\nfn draw() = old_name()".into(),
+                },
+                AnalysisFile {
+                    path: other_path.clone(),
+                    text: "fn keep() = 1".into(),
+                },
+            ],
+        )
+        .expect("workspace");
+
+        let change = workspace
+            .update_files(
+                AnalysisConfig::new(&root),
+                [
+                    AnalysisFile {
+                        path: api_path.clone(),
+                        text: "export fn new_name() = nil".into(),
+                    },
+                    AnalysisFile {
+                        path: hud_path.clone(),
+                        text: "import { old_name } from \"api\"\nfn draw() = old_name()".into(),
+                    },
+                    AnalysisFile {
+                        path: other_path.clone(),
+                        text: "fn keep() = 1".into(),
+                    },
+                ],
+            )
+            .expect("incremental update");
+
+        assert_eq!(change.kind, AnalysisChangeKind::Incremental);
+        let affected = change
+            .affected_modules
+            .iter()
+            .map(|id| id.as_str().to_string())
+            .collect::<Vec<_>>();
+        assert!(affected.iter().any(|id| id.ends_with("/api")));
+        assert!(affected.iter().any(|id| id.ends_with("/hud")));
+        assert!(!affected.iter().any(|id| id.ends_with("/other")));
+        assert!(
+            workspace
+                .analysis()
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("MODULE008")),
+            "{:#?}",
+            workspace.analysis().diagnostics
+        );
     }
 
     #[test]

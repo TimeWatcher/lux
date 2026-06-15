@@ -146,7 +146,7 @@ impl ExternSymbol {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolverOptions {
     pub externs: Vec<ExternSymbol>,
     pub unknown_external: UnknownExternalPolicy,
