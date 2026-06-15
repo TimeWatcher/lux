@@ -15,8 +15,9 @@ use luxc::lex::Lexer;
 use luxc::lint::{LintOptions, lint_module};
 use luxc::lower::Lowerer;
 use luxc::package_manager::{
-    DependencySource, InitOptions, InstallRequest, doctor as package_doctor, init_project,
-    install_package, list_locked,
+    DependencySource, InitOptions, InstallRequest, LockRequest, RemoveRequest,
+    doctor as package_doctor, init_project, install_package, list_locked, lock_project,
+    remove_package,
 };
 use luxc::pipeline::parse_expand_resolve;
 use luxc::project::{GmodBuildOptions, ProjectManifest, build_gmod_project};
@@ -34,6 +35,8 @@ fn usage() {
     eprintln!(
         "  luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]"
     );
+    eprintln!("  luxc remove <package-id> [--project <project-root>]");
+    eprintln!("  luxc lock [project-root]");
     eprintln!("  luxc list [project-root]");
     eprintln!("  luxc doctor [project-root]");
     eprintln!(
@@ -386,6 +389,20 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        Command::Remove(request) => match package_remove(request) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
+        Command::Lock { project_root } => match package_lock(project_root) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
         Command::List { project_root } => match package_list(project_root) {
             Ok(code) => code,
             Err(message) => {
@@ -460,6 +477,10 @@ enum Command {
     },
     Init(InitOptions),
     Install(InstallRequest),
+    Remove(RemoveRequest),
+    Lock {
+        project_root: PathBuf,
+    },
     List {
         project_root: PathBuf,
     },
@@ -508,6 +529,13 @@ fn parse_command(args: Vec<OsString>) -> Command {
         }
         [command, rest @ ..] if command == "init" => parse_init_command(rest),
         [command, rest @ ..] if command == "install" => parse_install_command(rest),
+        [command, rest @ ..] if command == "remove" => parse_remove_command(rest),
+        [command] if command == "lock" => Command::Lock {
+            project_root: PathBuf::from("."),
+        },
+        [command, project_root] if command == "lock" => Command::Lock {
+            project_root: project_root.into(),
+        },
         [command] if command == "list" => Command::List {
             project_root: PathBuf::from("."),
         },
@@ -715,6 +743,36 @@ fn parse_install_command(args: &[OsString]) -> Command {
         project_root,
         package,
         source,
+    })
+}
+
+fn parse_remove_command(args: &[OsString]) -> Command {
+    let Some(package) = args
+        .first()
+        .and_then(|arg| arg.to_str())
+        .map(str::to_string)
+    else {
+        return Command::Invalid;
+    };
+    let mut project_root = PathBuf::from(".");
+    let mut index = 1;
+
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--project" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                project_root = PathBuf::from(value);
+                index += 2;
+            }
+            _ => return Command::Invalid,
+        }
+    }
+
+    Command::Remove(RemoveRequest {
+        project_root,
+        package,
     })
 }
 
@@ -1072,6 +1130,28 @@ fn package_install(request: InstallRequest) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
+fn package_remove(request: RemoveRequest) -> Result<ExitCode, String> {
+    let output = remove_package(&request).map_err(|err| err.to_string())?;
+    println!(
+        "removed {} ({} direct, {} total packages)",
+        output.package_id, output.direct_count, output.total_count
+    );
+    println!("lockfile: {}", output.lock_path.display());
+    Ok(ExitCode::SUCCESS)
+}
+
+fn package_lock(project_root: PathBuf) -> Result<ExitCode, String> {
+    let output = lock_project(&LockRequest { project_root }).map_err(|err| err.to_string())?;
+    println!(
+        "locked {} direct, {} total packages in {}",
+        output.direct_count,
+        output.total_count,
+        output.project_root.display()
+    );
+    println!("lockfile: {}", output.lock_path.display());
+    Ok(ExitCode::SUCCESS)
+}
+
 fn package_list(project_root: PathBuf) -> Result<ExitCode, String> {
     let packages = list_locked(&project_root).map_err(|err| err.to_string())?;
     if packages.is_empty() {
@@ -1141,5 +1221,48 @@ mod tests {
             parse_command(args(&["install", "@lux/std", "--builtin"])),
             Command::Invalid
         ));
+    }
+
+    #[test]
+    fn remove_accepts_project_root() {
+        let Command::Remove(request) =
+            parse_command(args(&["remove", "@lux/gmod", "--project", "demo"]))
+        else {
+            panic!("expected remove command");
+        };
+
+        assert_eq!(request.package, "@lux/gmod");
+        assert_eq!(request.project_root, PathBuf::from("demo"));
+    }
+
+    #[test]
+    fn remove_rejects_unknown_flags() {
+        assert!(matches!(
+            parse_command(args(&[
+                "remove",
+                "@lux/gmod",
+                "--from",
+                "github:vendor/pkg"
+            ])),
+            Command::Invalid
+        ));
+    }
+
+    #[test]
+    fn lock_defaults_to_current_project() {
+        let Command::Lock { project_root } = parse_command(args(&["lock"])) else {
+            panic!("expected lock command");
+        };
+
+        assert_eq!(project_root, PathBuf::from("."));
+    }
+
+    #[test]
+    fn lock_accepts_project_root() {
+        let Command::Lock { project_root } = parse_command(args(&["lock", "demo"])) else {
+            panic!("expected lock command");
+        };
+
+        assert_eq!(project_root, PathBuf::from("demo"));
     }
 }

@@ -131,6 +131,12 @@ Install the official standard package set only when you need it:
 .\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
 ```
 
+Lux has no package registry. A dependency's source and version are selected by
+the explicit `github`, `url`, or `path` entry in `lux.toml`, plus optional
+`tag`, `branch`, or `commit` refs. `lux.lock` records the resolved package set;
+`luxc lock` regenerates it from the current manifest, and `luxc remove` removes
+a direct dependency.
+
 Build a GMod addon project:
 
 ```powershell
@@ -198,6 +204,8 @@ luxc lint <path>
 luxc format <path> [--check] [--write]
 luxc init [path] [--name <name>] [--std] [--template gmod-addon]
 luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]
+luxc remove <package-id> [--project <project-root>]
+luxc lock [project-root]
 luxc list [project-root]
 luxc doctor [project-root]
 luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]

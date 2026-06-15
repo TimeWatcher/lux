@@ -30,6 +30,17 @@ pub struct InstallRequest {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LockRequest {
+    pub project_root: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveRequest {
+    pub project_root: PathBuf,
+    pub package: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DependencySource {
     Github {
         repo: String,
@@ -200,6 +211,22 @@ pub struct InstallOutput {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LockOutput {
+    pub project_root: PathBuf,
+    pub direct_count: usize,
+    pub total_count: usize,
+    pub lock_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemoveOutput {
+    pub package_id: String,
+    pub direct_count: usize,
+    pub total_count: usize,
+    pub lock_path: PathBuf,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DoctorReport {
     pub project_root: PathBuf,
     pub manifest_path: PathBuf,
@@ -275,17 +302,41 @@ pub fn install_package(request: &InstallRequest) -> Result<InstallOutput, Packag
     manifest.write(&manifest_path)?;
 
     let cache = CacheLayout::new()?;
-    let resolved = resolve_manifest_dependencies(&manifest, &project_root, &cache)?;
     let package_root = resolve_dependency_source_root(&request.source, &cache, &project_root)?;
-    let lock_path = project_root.join(LOCKFILE);
-    let lockfile = Lockfile { package: resolved };
-    write_toml(&lock_path, &lockfile)?;
+    let lock = regenerate_lockfile(&project_root, &manifest)?;
     Ok(InstallOutput {
         package_id: normalize_package_display(&request.package),
         package_root,
-        direct_count: manifest.dependencies.len(),
-        total_count: lockfile.package.len(),
-        lock_path,
+        direct_count: lock.direct_count,
+        total_count: lock.total_count,
+        lock_path: lock.lock_path,
+    })
+}
+
+pub fn lock_project(request: &LockRequest) -> Result<LockOutput, PackageManagerError> {
+    let project_root = canonical_or_current(&request.project_root)?;
+    let manifest_path = project_root.join(PROJECT_MANIFEST);
+    let manifest = ProjectDependencyManifest::load_or_new(&manifest_path)?;
+    regenerate_lockfile(&project_root, &manifest)
+}
+
+pub fn remove_package(request: &RemoveRequest) -> Result<RemoveOutput, PackageManagerError> {
+    let project_root = canonical_or_current(&request.project_root)?;
+    let manifest_path = project_root.join(PROJECT_MANIFEST);
+    let mut manifest = ProjectDependencyManifest::load_or_new(&manifest_path)?;
+    let package_id = normalize_package_display(&request.package);
+    if !manifest.remove_dependency(&package_id) {
+        return Err(PackageManagerError::Invalid(format!(
+            "package `{package_id}` is not a direct dependency"
+        )));
+    }
+    manifest.write(&manifest_path)?;
+    let lock = regenerate_lockfile(&project_root, &manifest)?;
+    Ok(RemoveOutput {
+        package_id,
+        direct_count: lock.direct_count,
+        total_count: lock.total_count,
+        lock_path: lock.lock_path,
     })
 }
 
@@ -376,6 +427,12 @@ impl ProjectDependencyManifest {
             .insert(normalize_package_display(package), source.manifest_value());
     }
 
+    fn remove_dependency(&mut self, package: &str) -> bool {
+        self.dependencies
+            .remove(&normalize_package_display(package))
+            .is_some()
+    }
+
     fn write(&self, path: &Path) -> Result<(), PackageManagerError> {
         let mut lines = Vec::new();
         lines.extend(self.pre_dependencies.clone());
@@ -389,6 +446,24 @@ impl ProjectDependencyManifest {
         lines.extend(self.post_dependencies.clone());
         write_file(path, &(lines.join("\n") + "\n"))
     }
+}
+
+fn regenerate_lockfile(
+    project_root: &Path,
+    manifest: &ProjectDependencyManifest,
+) -> Result<LockOutput, PackageManagerError> {
+    let cache = CacheLayout::new()?;
+    let resolved = resolve_manifest_dependencies(manifest, project_root, &cache)?;
+    let lock_path = project_root.join(LOCKFILE);
+    let lockfile = Lockfile { package: resolved };
+    let total_count = lockfile.package.len();
+    write_toml(&lock_path, &lockfile)?;
+    Ok(LockOutput {
+        project_root: project_root.to_path_buf(),
+        direct_count: manifest.dependencies.len(),
+        total_count,
+        lock_path,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -491,7 +566,10 @@ fn resolve_package_tree(
     resolved: &mut BTreeMap<String, LockedPackage>,
 ) -> Result<(), PackageManagerError> {
     let package_id = normalize_package_display(package_id);
-    if resolved.contains_key(&package_id) {
+    if let Some(locked) = resolved.get_mut(&package_id) {
+        if direct {
+            locked.direct = true;
+        }
         return Ok(());
     }
 
@@ -1267,6 +1345,48 @@ mod tests {
         root
     }
 
+    fn write_project_manifest(project: &Path) {
+        fs::create_dir_all(project).expect("project");
+        fs::write(
+            project.join("lux.toml"),
+            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n[dependencies]\n",
+        )
+        .expect("project manifest");
+    }
+
+    fn write_ui_package_set(source: &Path) {
+        fs::create_dir_all(source.join("packages/core/src")).expect("core package");
+        fs::create_dir_all(source.join("packages/ui/src")).expect("ui package");
+        fs::write(
+            source.join("lux.package.toml"),
+            r#"
+name = "ui-set"
+
+[[package]]
+id = "@vendor/core"
+version = "0.1.0"
+path = "packages/core"
+
+[[package]]
+id = "@vendor/ui"
+version = "0.1.0"
+path = "packages/ui"
+depends = ["@vendor/core >=0.1 <0.2"]
+"#,
+        )
+        .expect("source manifest");
+        fs::write(
+            source.join("packages/core/src/module.lux"),
+            "export fn core() = true\n",
+        )
+        .expect("core module");
+        fs::write(
+            source.join("packages/ui/src/module.lux"),
+            "import { core } from \"@vendor/core\"\nexport fn ui() = core()\n",
+        )
+        .expect("ui module");
+    }
+
     #[test]
     fn init_project_manifest_is_valid_for_gmod_build() {
         let root = temp_root("init_manifest");
@@ -1412,6 +1532,105 @@ path = "{}"
             roots
                 .iter()
                 .any(|root| root == &strip_windows_verbatim_prefix(source.canonicalize().unwrap()))
+        );
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(project);
+    }
+
+    #[test]
+    fn lock_project_rewrites_lock_from_manifest() {
+        let source = temp_root("lock_source");
+        write_ui_package_set(&source);
+        let project = temp_root("lock_project");
+        write_project_manifest(&project);
+        fs::write(
+            project.join("lux.toml"),
+            format!(
+                "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n[dependencies]\n\"@vendor/ui\" = {{ path = \"{}\" }}\n",
+                source.to_string_lossy().replace('\\', "\\\\")
+            ),
+        )
+        .expect("project manifest");
+        fs::write(
+            project.join("lux.lock"),
+            "[[package]]\nid = \"@stale/pkg\"\n",
+        )
+        .expect("stale lock");
+
+        let output = lock_project(&LockRequest {
+            project_root: project.clone(),
+        })
+        .expect("lock project");
+
+        assert_eq!(output.direct_count, 1);
+        assert_eq!(output.total_count, 2);
+        let locked = list_locked(&project).expect("locked");
+        assert_eq!(locked.len(), 2);
+        assert!(locked.iter().any(|package| package.id == "@vendor/ui"));
+        assert!(locked.iter().any(|package| package.id == "@vendor/core"));
+        assert!(!locked.iter().any(|package| package.id == "@stale/pkg"));
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(project);
+    }
+
+    #[test]
+    fn remove_package_updates_manifest_and_prunes_transitives() {
+        let source = temp_root("remove_source");
+        write_ui_package_set(&source);
+        let project = temp_root("remove_project");
+        write_project_manifest(&project);
+
+        let installed = install_package(&InstallRequest {
+            project_root: project.clone(),
+            package: "@vendor/ui".into(),
+            source: DependencySource::Path(source.clone()),
+        })
+        .expect("install");
+        assert_eq!(installed.total_count, 2);
+
+        let output = remove_package(&RemoveRequest {
+            project_root: project.clone(),
+            package: "@vendor/ui".into(),
+        })
+        .expect("remove");
+
+        assert_eq!(output.package_id, "@vendor/ui");
+        assert_eq!(output.direct_count, 0);
+        assert_eq!(output.total_count, 0);
+        let manifest = fs::read_to_string(project.join("lux.toml")).expect("manifest");
+        assert!(!manifest.contains("@vendor/ui"), "{manifest}");
+        let locked = list_locked(&project).expect("locked");
+        assert!(locked.is_empty(), "{locked:?}");
+
+        let _ = fs::remove_dir_all(source);
+        let _ = fs::remove_dir_all(project);
+    }
+
+    #[test]
+    fn remove_package_rejects_transitive_dependency() {
+        let source = temp_root("remove_transitive_source");
+        write_ui_package_set(&source);
+        let project = temp_root("remove_transitive_project");
+        write_project_manifest(&project);
+
+        install_package(&InstallRequest {
+            project_root: project.clone(),
+            package: "@vendor/ui".into(),
+            source: DependencySource::Path(source.clone()),
+        })
+        .expect("install");
+
+        let err = remove_package(&RemoveRequest {
+            project_root: project.clone(),
+            package: "@vendor/core".into(),
+        })
+        .expect_err("transitive remove should fail");
+        assert!(
+            err.to_string()
+                .contains("package `@vendor/core` is not a direct dependency"),
+            "{err}"
         );
 
         let _ = fs::remove_dir_all(source);

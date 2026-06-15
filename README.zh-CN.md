@@ -125,6 +125,11 @@ luxc-v0.1.0-x86_64-pc-windows-msvc/
 .\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
 ```
 
+Lux 没有 package registry。依赖的来源和版本由 `lux.toml` 里的显式 `github`、`url`
+或 `path` 指定，再通过可选的 `tag`、`branch` 或 `commit` 固定引用。`lux.lock`
+记录已解析的 package set；`luxc lock` 只按当前 manifest 重新生成 lockfile，
+`luxc remove` 删除直接依赖。
+
 构建一个 GMod addon 项目：
 
 ```powershell
@@ -191,6 +196,8 @@ luxc lint <path>
 luxc format <path> [--check] [--write]
 luxc init [path] [--name <name>] [--std] [--template gmod-addon]
 luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]
+luxc remove <package-id> [--project <project-root>]
+luxc lock [project-root]
 luxc list [project-root]
 luxc doctor [project-root]
 luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]
