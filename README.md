@@ -14,6 +14,7 @@ spaghetti.**
 [Documentation](https://timewatcher.github.io/lux-docs-site/) ·
 [Quick Start](#quick-start) ·
 [Packages](https://github.com/TimeWatcher/lux-packages) ·
+[LSP](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://timewatcher.github.io/mgfx-docs-site/) ·
 [Releases](https://github.com/TimeWatcher/lux/releases)
 
@@ -164,6 +165,7 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 ```text
 compiler/        Rust implementation of luxc
 packages/        Built-in Lux packages, tracked as a submodule
+lsp/             Lux LSP, VS Code support, and GMod API intelligence standards
 docs-site/       Public Lux documentation site, tracked as a submodule
 mgfx-docs-site/  MGFX documentation site, tracked as a submodule
 docs/            Design notes and implementation references
@@ -198,6 +200,7 @@ luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--ge
 - [Imports and exports](https://timewatcher.github.io/lux-docs-site/language/imports-exports)
 - [Realms](https://timewatcher.github.io/lux-docs-site/language/realms)
 - [GMod backend](https://timewatcher.github.io/lux-docs-site/gmod/)
+- [LSP and VS Code standards](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX package docs](https://timewatcher.github.io/mgfx-docs-site/)
 
 ## Status
@@ -236,6 +239,10 @@ npm run build
 Packages live in the `packages` submodule. Edit that repository directly and
 validate with compiler tests or a GMod project build that imports the changed
 package.
+
+Language server and VS Code support standards live in the `lsp` submodule. Edit
+that repository directly when working on editor integration, GMod API
+intelligence, hover, completion, diagnostics, or quick fixes.
 
 ## License
 

@@ -14,6 +14,7 @@ realm 顺序。**
 [中文文档](https://timewatcher.github.io/lux-docs-site/zh/) ·
 [快速开始](#快速开始) ·
 [内置包](https://github.com/TimeWatcher/lux-packages) ·
+[LSP](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://timewatcher.github.io/mgfx-docs-site/zh/) ·
 [发布下载](https://github.com/TimeWatcher/lux/releases)
 
@@ -158,6 +159,7 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 ```text
 compiler/        luxc 的 Rust 实现
 packages/        内置 Lux packages，以 submodule 管理
+lsp/             Lux LSP、VS Code 支持和 GMod API 智能标准
 docs-site/       Lux 文档站源码，以 submodule 管理
 mgfx-docs-site/  MGFX 文档站源码，以 submodule 管理
 docs/            设计说明和实现参考
@@ -192,6 +194,7 @@ luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--ge
 - [导入和导出](https://timewatcher.github.io/lux-docs-site/zh/language/imports-exports)
 - [运行域](https://timewatcher.github.io/lux-docs-site/zh/language/realms)
 - [GMod 后端](https://timewatcher.github.io/lux-docs-site/zh/gmod/)
+- [LSP 和 VS Code 标准](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX package 文档](https://timewatcher.github.io/mgfx-docs-site/zh/)
 
 ## 状态
@@ -228,6 +231,9 @@ npm run build
 
 Package 位于 `packages` submodule。修改 package 时应直接进入该仓库，并通过编译器测试
 或导入该 package 的 GMod 项目构建验证。
+
+语言服务和 VS Code 支持标准位于 `lsp` submodule。开发编辑器集成、GMod API 智能、
+hover、completion、diagnostics 或 quick fix 时，应直接进入该仓库修改。
 
 ## 授权
 
