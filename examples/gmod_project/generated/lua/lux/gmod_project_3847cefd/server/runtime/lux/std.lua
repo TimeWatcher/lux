@@ -378,7 +378,7 @@ return function(__lux_import)
       return string.sub(value, 1, maxLength - #suffix) .. suffix
     end
     function str.formatBytes(bytes)
-      local units = { "B", "KB", "MB", "GB" }
+      local units = { "B", "KB", "MB", "GB", "TB" }
       local value = bytes
       local unit = 1
       while true do

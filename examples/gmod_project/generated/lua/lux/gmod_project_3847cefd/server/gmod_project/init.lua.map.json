@@ -1,0 +1,133 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "generated": { "line": 3, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 0, "byteEnd": 439, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 5, "columnStart": 3, "columnEnd": 17 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 7, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 0, "byteEnd": 439, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 8, "columnStart": 5, "columnEnd": 67 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 0, "byteEnd": 30, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 9, "columnStart": 5, "columnEnd": 45 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 0, "byteEnd": 30, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 11, "columnStart": 5, "columnEnd": 59 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 31, "byteEnd": 63, "line": 2, "column": 1 }
+    },
+    {
+      "generated": { "line": 12, "columnStart": 5, "columnEnd": 37 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 31, "byteEnd": 63, "line": 2, "column": 1 }
+    },
+    {
+      "generated": { "line": 14, "columnStart": 5, "columnEnd": 38 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 124, "byteEnd": 157, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 16, "columnStart": 5, "columnEnd": 7 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 17, "columnStart": 7, "columnEnd": 55 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 18, "columnStart": 7, "columnEnd": 60 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 19, "columnStart": 7, "columnEnd": 41 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 20, "columnStart": 7, "columnEnd": 31 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 21, "columnStart": 7, "columnEnd": 10 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 22, "columnStart": 7, "columnEnd": 9 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 23, "columnStart": 9, "columnEnd": 54 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 24, "columnStart": 7, "columnEnd": 10 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 25, "columnStart": 7, "columnEnd": 70 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 26, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 176, "byteEnd": 271, "line": 7, "column": 18 }
+    },
+    {
+      "generated": { "line": 28, "columnStart": 5, "columnEnd": 38 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 29, "columnStart": 5, "columnEnd": 44 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 30, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 31, "columnStart": 5, "columnEnd": 29 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 32, "columnStart": 5, "columnEnd": 28 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 33, "columnStart": 5, "columnEnd": 19 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 34, "columnStart": 5, "columnEnd": 43 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 35, "columnStart": 5, "columnEnd": 12 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 36, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 37, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 39, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 0, "byteEnd": 439, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 42, "columnStart": 3, "columnEnd": 36 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 283, "byteEnd": 291, "line": 12, "column": 11 }
+    },
+    {
+      "generated": { "line": 45, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 1, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\server\\init.lux", "byteStart": 0, "byteEnd": 439, "line": 1, "column": 1 }
+    }
+  ]
+}

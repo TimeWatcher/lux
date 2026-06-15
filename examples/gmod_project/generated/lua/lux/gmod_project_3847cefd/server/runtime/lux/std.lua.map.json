@@ -3,7 +3,7 @@
   "mappings": [
     {
       "generated": { "line": 2, "columnStart": 3, "columnEnd": 27 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8916, "line": 1, "column": 1 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8922, "line": 1, "column": 1 }
     },
     {
       "generated": { "line": 3, "columnStart": 3, "columnEnd": 12 },
@@ -35,7 +35,7 @@
     },
     {
       "generated": { "line": 10, "columnStart": 3, "columnEnd": 5 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8916, "line": 1, "column": 1 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8922, "line": 1, "column": 1 }
     },
     {
       "generated": { "line": 11, "columnStart": 5, "columnEnd": 13 },
@@ -1518,84 +1518,84 @@
       "source": { "fileId": 0, "file": null, "byteStart": 0, "byteEnd": 0, "line": null, "column": null }
     },
     {
-      "generated": { "line": 381, "columnStart": 7, "columnEnd": 46 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6908, "byteEnd": 6947, "line": 446, "column": 3 }
+      "generated": { "line": 381, "columnStart": 7, "columnEnd": 52 },
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6908, "byteEnd": 6953, "line": 446, "column": 3 }
     },
     {
       "generated": { "line": 382, "columnStart": 7, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6950, "byteEnd": 6969, "line": 447, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6956, "byteEnd": 6975, "line": 447, "column": 3 }
     },
     {
       "generated": { "line": 383, "columnStart": 7, "columnEnd": 21 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6972, "byteEnd": 6986, "line": 448, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6978, "byteEnd": 6992, "line": 448, "column": 3 }
     },
     {
       "generated": { "line": 384, "columnStart": 7, "columnEnd": 20 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 385, "columnStart": 9, "columnEnd": 11 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 386, "columnStart": 11, "columnEnd": 44 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7026, "line": 449, "column": 9 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7001, "byteEnd": 7032, "line": 449, "column": 9 }
     },
     {
       "generated": { "line": 387, "columnStart": 11, "columnEnd": 30 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7026, "line": 449, "column": 9 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7001, "byteEnd": 7032, "line": 449, "column": 9 }
     },
     {
       "generated": { "line": 388, "columnStart": 11, "columnEnd": 40 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7026, "line": 449, "column": 9 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7001, "byteEnd": 7032, "line": 449, "column": 9 }
     },
     {
       "generated": { "line": 389, "columnStart": 11, "columnEnd": 14 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7026, "line": 449, "column": 9 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7001, "byteEnd": 7032, "line": 449, "column": 9 }
     },
     {
       "generated": { "line": 390, "columnStart": 11, "columnEnd": 36 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 391, "columnStart": 13, "columnEnd": 18 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 392, "columnStart": 11, "columnEnd": 14 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 393, "columnStart": 9, "columnEnd": 12 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 394, "columnStart": 9, "columnEnd": 29 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7033, "byteEnd": 7053, "line": 450, "column": 5 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7039, "byteEnd": 7059, "line": 450, "column": 5 }
     },
     {
       "generated": { "line": 395, "columnStart": 9, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7058, "byteEnd": 7067, "line": 451, "column": 5 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7064, "byteEnd": 7073, "line": 451, "column": 5 }
     },
     {
       "generated": { "line": 396, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6989, "byteEnd": 7071, "line": 449, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 6995, "byteEnd": 7077, "line": 449, "column": 3 }
     },
     {
       "generated": { "line": 397, "columnStart": 7, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7075, "byteEnd": 7142, "line": 454, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7081, "byteEnd": 7148, "line": 454, "column": 3 }
     },
     {
       "generated": { "line": 398, "columnStart": 9, "columnEnd": 53 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7101, "byteEnd": 7138, "line": 455, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7107, "byteEnd": 7144, "line": 455, "column": 12 }
     },
     {
       "generated": { "line": 399, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7075, "byteEnd": 7142, "line": 454, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7081, "byteEnd": 7148, "line": 454, "column": 3 }
     },
     {
       "generated": { "line": 400, "columnStart": 7, "columnEnd": 58 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7153, "byteEnd": 7197, "line": 458, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7159, "byteEnd": 7203, "line": 458, "column": 10 }
     },
     {
       "generated": { "line": 401, "columnStart": 5, "columnEnd": 8 },
@@ -1607,31 +1607,31 @@
     },
     {
       "generated": { "line": 403, "columnStart": 7, "columnEnd": 31 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7245, "byteEnd": 7290, "line": 462, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7251, "byteEnd": 7296, "line": 462, "column": 3 }
     },
     {
       "generated": { "line": 404, "columnStart": 9, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7278, "byteEnd": 7286, "line": 463, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7284, "byteEnd": 7292, "line": 463, "column": 12 }
     },
     {
       "generated": { "line": 405, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7245, "byteEnd": 7290, "line": 462, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7251, "byteEnd": 7296, "line": 462, "column": 3 }
     },
     {
       "generated": { "line": 406, "columnStart": 7, "columnEnd": 31 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7294, "byteEnd": 7339, "line": 466, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7300, "byteEnd": 7345, "line": 466, "column": 3 }
     },
     {
       "generated": { "line": 407, "columnStart": 9, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7327, "byteEnd": 7335, "line": 467, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7333, "byteEnd": 7341, "line": 467, "column": 12 }
     },
     {
       "generated": { "line": 408, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7294, "byteEnd": 7339, "line": 466, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7300, "byteEnd": 7345, "line": 466, "column": 3 }
     },
     {
       "generated": { "line": 409, "columnStart": 7, "columnEnd": 19 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7343, "byteEnd": 7348, "line": 470, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7349, "byteEnd": 7354, "line": 470, "column": 3 }
     },
     {
       "generated": { "line": 410, "columnStart": 5, "columnEnd": 8 },
@@ -1643,7 +1643,7 @@
     },
     {
       "generated": { "line": 412, "columnStart": 7, "columnEnd": 36 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7381, "byteEnd": 7403, "line": 474, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7387, "byteEnd": 7409, "line": 474, "column": 3 }
     },
     {
       "generated": { "line": 413, "columnStart": 5, "columnEnd": 8 },
@@ -1655,19 +1655,19 @@
     },
     {
       "generated": { "line": 415, "columnStart": 7, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7425, "byteEnd": 7433, "line": 476, "column": 21 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7431, "byteEnd": 7439, "line": 476, "column": 21 }
     },
     {
       "generated": { "line": 416, "columnStart": 9, "columnEnd": 17 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7425, "byteEnd": 7433, "line": 476, "column": 21 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7431, "byteEnd": 7439, "line": 476, "column": 21 }
     },
     {
       "generated": { "line": 417, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7425, "byteEnd": 7433, "line": 476, "column": 21 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7431, "byteEnd": 7439, "line": 476, "column": 21 }
     },
     {
       "generated": { "line": 418, "columnStart": 7, "columnEnd": 51 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7439, "byteEnd": 7478, "line": 477, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7445, "byteEnd": 7484, "line": 477, "column": 3 }
     },
     {
       "generated": { "line": 419, "columnStart": 5, "columnEnd": 8 },
@@ -1679,31 +1679,31 @@
     },
     {
       "generated": { "line": 421, "columnStart": 7, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7503, "byteEnd": 7534, "line": 480, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7509, "byteEnd": 7540, "line": 480, "column": 3 }
     },
     {
       "generated": { "line": 422, "columnStart": 9, "columnEnd": 17 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7529, "byteEnd": 7530, "line": 481, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7535, "byteEnd": 7536, "line": 481, "column": 12 }
     },
     {
       "generated": { "line": 423, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7503, "byteEnd": 7534, "line": 480, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7509, "byteEnd": 7540, "line": 480, "column": 3 }
     },
     {
       "generated": { "line": 424, "columnStart": 7, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7538, "byteEnd": 7570, "line": 484, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7544, "byteEnd": 7576, "line": 484, "column": 3 }
     },
     {
       "generated": { "line": 425, "columnStart": 9, "columnEnd": 18 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7564, "byteEnd": 7566, "line": 485, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7570, "byteEnd": 7572, "line": 485, "column": 12 }
     },
     {
       "generated": { "line": 426, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7538, "byteEnd": 7570, "line": 484, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7544, "byteEnd": 7576, "line": 484, "column": 3 }
     },
     {
       "generated": { "line": 427, "columnStart": 7, "columnEnd": 15 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7574, "byteEnd": 7575, "line": 488, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7580, "byteEnd": 7581, "line": 488, "column": 3 }
     },
     {
       "generated": { "line": 428, "columnStart": 5, "columnEnd": 8 },
@@ -1715,31 +1715,31 @@
     },
     {
       "generated": { "line": 430, "columnStart": 7, "columnEnd": 31 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7623, "byteEnd": 7693, "line": 492, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7629, "byteEnd": 7699, "line": 492, "column": 3 }
     },
     {
       "generated": { "line": 431, "columnStart": 9, "columnEnd": 49 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7656, "byteEnd": 7689, "line": 493, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7662, "byteEnd": 7695, "line": 493, "column": 12 }
     },
     {
       "generated": { "line": 432, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7623, "byteEnd": 7693, "line": 492, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7629, "byteEnd": 7699, "line": 492, "column": 3 }
     },
     {
       "generated": { "line": 433, "columnStart": 7, "columnEnd": 31 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7697, "byteEnd": 7767, "line": 496, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7703, "byteEnd": 7773, "line": 496, "column": 3 }
     },
     {
       "generated": { "line": 434, "columnStart": 9, "columnEnd": 49 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7730, "byteEnd": 7763, "line": 497, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7736, "byteEnd": 7769, "line": 497, "column": 12 }
     },
     {
       "generated": { "line": 435, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7697, "byteEnd": 7767, "line": 496, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7703, "byteEnd": 7773, "line": 496, "column": 3 }
     },
     {
       "generated": { "line": 436, "columnStart": 7, "columnEnd": 20 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7771, "byteEnd": 7777, "line": 500, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7777, "byteEnd": 7783, "line": 500, "column": 3 }
     },
     {
       "generated": { "line": 437, "columnStart": 5, "columnEnd": 8 },
@@ -1751,19 +1751,19 @@
     },
     {
       "generated": { "line": 439, "columnStart": 7, "columnEnd": 29 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7835, "byteEnd": 7876, "line": 504, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7841, "byteEnd": 7882, "line": 504, "column": 3 }
     },
     {
       "generated": { "line": 440, "columnStart": 9, "columnEnd": 22 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7866, "byteEnd": 7872, "line": 505, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7872, "byteEnd": 7878, "line": 505, "column": 12 }
     },
     {
       "generated": { "line": 441, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7835, "byteEnd": 7876, "line": 504, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7841, "byteEnd": 7882, "line": 504, "column": 3 }
     },
     {
       "generated": { "line": 442, "columnStart": 7, "columnEnd": 76 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7880, "byteEnd": 7942, "line": 508, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7886, "byteEnd": 7948, "line": 508, "column": 3 }
     },
     {
       "generated": { "line": 443, "columnStart": 5, "columnEnd": 8 },
@@ -1775,35 +1775,35 @@
     },
     {
       "generated": { "line": 445, "columnStart": 7, "columnEnd": 29 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7978, "byteEnd": 7996, "line": 511, "column": 33 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7984, "byteEnd": 8002, "line": 511, "column": 33 }
     },
     {
       "generated": { "line": 446, "columnStart": 9, "columnEnd": 27 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7978, "byteEnd": 7996, "line": 511, "column": 33 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7984, "byteEnd": 8002, "line": 511, "column": 33 }
     },
     {
       "generated": { "line": 447, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7978, "byteEnd": 7996, "line": 511, "column": 33 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 7984, "byteEnd": 8002, "line": 511, "column": 33 }
     },
     {
       "generated": { "line": 448, "columnStart": 7, "columnEnd": 32 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8002, "byteEnd": 8035, "line": 512, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8008, "byteEnd": 8041, "line": 512, "column": 3 }
     },
     {
       "generated": { "line": 449, "columnStart": 7, "columnEnd": 63 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8002, "byteEnd": 8035, "line": 512, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8008, "byteEnd": 8041, "line": 512, "column": 3 }
     },
     {
       "generated": { "line": 450, "columnStart": 7, "columnEnd": 56 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8002, "byteEnd": 8035, "line": 512, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8008, "byteEnd": 8041, "line": 512, "column": 3 }
     },
     {
       "generated": { "line": 451, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8002, "byteEnd": 8035, "line": 512, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8008, "byteEnd": 8041, "line": 512, "column": 3 }
     },
     {
       "generated": { "line": 452, "columnStart": 7, "columnEnd": 25 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8002, "byteEnd": 8035, "line": 512, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8008, "byteEnd": 8041, "line": 512, "column": 3 }
     },
     {
       "generated": { "line": 453, "columnStart": 5, "columnEnd": 8 },
@@ -1815,7 +1815,7 @@
     },
     {
       "generated": { "line": 455, "columnStart": 7, "columnEnd": 17 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8056, "byteEnd": 8059, "line": 515, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8062, "byteEnd": 8065, "line": 515, "column": 3 }
     },
     {
       "generated": { "line": 456, "columnStart": 5, "columnEnd": 8 },
@@ -1827,7 +1827,7 @@
     },
     {
       "generated": { "line": 458, "columnStart": 7, "columnEnd": 19 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8089, "byteEnd": 8094, "line": 518, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8095, "byteEnd": 8100, "line": 518, "column": 3 }
     },
     {
       "generated": { "line": 459, "columnStart": 5, "columnEnd": 8 },
@@ -1839,39 +1839,39 @@
     },
     {
       "generated": { "line": 461, "columnStart": 7, "columnEnd": 27 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8123, "byteEnd": 8143, "line": 521, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8129, "byteEnd": 8149, "line": 521, "column": 3 }
     },
     {
       "generated": { "line": 462, "columnStart": 7, "columnEnd": 25 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8146, "byteEnd": 8164, "line": 522, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8152, "byteEnd": 8170, "line": 522, "column": 3 }
     },
     {
       "generated": { "line": 463, "columnStart": 7, "columnEnd": 27 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 464, "columnStart": 7, "columnEnd": 27 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 465, "columnStart": 7, "columnEnd": 24 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 466, "columnStart": 7, "columnEnd": 33 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 467, "columnStart": 7, "columnEnd": 12 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 468, "columnStart": 7, "columnEnd": 22 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 469, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8174, "byteEnd": 8275, "line": 523, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8180, "byteEnd": 8281, "line": 523, "column": 10 }
     },
     {
       "generated": { "line": 470, "columnStart": 5, "columnEnd": 8 },
@@ -1883,23 +1883,23 @@
     },
     {
       "generated": { "line": 472, "columnStart": 7, "columnEnd": 41 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8315, "byteEnd": 8349, "line": 534, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8321, "byteEnd": 8355, "line": 534, "column": 3 }
     },
     {
       "generated": { "line": 473, "columnStart": 7, "columnEnd": 17 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8352, "byteEnd": 8381, "line": 535, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8358, "byteEnd": 8387, "line": 535, "column": 3 }
     },
     {
       "generated": { "line": 474, "columnStart": 9, "columnEnd": 22 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8371, "byteEnd": 8377, "line": 536, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8377, "byteEnd": 8383, "line": 536, "column": 12 }
     },
     {
       "generated": { "line": 475, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8352, "byteEnd": 8381, "line": 535, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8358, "byteEnd": 8387, "line": 535, "column": 3 }
     },
     {
       "generated": { "line": 476, "columnStart": 7, "columnEnd": 22 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8385, "byteEnd": 8393, "line": 539, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8391, "byteEnd": 8399, "line": 539, "column": 3 }
     },
     {
       "generated": { "line": 477, "columnStart": 5, "columnEnd": 8 },
@@ -1911,7 +1911,7 @@
     },
     {
       "generated": { "line": 479, "columnStart": 7, "columnEnd": 31 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8427, "byteEnd": 8444, "line": 543, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8433, "byteEnd": 8450, "line": 543, "column": 3 }
     },
     {
       "generated": { "line": 480, "columnStart": 5, "columnEnd": 8 },
@@ -1923,7 +1923,7 @@
     },
     {
       "generated": { "line": 482, "columnStart": 7, "columnEnd": 39 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8464, "byteEnd": 8489, "line": 546, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8470, "byteEnd": 8495, "line": 546, "column": 3 }
     },
     {
       "generated": { "line": 483, "columnStart": 5, "columnEnd": 8 },
@@ -1935,31 +1935,31 @@
     },
     {
       "generated": { "line": 485, "columnStart": 7, "columnEnd": 31 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8519, "byteEnd": 8663, "line": 549, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8525, "byteEnd": 8669, "line": 549, "column": 3 }
     },
     {
       "generated": { "line": 486, "columnStart": 9, "columnEnd": 48 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8545, "byteEnd": 8584, "line": 550, "column": 5 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8551, "byteEnd": 8590, "line": 550, "column": 5 }
     },
     {
       "generated": { "line": 487, "columnStart": 9, "columnEnd": 41 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8589, "byteEnd": 8621, "line": 551, "column": 5 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8595, "byteEnd": 8627, "line": 551, "column": 5 }
     },
     {
       "generated": { "line": 488, "columnStart": 9, "columnEnd": 40 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8626, "byteEnd": 8643, "line": 552, "column": 5 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8632, "byteEnd": 8649, "line": 552, "column": 5 }
     },
     {
       "generated": { "line": 489, "columnStart": 9, "columnEnd": 20 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8655, "byteEnd": 8659, "line": 553, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8661, "byteEnd": 8665, "line": 553, "column": 12 }
     },
     {
       "generated": { "line": 490, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8519, "byteEnd": 8663, "line": 549, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8525, "byteEnd": 8669, "line": 549, "column": 3 }
     },
     {
       "generated": { "line": 491, "columnStart": 7, "columnEnd": 16 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8667, "byteEnd": 8669, "line": 556, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8673, "byteEnd": 8675, "line": 556, "column": 3 }
     },
     {
       "generated": { "line": 492, "columnStart": 5, "columnEnd": 8 },
@@ -1971,51 +1971,51 @@
     },
     {
       "generated": { "line": 494, "columnStart": 7, "columnEnd": 27 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8703, "byteEnd": 8715, "line": 559, "column": 31 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8709, "byteEnd": 8721, "line": 559, "column": 31 }
     },
     {
       "generated": { "line": 495, "columnStart": 9, "columnEnd": 21 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8703, "byteEnd": 8715, "line": 559, "column": 31 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8709, "byteEnd": 8721, "line": 559, "column": 31 }
     },
     {
       "generated": { "line": 496, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8703, "byteEnd": 8715, "line": 559, "column": 31 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8709, "byteEnd": 8721, "line": 559, "column": 31 }
     },
     {
       "generated": { "line": 497, "columnStart": 7, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8721, "byteEnd": 8759, "line": 560, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8727, "byteEnd": 8765, "line": 560, "column": 3 }
     },
     {
       "generated": { "line": 498, "columnStart": 9, "columnEnd": 22 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8749, "byteEnd": 8755, "line": 561, "column": 12 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8755, "byteEnd": 8761, "line": 561, "column": 12 }
     },
     {
       "generated": { "line": 499, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8721, "byteEnd": 8759, "line": 560, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8727, "byteEnd": 8765, "line": 560, "column": 3 }
     },
     {
       "generated": { "line": 500, "columnStart": 7, "columnEnd": 20 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8763, "byteEnd": 8798, "line": 564, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8769, "byteEnd": 8804, "line": 564, "column": 3 }
     },
     {
       "generated": { "line": 501, "columnStart": 9, "columnEnd": 25 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8778, "byteEnd": 8794, "line": 565, "column": 5 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8784, "byteEnd": 8800, "line": 565, "column": 5 }
     },
     {
       "generated": { "line": 502, "columnStart": 7, "columnEnd": 10 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8763, "byteEnd": 8798, "line": 564, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8769, "byteEnd": 8804, "line": 564, "column": 3 }
     },
     {
       "generated": { "line": 503, "columnStart": 7, "columnEnd": 38 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8802, "byteEnd": 8819, "line": 568, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8808, "byteEnd": 8825, "line": 568, "column": 3 }
     },
     {
       "generated": { "line": 504, "columnStart": 7, "columnEnd": 40 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8822, "byteEnd": 8855, "line": 569, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8828, "byteEnd": 8861, "line": 569, "column": 3 }
     },
     {
       "generated": { "line": 505, "columnStart": 7, "columnEnd": 20 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8858, "byteEnd": 8864, "line": 570, "column": 3 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8864, "byteEnd": 8870, "line": 570, "column": 3 }
     },
     {
       "generated": { "line": 506, "columnStart": 5, "columnEnd": 8 },
@@ -2023,39 +2023,39 @@
     },
     {
       "generated": { "line": 507, "columnStart": 3, "columnEnd": 6 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8916, "line": 1, "column": 1 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8922, "line": 1, "column": 1 }
     },
     {
       "generated": { "line": 509, "columnStart": 3, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8877, "byteEnd": 8880, "line": 573, "column": 10 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8883, "byteEnd": 8886, "line": 573, "column": 10 }
     },
     {
       "generated": { "line": 510, "columnStart": 3, "columnEnd": 28 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8882, "byteEnd": 8886, "line": 573, "column": 15 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8888, "byteEnd": 8892, "line": 573, "column": 15 }
     },
     {
       "generated": { "line": 511, "columnStart": 3, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8888, "byteEnd": 8891, "line": 573, "column": 21 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8894, "byteEnd": 8897, "line": 573, "column": 21 }
     },
     {
       "generated": { "line": 512, "columnStart": 3, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8893, "byteEnd": 8896, "line": 573, "column": 26 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8899, "byteEnd": 8902, "line": 573, "column": 26 }
     },
     {
       "generated": { "line": 513, "columnStart": 3, "columnEnd": 26 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8898, "byteEnd": 8901, "line": 573, "column": 31 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8904, "byteEnd": 8907, "line": 573, "column": 31 }
     },
     {
       "generated": { "line": 514, "columnStart": 3, "columnEnd": 28 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8903, "byteEnd": 8907, "line": 573, "column": 36 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8909, "byteEnd": 8913, "line": 573, "column": 36 }
     },
     {
       "generated": { "line": 515, "columnStart": 3, "columnEnd": 28 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8909, "byteEnd": 8913, "line": 573, "column": 42 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 8915, "byteEnd": 8919, "line": 573, "column": 42 }
     },
     {
       "generated": { "line": 517, "columnStart": 3, "columnEnd": 23 },
-      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8916, "line": 1, "column": 1 }
+      "source": { "fileId": 10085, "file": "C:\\Development\\gmod\\lux\\compiler\\../packages\\lux\\std\\src\\module.lux", "byteStart": 0, "byteEnd": 8922, "line": 1, "column": 1 }
     }
   ]
 }

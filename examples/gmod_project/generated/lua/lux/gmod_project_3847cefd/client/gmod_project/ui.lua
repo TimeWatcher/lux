@@ -1,29 +1,29 @@
 return function(__lux_import)
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:1
   local __lux_exports = {}
   local __lux_import_1 = __lux_import("lux/ui#client")
   local __lux_ui_node = __lux_import_1.node
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:7
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:8
   local state
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:12
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:13
   local mount
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:24
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:25
   local view
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:1
   do
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:3
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:3
     local __lux_import_2 = __lux_import("gmod_project/hud#client")
     local buildHud = __lux_import_2.buildHud
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:4
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:4
     local __lux_import_3 = __lux_import("lux/reactive#client")
     local signal = __lux_import_3.signal
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:5
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:5
     local Button = __lux_import_1.Button
     local Column = __lux_import_1.Column
     local Label = __lux_import_1.Label
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:7
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:8
     state = { count = signal(0), label = signal("Clicks") }
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:12
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:13
     mount = function(panel, players, mode)
       if mode == nil then
         mode = "compact"
@@ -37,7 +37,7 @@ return function(__lux_import)
         state.label(state.label() .. "!")
       end
     end
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:24
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:25
     view = function(players, mode, ...)
       if mode == nil then
         mode = "detailed"
@@ -61,14 +61,14 @@ return function(__lux_import)
         }
       )
     end
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:1
   end
   
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:12
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:13
   __lux_exports.mount = mount
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:24
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:25
   __lux_exports.view = view
   
-  --#lux source: ..\examples\gmod_project\src\client\ui.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\client\ui.lux:1
   return __lux_exports
 end

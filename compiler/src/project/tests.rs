@@ -1,4 +1,7 @@
-use super::{GmodBuildOptions, ProjectConfig, ProjectError, build_gmod_project, compile_paths};
+use super::{
+    GmodBuildOptions, ProjectConfig, ProjectError, build_gmod_project, compile_paths,
+    infer_module_path,
+};
 use crate::ast::Realm;
 use crate::module::{ArtifactRealm, ModuleId};
 use crate::resolve::{ExternSymbol, ResolverOptions};
@@ -17,6 +20,31 @@ fn temp_project(name: &str) -> PathBuf {
 fn write_lux(path: &Path, source: &str) {
     fs::create_dir_all(path.parent().expect("source parent")).expect("create source dir");
     fs::write(path, source).expect("write lux source");
+}
+
+#[test]
+fn realm_facet_directories_are_not_modules() {
+    let root = temp_project("realm_facets");
+    let source_root = root.join("src");
+
+    assert_eq!(
+        infer_module_path(&source_root, &source_root.join("client/ui.lux")),
+        "ui"
+    );
+    assert_eq!(
+        infer_module_path(&source_root, &source_root.join("server/init.lux")),
+        "init"
+    );
+    assert_eq!(
+        infer_module_path(&source_root, &source_root.join("shared/hud.lux")),
+        "hud"
+    );
+    assert_eq!(
+        infer_module_path(&source_root, &source_root.join("shared/hud/math.lux")),
+        "hud"
+    );
+
+    let _ = fs::remove_dir_all(root);
 }
 
 #[test]

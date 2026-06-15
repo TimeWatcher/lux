@@ -1,29 +1,29 @@
 return function(__lux_import)
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:1
   local __lux_exports = {}
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:9
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:9
   local formatCount
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:12
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:12
   local normalizeMode
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:18
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:18
   local modeTitle
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:24
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:24
   local formatPlayer
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:34
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:34
   local buildHud
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:1
   do
     local __lux_import_1 = __lux_import("lux/std#client")
     local arr = __lux_import_1.arr
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:2
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:2
     local __lux_import_2 = __lux_import("gmod_project/math#client")
     local add = __lux_import_2.add
     local values = __lux_import_2.values
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:9
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:9
     formatCount = function(count)
       return "Count: " .. tostring(count)
     end
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:12
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:12
     normalizeMode = function(mode)
       local __lux_match_3 = mode
       if __lux_match_3 == "detailed" then
@@ -32,7 +32,7 @@ return function(__lux_import)
         return "compact"
       end
     end
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:18
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:18
     modeTitle = function(mode)
       local __lux_match_4 = mode
       if __lux_match_4 == "compact" then
@@ -41,7 +41,7 @@ return function(__lux_import)
         return "Detailed HUD"
       end
     end
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:24
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:24
     formatPlayer = function(player, index, detailed)
       if player == nil then
         return "#" .. tostring(index) .. ": unknown"
@@ -87,7 +87,7 @@ return function(__lux_import)
         return "#" .. tostring(index) .. ": " .. tostring(name)
       end
     end
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:34
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:34
     buildHud = function(count, players, mode, ...)
       local normalizedMode = normalizeMode(mode)
       local detailed = normalizedMode == "detailed"
@@ -109,12 +109,12 @@ return function(__lux_import)
         second = second,
       }
     end
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:1
   end
   
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:34
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:34
   __lux_exports.buildHud = buildHud
   
-  --#lux source: ..\examples\gmod_project\src\shared\hud.lux:1
+  --#lux source: C:\Development\gmod\lux\examples\gmod_project\src\shared\hud.lux:1
   return __lux_exports
 end

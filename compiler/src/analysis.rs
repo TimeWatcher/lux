@@ -7,7 +7,7 @@ use crate::ast::{Block, FunctionBody, Module, Realm, Stmt, StmtKind};
 use crate::compile_time::CompileTimePackageRegistry;
 use crate::diag::{Diagnostic, Severity};
 use crate::format::{FormatOutput, format_source};
-use crate::lex::Lexer;
+use crate::lex::{Lexer, Token, TokenKind};
 use crate::macro_expansion::{MacroRegistry, expand_macros_with_registry};
 use crate::module::{
     ModuleExport, ModuleGraph, ModuleId, ModuleImport, ModuleImportSpecifier, PackageId,
@@ -20,6 +20,7 @@ use crate::project::{
     resolve_import_target,
 };
 use crate::resolve::{Binding, BindingKind, ResolveOutput, ResolvePart, Resolver, ResolverOptions};
+use crate::runtime::RuntimePackageRegistry;
 use crate::source::{FileId, SourceFile, SourceSpan};
 
 #[derive(Debug, Clone)]
@@ -150,6 +151,7 @@ pub struct ProjectAnalysis {
     pub files: Vec<SourceFile>,
     pub modules: Vec<AnalyzedModule>,
     pub graph: Option<ModuleGraph>,
+    pub external_exports: BTreeMap<ModuleId, Vec<ModuleExport>>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -269,8 +271,28 @@ pub struct AnalysisSymbol {
 #[derive(Debug, Clone)]
 pub struct CompletionCandidate {
     pub label: String,
+    pub kind: CompletionCandidateKind,
     pub detail: Option<String>,
     pub documentation: Option<String>,
+    pub source: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CompletionCandidateKind {
+    Module,
+    Function,
+    Method,
+    Variable,
+    Parameter,
+    Constant,
+    Field,
+    Class,
+    Enum,
+    Event,
+    Reference,
+    Struct,
+    Property,
+    Value,
 }
 
 pub fn analyze_source_root(
@@ -374,7 +396,8 @@ pub fn analyze_file_map(
     }
 
     let module_vec = modules.into_values().collect::<Vec<_>>();
-    let graph = match ModuleGraph::build(module_vec.iter().map(module_input).collect()) {
+    let external_exports = runtime_external_exports(&mut diagnostics);
+    let graph = match build_analysis_graph(&module_vec, external_exports.clone()) {
         Ok(graph) => Some(graph),
         Err(graph_diagnostics) => {
             diagnostics.extend(graph_diagnostics);
@@ -387,6 +410,7 @@ pub fn analyze_file_map(
         files: source_files,
         modules: module_vec,
         graph,
+        external_exports,
         diagnostics,
     })
 }
@@ -541,7 +565,8 @@ impl AnalysisWorkspace {
         }
 
         let module_vec = existing_modules.into_values().collect::<Vec<_>>();
-        let graph = match ModuleGraph::build(module_vec.iter().map(module_input).collect()) {
+        let external_exports = runtime_external_exports(&mut unaffected_diagnostics);
+        let graph = match build_analysis_graph(&module_vec, external_exports.clone()) {
             Ok(graph) => Some(graph),
             Err(graph_diagnostics) => {
                 unaffected_diagnostics.extend(graph_diagnostics);
@@ -553,6 +578,7 @@ impl AnalysisWorkspace {
             files: source_files_from_cache(&self.files),
             modules: module_vec,
             graph,
+            external_exports,
             diagnostics: unaffected_diagnostics,
         };
         Ok(())
@@ -887,8 +913,10 @@ impl ProjectAnalysis {
             .iter()
             .map(|module| CompletionCandidate {
                 label: module.module_path.clone(),
+                kind: CompletionCandidateKind::Module,
                 detail: Some(module.id.as_str().to_string()),
                 documentation: Some(format!("Lux module `{}`", module.id)),
+                source: None,
             })
             .collect()
     }
@@ -914,6 +942,7 @@ impl ProjectAnalysis {
             .filter(|binding| !exported.contains(binding.name.as_str()))
             .map(|binding| CompletionCandidate {
                 label: binding.name.clone(),
+                kind: completion_kind_for_binding(binding.kind),
                 detail: Some(format!(
                     "{} binding, {}",
                     binding_kind_name(binding.kind),
@@ -923,8 +952,68 @@ impl ProjectAnalysis {
                     "`{}` is module-private until explicitly exported.",
                     binding.name
                 )),
+                source: None,
             })
             .collect()
+    }
+
+    pub fn visible_bindings_at_path_offset(
+        &self,
+        path: &Path,
+        offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        let Some(file) = self.file_by_path(path) else {
+            return Vec::new();
+        };
+        let Some(module) = self.module_for_path(path) else {
+            return Vec::new();
+        };
+        let active_realms = self
+            .active_realms_at_path_offset(path, offset)
+            .unwrap_or(RealmSet::SHARED);
+        let mut candidates = BTreeMap::<String, CompletionCandidate>::new();
+
+        for binding in &module.resolved.bindings {
+            if !binding.module_scope {
+                continue;
+            }
+            if !binding.available_realms.contains_all(active_realms) {
+                continue;
+            }
+            candidates.entry(binding.name.clone()).or_insert_with(|| {
+                binding_completion_candidate(
+                    binding,
+                    Some(format!(
+                        "module {} binding, {}",
+                        binding_kind_name(binding.kind),
+                        binding.available_realms.display_name()
+                    )),
+                )
+            });
+        }
+
+        let visible_local_ids = visible_local_binding_ids(module, file.id, offset);
+        for binding_id in visible_local_ids {
+            let Some(binding) = module.resolved.bindings.get(binding_id.0) else {
+                continue;
+            };
+            if !binding.available_realms.contains_all(active_realms) {
+                continue;
+            }
+            candidates.insert(
+                binding.name.clone(),
+                binding_completion_candidate(
+                    binding,
+                    Some(format!(
+                        "{} binding, {}",
+                        binding_kind_name(binding.kind),
+                        binding.available_realms.display_name()
+                    )),
+                ),
+            );
+        }
+
+        candidates.into_values().collect()
     }
 
     pub fn importable_exports(
@@ -943,19 +1032,76 @@ impl ProjectAnalysis {
         ) else {
             return Vec::new();
         };
+        let source_label = raw_source.to_string();
+        if let Some(exports) = self.external_exports.get(&target_id) {
+            return exports
+                .iter()
+                .filter(|export| export.realms.contains_all(active_realms))
+                .map(|export| CompletionCandidate {
+                    label: export.name.clone(),
+                    kind: CompletionCandidateKind::Reference,
+                    detail: Some(format!(
+                        "{} from `{}`",
+                        export.realms.display_name(),
+                        source_label
+                    )),
+                    documentation: Some(format!("Exported by runtime package `{source_label}`")),
+                    source: Some(source_label.clone()),
+                })
+                .collect();
+        }
         let Some(target_module) = self.modules.iter().find(|module| module.id == target_id) else {
             return Vec::new();
         };
-        target_module
-            .exports
-            .iter()
-            .filter(|export| export.realms.contains_all(active_realms))
-            .map(|export| CompletionCandidate {
-                label: export.name.clone(),
-                detail: Some(export.realms.display_name().to_string()),
-                documentation: Some(format!("Exported by `{}`", target_module.id)),
-            })
-            .collect()
+        importable_exports_from_module(target_module, &source_label, active_realms)
+    }
+
+    pub fn importable_exports_for_all_sources(
+        &self,
+        current_path: &Path,
+        active_realms: RealmSet,
+    ) -> Vec<CompletionCandidate> {
+        let current_module = self.module_for_path(current_path);
+        let mut candidates = Vec::new();
+        for module in &self.modules {
+            if current_module.is_some_and(|current| module.id == current.id) {
+                continue;
+            }
+            let raw_source = current_module
+                .map(|current| import_source_for_module(current, module))
+                .unwrap_or_else(|| module.module_path.clone());
+            candidates.extend(importable_exports_from_module(
+                module,
+                &raw_source,
+                active_realms,
+            ));
+        }
+        for (module_id, exports) in &self.external_exports {
+            let source = format!("@{}", module_id.as_str());
+            candidates.extend(
+                exports
+                    .iter()
+                    .filter(|export| export.realms.contains_all(active_realms))
+                    .map(|export| CompletionCandidate {
+                        label: export.name.clone(),
+                        kind: CompletionCandidateKind::Reference,
+                        detail: Some(format!(
+                            "{} from `{}`",
+                            export.realms.display_name(),
+                            source
+                        )),
+                        documentation: Some(format!("Exported by runtime package `{source}`")),
+                        source: Some(source.clone()),
+                    }),
+            );
+        }
+        candidates.sort_by(|left, right| {
+            left.label
+                .cmp(&right.label)
+                .then_with(|| left.detail.cmp(&right.detail))
+        });
+        candidates.dedup_by(|left, right| left.label == right.label && left.detail == right.detail);
+        candidates
     }
 
     fn binding_symbol(
@@ -1677,6 +1823,355 @@ fn binding_kind_name(kind: BindingKind) -> &'static str {
     }
 }
 
+fn completion_kind_for_binding(kind: BindingKind) -> CompletionCandidateKind {
+    match kind {
+        BindingKind::Function => CompletionCandidateKind::Function,
+        BindingKind::Const => CompletionCandidateKind::Constant,
+        BindingKind::Param => CompletionCandidateKind::Parameter,
+        BindingKind::Import | BindingKind::MacroImport => CompletionCandidateKind::Reference,
+        BindingKind::Local => CompletionCandidateKind::Variable,
+    }
+}
+
+fn binding_completion_candidate(binding: &Binding, detail: Option<String>) -> CompletionCandidate {
+    CompletionCandidate {
+        label: binding.name.clone(),
+        kind: completion_kind_for_binding(binding.kind),
+        detail,
+        documentation: Some(binding_documentation(binding)),
+        source: None,
+    }
+}
+
+fn binding_documentation(binding: &Binding) -> String {
+    let mut out = format!(
+        "`{}` is a {} binding available in {}.",
+        binding.name,
+        binding_kind_name(binding.kind),
+        binding.available_realms.display_name()
+    );
+    if let Some(source) = &binding.source_module {
+        out.push_str("\n\nImported from `");
+        out.push_str(source);
+        out.push('`');
+        if let Some(imported) = &binding.imported_name {
+            out.push_str(" as `");
+            out.push_str(imported);
+            out.push('`');
+        }
+        out.push('.');
+    }
+    out
+}
+
+fn visible_local_binding_ids(
+    module: &AnalyzedModule,
+    file_id: FileId,
+    offset: usize,
+) -> Vec<crate::resolve::BindingId> {
+    let mut visible = Vec::new();
+    let Some(part) = module
+        .parts
+        .iter()
+        .find(|part| part.source_file.id == file_id)
+    else {
+        return visible;
+    };
+    let lex = Lexer::new(&part.source_file).lex_all();
+    if lex.has_errors() {
+        return visible;
+    }
+    let tokens = lex
+        .tokens
+        .iter()
+        .filter(|token| !matches!(token.kind, TokenKind::Eof))
+        .collect::<Vec<_>>();
+    for binding in &module.resolved.bindings {
+        if binding.module_scope || binding.span.file_id != file_id {
+            continue;
+        }
+        if local_binding_is_visible(&part.source_file, &tokens, binding.span, offset) {
+            visible.push(binding.id);
+        }
+    }
+    visible
+}
+
+fn local_binding_is_visible(
+    file: &SourceFile,
+    tokens: &[&Token],
+    binding_span: SourceSpan,
+    offset: usize,
+) -> bool {
+    if offset < binding_span.byte_end {
+        return false;
+    }
+    let Some(index) = tokens.iter().position(|token| token.span == binding_span) else {
+        return false;
+    };
+    let Some(scope) = lexical_scope_for_binding(file, tokens, index) else {
+        return false;
+    };
+    scope.byte_start <= offset && offset <= scope.byte_end
+}
+
+fn lexical_scope_for_binding(
+    file: &SourceFile,
+    tokens: &[&Token],
+    index: usize,
+) -> Option<SourceSpan> {
+    let file_id = tokens.get(index)?.span.file_id;
+    let fallback_end = tokens
+        .last()
+        .map(|token| token.span.byte_end)
+        .unwrap_or(tokens[index].span.byte_end);
+    let Some(function_start) = enclosing_function_token_index(file, tokens, index) else {
+        let block_start = innermost_open_block_token_index(
+            file,
+            tokens,
+            0,
+            tokens.len().saturating_sub(1),
+            index,
+        );
+        if let Some(block_start) = block_start {
+            let block_end =
+                matching_scope_end(file, tokens, block_start).unwrap_or(tokens.len() - 1);
+            return Some(SourceSpan::new(
+                file_id,
+                tokens[block_start].span.byte_start,
+                tokens[block_end].span.byte_end,
+            ));
+        }
+        return Some(SourceSpan::new(
+            file_id,
+            tokens[index].span.byte_start,
+            fallback_end,
+        ));
+    };
+    let function_end = matching_scope_end(file, tokens, function_start)?;
+    let fn_scope = SourceSpan::new(
+        file_id,
+        tokens[function_start].span.byte_start,
+        tokens[function_end].span.byte_end,
+    );
+    if is_function_parameter(tokens, function_start, index) {
+        return Some(fn_scope);
+    }
+    let block_start =
+        innermost_open_block_token_index(file, tokens, function_start, function_end, index)
+            .unwrap_or(function_start);
+    let block_end = matching_scope_end(file, tokens, block_start).unwrap_or(function_end);
+    Some(SourceSpan::new(
+        tokens[block_start].span.file_id,
+        tokens[block_start].span.byte_start,
+        tokens[block_end].span.byte_end,
+    ))
+}
+
+fn enclosing_function_token_index(
+    file: &SourceFile,
+    tokens: &[&Token],
+    index: usize,
+) -> Option<usize> {
+    let mut best = None;
+    for candidate in 0..=index {
+        if !matches!(tokens[candidate].kind, TokenKind::KwFn) {
+            continue;
+        }
+        if let Some(end) = matching_scope_end(file, tokens, candidate)
+            && candidate < index
+            && index <= end
+        {
+            best = Some(candidate);
+        }
+    }
+    best
+}
+
+fn innermost_open_block_token_index(
+    file: &SourceFile,
+    tokens: &[&Token],
+    function_start: usize,
+    function_end: usize,
+    index: usize,
+) -> Option<usize> {
+    let mut best = None;
+    for candidate in function_start..index {
+        if !is_scope_start_token(tokens, candidate) {
+            continue;
+        }
+        if let Some(end) = matching_scope_end(file, tokens, candidate)
+            && index <= end
+            && end <= function_end
+        {
+            best = Some(candidate);
+        }
+    }
+    best
+}
+
+fn is_function_parameter(tokens: &[&Token], function_start: usize, index: usize) -> bool {
+    let Some(open) = next_token_index(tokens, function_start + 1, |kind| {
+        matches!(kind, TokenKind::LParen)
+    }) else {
+        return false;
+    };
+    let Some(close) = matching_delimiter(tokens, open, TokenKindDiscriminant::LParen) else {
+        return false;
+    };
+    open < index && index < close
+}
+
+fn matching_scope_end(file: &SourceFile, tokens: &[&Token], start: usize) -> Option<usize> {
+    match &tokens.get(start)?.kind {
+        TokenKind::KwFn => function_scope_end(file, tokens, start),
+        TokenKind::LBrace => matching_delimiter(tokens, start, TokenKindDiscriminant::LBrace),
+        TokenKind::KwIf => block_keyword_scope_end(tokens, start),
+        TokenKind::KwDo | TokenKind::KwWhile | TokenKind::KwFor | TokenKind::KwRepeat => {
+            block_keyword_scope_end(tokens, start)
+        }
+        _ => None,
+    }
+}
+
+fn function_scope_end(
+    file: &SourceFile,
+    tokens: &[&Token],
+    function_start: usize,
+) -> Option<usize> {
+    if let Some(open) = next_token_index(tokens, function_start + 1, |kind| {
+        matches!(kind, TokenKind::LParen)
+    }) && let Some(close) = matching_delimiter(tokens, open, TokenKindDiscriminant::LParen)
+        && let Some(after) = tokens.get(close + 1)
+    {
+        if matches!(after.kind, TokenKind::LBrace) {
+            return matching_delimiter(tokens, close + 1, TokenKindDiscriminant::LBrace);
+        }
+        if matches!(
+            after.kind,
+            TokenKind::Eq | TokenKind::ArrowNormal | TokenKind::ArrowImplicitSelf
+        ) {
+            return expression_scope_end(file, tokens, close + 1);
+        }
+    }
+    block_keyword_scope_end(tokens, function_start)
+}
+
+fn block_keyword_scope_end(tokens: &[&Token], start: usize) -> Option<usize> {
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(start) {
+        match token.kind {
+            TokenKind::KwFn
+            | TokenKind::KwIf
+            | TokenKind::KwDo
+            | TokenKind::KwWhile
+            | TokenKind::KwFor
+            | TokenKind::KwRepeat => {
+                depth += 1;
+            }
+            TokenKind::KwEnd | TokenKind::KwUntil => {
+                depth = depth.saturating_sub(1);
+                if depth == 0 {
+                    return Some(index);
+                }
+            }
+            _ => {}
+        }
+    }
+    tokens.len().checked_sub(1)
+}
+
+fn expression_scope_end(file: &SourceFile, tokens: &[&Token], start: usize) -> Option<usize> {
+    let line = file.line_col(tokens.get(start)?.span.byte_start).0;
+    tokens
+        .iter()
+        .enumerate()
+        .skip(start + 1)
+        .find(|(_, token)| {
+            file.line_col(token.span.byte_start).0 > line
+                && matches!(
+                    token.kind,
+                    TokenKind::KwFn
+                        | TokenKind::KwLocal
+                        | TokenKind::KwConst
+                        | TokenKind::KwImport
+                        | TokenKind::KwExport
+                )
+        })
+        .map(|(index, _)| index.saturating_sub(1))
+        .or_else(|| tokens.len().checked_sub(1))
+}
+
+fn is_scope_start_token(tokens: &[&Token], index: usize) -> bool {
+    match &tokens[index].kind {
+        TokenKind::KwFn
+        | TokenKind::KwIf
+        | TokenKind::KwDo
+        | TokenKind::KwWhile
+        | TokenKind::KwFor
+        | TokenKind::KwRepeat => true,
+        TokenKind::LBrace => !is_import_or_export_list_brace(tokens, index),
+        _ => false,
+    }
+}
+
+fn is_import_or_export_list_brace(tokens: &[&Token], brace_index: usize) -> bool {
+    tokens[..brace_index]
+        .iter()
+        .rev()
+        .take_while(|token| !matches!(token.kind, TokenKind::Semicolon))
+        .any(|token| matches!(token.kind, TokenKind::KwImport | TokenKind::KwExport))
+}
+
+#[derive(Debug, Clone, Copy)]
+enum TokenKindDiscriminant {
+    LParen,
+    LBrace,
+}
+
+fn matching_delimiter(
+    tokens: &[&Token],
+    open: usize,
+    delimiter: TokenKindDiscriminant,
+) -> Option<usize> {
+    let (open_matches, close_matches): (fn(&TokenKind) -> bool, fn(&TokenKind) -> bool) =
+        match delimiter {
+            TokenKindDiscriminant::LParen => (
+                |kind: &TokenKind| matches!(kind, TokenKind::LParen),
+                |kind: &TokenKind| matches!(kind, TokenKind::RParen),
+            ),
+            TokenKindDiscriminant::LBrace => (
+                |kind: &TokenKind| matches!(kind, TokenKind::LBrace),
+                |kind: &TokenKind| matches!(kind, TokenKind::RBrace),
+            ),
+        };
+    let mut depth = 0usize;
+    for (index, token) in tokens.iter().enumerate().skip(open) {
+        if open_matches(&token.kind) {
+            depth += 1;
+        } else if close_matches(&token.kind) {
+            depth = depth.saturating_sub(1);
+            if depth == 0 {
+                return Some(index);
+            }
+        }
+    }
+    None
+}
+
+fn next_token_index(
+    tokens: &[&Token],
+    start: usize,
+    predicate: impl Fn(&TokenKind) -> bool,
+) -> Option<usize> {
+    tokens
+        .iter()
+        .enumerate()
+        .skip(start)
+        .find(|(_, token)| predicate(&token.kind))
+        .map(|(index, _)| index)
+}
+
 fn contains_offset(span: SourceSpan, offset: usize) -> bool {
     span.byte_start <= offset && offset <= span.byte_end
 }
@@ -1687,6 +2182,78 @@ fn find_containing_span<'a, T>(
 ) -> Option<(&'a SourceSpan, T)> {
     iter.filter(|(span, _)| contains_offset(**span, offset))
         .min_by_key(|(span, _)| span.len())
+}
+
+fn build_analysis_graph(
+    modules: &[AnalyzedModule],
+    external_exports: BTreeMap<ModuleId, Vec<ModuleExport>>,
+) -> Result<ModuleGraph, Vec<Diagnostic>> {
+    let inputs = modules.iter().map(module_input).collect::<Vec<_>>();
+    ModuleGraph::build_with_config(
+        inputs,
+        crate::module::ModuleGraphConfig {
+            external_modules: external_exports.keys().cloned().collect(),
+            external_exports,
+        },
+    )
+}
+
+fn runtime_external_exports(
+    diagnostics: &mut Vec<Diagnostic>,
+) -> BTreeMap<ModuleId, Vec<ModuleExport>> {
+    match RuntimePackageRegistry::load_default() {
+        Ok(runtime_registry) => runtime_registry.export_metadata(),
+        Err(err) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "failed to load Lux runtime package metadata: {err}"
+            )));
+            BTreeMap::new()
+        }
+    }
+}
+
+fn import_source_for_module(
+    current_module: &AnalyzedModule,
+    target_module: &AnalyzedModule,
+) -> String {
+    if current_module.package_id == target_module.package_id {
+        target_module.module_path.clone()
+    } else {
+        format!("@{}", target_module.id.as_str())
+    }
+}
+
+fn importable_exports_from_module(
+    module: &AnalyzedModule,
+    source_label: &str,
+    active_realms: RealmSet,
+) -> Vec<CompletionCandidate> {
+    module
+        .exports
+        .iter()
+        .filter(|export| export.realms.contains_all(active_realms))
+        .map(|export| {
+            let kind = module
+                .resolved
+                .exports
+                .iter()
+                .find(|resolved| resolved.name == export.name && resolved.span == export.span)
+                .and_then(|resolved| module.resolved.bindings.get(resolved.binding.0))
+                .map(|binding| completion_kind_for_binding(binding.kind))
+                .unwrap_or(CompletionCandidateKind::Reference);
+            CompletionCandidate {
+                label: export.name.clone(),
+                kind,
+                detail: Some(format!(
+                    "{} from `{}`",
+                    export.realms.display_name(),
+                    source_label
+                )),
+                documentation: Some(format!("Exported by `{}`", module.id)),
+                source: Some(source_label.to_string()),
+            }
+        })
+        .collect()
 }
 
 fn same_path(a: &Path, b: &Path) -> bool {
@@ -1873,6 +2440,86 @@ mod tests {
             server_exports
                 .iter()
                 .any(|candidate| candidate.label == "id")
+        );
+    }
+
+    #[test]
+    fn import_completion_without_source_lists_runtime_exports() {
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("client/ui.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: "import { Bu".into(),
+            }],
+        )
+        .expect("analysis");
+
+        let exports = output.importable_exports_for_all_sources(&consumer, RealmSet::CLIENT);
+        let button = exports
+            .iter()
+            .find(|candidate| candidate.label == "Button")
+            .expect("Button export from @lux/ui");
+        assert_eq!(button.source.as_deref(), Some("@lux/ui"));
+        assert!(exports.iter().any(|candidate| candidate.label == "signal"
+            && candidate.source.as_deref() == Some("@lux/reactive")));
+    }
+
+    #[test]
+    fn visible_binding_completion_includes_parameters_and_locals() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("client/ui.lux");
+        let text = "import { Button } from \"@lux/ui\"\nlocal module_state = {}\nexport fn mount(panel, players, mode = \"compact\") {\n  local selected = players\n  pla\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = output
+            .offset_for_position(&path, 4, "  pla".len())
+            .expect("offset");
+        let labels = output
+            .visible_bindings_at_path_offset(&path, offset)
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "players"), "{labels:#?}");
+        assert!(
+            labels.iter().any(|label| label == "selected"),
+            "{labels:#?}"
+        );
+        assert!(
+            labels.iter().any(|label| label == "module_state"),
+            "{labels:#?}"
+        );
+        assert!(labels.iter().any(|label| label == "Button"), "{labels:#?}");
+    }
+
+    #[test]
+    fn analysis_accepts_default_runtime_package_imports() {
+        let root = std::path::PathBuf::from("src");
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: root.join("client/ui.lux"),
+                text: "import { signal } from \"@lux/reactive\"\nimport { Button } from \"@lux/ui\"\nexport fn run() = signal(0)"
+                    .into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            !output
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("MODULE001")),
+            "{:#?}",
+            output.diagnostics
         );
     }
 

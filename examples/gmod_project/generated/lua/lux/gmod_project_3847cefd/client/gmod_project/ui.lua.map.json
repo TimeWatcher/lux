@@ -1,0 +1,225 @@
+{
+  "version": 1,
+  "mappings": [
+    {
+      "generated": { "line": 3, "columnStart": 3, "columnEnd": 27 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 0, "byteEnd": 839, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 4, "columnStart": 3, "columnEnd": 55 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 0, "byteEnd": 839, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 5, "columnStart": 3, "columnEnd": 44 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 0, "byteEnd": 839, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 7, "columnStart": 3, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 179, "byteEnd": 184, "line": 8, "column": 7 }
+    },
+    {
+      "generated": { "line": 9, "columnStart": 3, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 11, "columnStart": 3, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 13, "columnStart": 3, "columnEnd": 5 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 0, "byteEnd": 839, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 15, "columnStart": 5, "columnEnd": 67 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 23, "byteEnd": 53, "line": 3, "column": 1 }
+    },
+    {
+      "generated": { "line": 16, "columnStart": 5, "columnEnd": 45 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 23, "byteEnd": 53, "line": 3, "column": 1 }
+    },
+    {
+      "generated": { "line": 18, "columnStart": 5, "columnEnd": 63 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 54, "byteEnd": 92, "line": 4, "column": 1 }
+    },
+    {
+      "generated": { "line": 19, "columnStart": 5, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 54, "byteEnd": 92, "line": 4, "column": 1 }
+    },
+    {
+      "generated": { "line": 21, "columnStart": 5, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 93, "byteEnd": 140, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 22, "columnStart": 5, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 93, "byteEnd": 140, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 23, "columnStart": 5, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 93, "byteEnd": 140, "line": 5, "column": 1 }
+    },
+    {
+      "generated": { "line": 25, "columnStart": 5, "columnEnd": 60 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 173, "byteEnd": 238, "line": 8, "column": 1 }
+    },
+    {
+      "generated": { "line": 27, "columnStart": 5, "columnEnd": 43 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 28, "columnStart": 5, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 29, "columnStart": 5, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 30, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 31, "columnStart": 5, "columnEnd": 41 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 32, "columnStart": 5, "columnEnd": 59 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 33, "columnStart": 5, "columnEnd": 38 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 34, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 35, "columnStart": 5, "columnEnd": 40 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 36, "columnStart": 5, "columnEnd": 39 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 37, "columnStart": 5, "columnEnd": 42 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 38, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 39, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 41, "columnStart": 5, "columnEnd": 40 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 42, "columnStart": 5, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 43, "columnStart": 5, "columnEnd": 26 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 44, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 45, "columnStart": 5, "columnEnd": 62 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 46, "columnStart": 5, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 47, "columnStart": 5, "columnEnd": 18 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 48, "columnStart": 5, "columnEnd": 21 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 49, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 50, "columnStart": 5, "columnEnd": 59 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 51, "columnStart": 5, "columnEnd": 25 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 52, "columnStart": 5, "columnEnd": 22 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 53, "columnStart": 5, "columnEnd": 14 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 54, "columnStart": 5, "columnEnd": 81 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 55, "columnStart": 5, "columnEnd": 35 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 56, "columnStart": 5, "columnEnd": 54 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 57, "columnStart": 5, "columnEnd": 19 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 58, "columnStart": 5, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 59, "columnStart": 5, "columnEnd": 15 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 60, "columnStart": 5, "columnEnd": 13 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 61, "columnStart": 5, "columnEnd": 10 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 62, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 63, "columnStart": 5, "columnEnd": 8 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 65, "columnStart": 3, "columnEnd": 6 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 0, "byteEnd": 839, "line": 1, "column": 1 }
+    },
+    {
+      "generated": { "line": 68, "columnStart": 3, "columnEnd": 30 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 250, "byteEnd": 255, "line": 13, "column": 11 }
+    },
+    {
+      "generated": { "line": 70, "columnStart": 3, "columnEnd": 28 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 539, "byteEnd": 543, "line": 25, "column": 11 }
+    },
+    {
+      "generated": { "line": 73, "columnStart": 3, "columnEnd": 23 },
+      "source": { "fileId": 0, "file": "C:\\Development\\gmod\\lux\\examples\\gmod_project\\src\\client\\ui.lux", "byteStart": 0, "byteEnd": 839, "line": 1, "column": 1 }
+    }
+  ]
+}
