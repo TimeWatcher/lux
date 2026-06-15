@@ -1,5 +1,7 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
+use gmod_api_db::{ApiIndex, ApiRealm};
+
 use crate::ast::*;
 use crate::diag::{Diagnostic, Label, Severity};
 use crate::module::{RealmAvailability, RealmSet};
@@ -150,6 +152,7 @@ impl ExternSymbol {
 pub struct ResolverOptions {
     pub externs: Vec<ExternSymbol>,
     pub unknown_external: UnknownExternalPolicy,
+    pub gmod_api: Option<ApiIndex>,
 }
 
 impl Default for ResolverOptions {
@@ -157,6 +160,7 @@ impl Default for ResolverOptions {
         Self {
             externs: Vec::new(),
             unknown_external: UnknownExternalPolicy::Allow,
+            gmod_api: None,
         }
     }
 }
@@ -164,8 +168,9 @@ impl Default for ResolverOptions {
 impl ResolverOptions {
     pub fn gmod_default() -> Self {
         Self {
-            externs: gmod_known_externs(),
+            externs: Vec::new(),
             unknown_external: UnknownExternalPolicy::Warn,
+            gmod_api: Some(ApiIndex::bundled()),
         }
     }
 
@@ -176,6 +181,11 @@ impl ResolverOptions {
 
     pub fn with_unknown_external(mut self, policy: UnknownExternalPolicy) -> Self {
         self.unknown_external = policy;
+        self
+    }
+
+    pub fn with_gmod_api(mut self, api: ApiIndex) -> Self {
+        self.gmod_api = Some(api);
         self
     }
 }
@@ -1480,6 +1490,13 @@ impl Resolver {
             }
         }
         best.map(|symbol| symbol.availability.clone())
+            .or_else(|| {
+                self.options
+                    .gmod_api
+                    .as_ref()
+                    .and_then(|api| api.longest_match(path))
+                    .map(|entry| RealmAvailability::Known(api_realm_set(entry.realm)))
+            })
             .unwrap_or(RealmAvailability::UnknownExternal)
     }
 
@@ -1917,88 +1934,13 @@ fn symbol_path(path: &str) -> Vec<String> {
         .collect()
 }
 
-fn gmod_known_externs() -> Vec<ExternSymbol> {
-    let shared = [
-        "_G",
-        "CLIENT",
-        "SERVER",
-        "Angle",
-        "Color",
-        "CurTime",
-        "FrameTime",
-        "IsFirstTimePredicted",
-        "IsValid",
-        "Material",
-        "MsgC",
-        "RealTime",
-        "Vector",
-        "assert",
-        "bit",
-        "coroutine",
-        "debug",
-        "error",
-        "game",
-        "hook",
-        "hook.Add",
-        "hook.Remove",
-        "include",
-        "ipairs",
-        "math",
-        "net",
-        "net.Receive",
-        "net.Start",
-        "pairs",
-        "pcall",
-        "player",
-        "print",
-        "string",
-        "table",
-        "timer",
-        "tonumber",
-        "tostring",
-        "type",
-        "unpack",
-        "util",
-        "xpcall",
-    ];
-    let client = [
-        "LocalPlayer",
-        "ScrH",
-        "ScrW",
-        "draw",
-        "input",
-        "net.SendToServer",
-        "render",
-        "surface",
-        "vgui",
-    ];
-    let server = [
-        "AddCSLuaFile",
-        "BroadcastLua",
-        "CreateConVar",
-        "resource",
-        "net.Broadcast",
-        "net.Send",
-        "net.SendOmit",
-        "net.SendPAS",
-        "net.SendPVS",
-        "util.AddNetworkString",
-    ];
-
-    shared
-        .into_iter()
-        .map(|path| ExternSymbol::known(path, Realm::Shared))
-        .chain(
-            client
-                .into_iter()
-                .map(|path| ExternSymbol::known(path, Realm::Client)),
-        )
-        .chain(
-            server
-                .into_iter()
-                .map(|path| ExternSymbol::known(path, Realm::Server)),
-        )
-        .collect()
+fn api_realm_set(realm: ApiRealm) -> RealmSet {
+    match realm {
+        ApiRealm::Shared => RealmSet::SHARED,
+        ApiRealm::Client => RealmSet::CLIENT,
+        ApiRealm::Server => RealmSet::SERVER,
+        ApiRealm::Menu => RealmSet::NONE,
+    }
 }
 
 fn module_edge_specifier(specifier: &ImportSpecifier, binding: BindingId) -> ModuleEdgeSpecifier {

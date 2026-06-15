@@ -9,3 +9,4 @@ repository = "https://github.com/TimeWatcher/lux"
 path = "src/lib.rs"
 
 [dependencies]
+gmod-api-db = { path = "../lsp/crates/gmod-api-db" }

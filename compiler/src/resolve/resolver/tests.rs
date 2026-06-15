@@ -439,6 +439,31 @@ fn gmod_known_externals_are_checked_strictly() {
 }
 
 #[test]
+fn gmod_api_database_uses_path_level_realm_data() {
+    let module = parse("fn bad() = net.Broadcast()");
+    let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
+
+    assert!(
+        has_diagnostic(&output, "REALM001"),
+        "{:#?}",
+        output.diagnostics
+    );
+
+    let module = parse("fn ok() = net.Start(\"LuxMessage\")");
+    let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
+
+    assert!(
+        !output
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_deref() == Some("REALM_UNKNOWN")),
+        "{:#?}",
+        output.diagnostics
+    );
+    assert!(!output.has_errors(), "{:#?}", output.diagnostics);
+}
+
+#[test]
 fn unknown_externals_warn_by_default_in_gmod_mode() {
     let module = parse("fn run() {\n  ThirdPartyAddon.DoThing()\n  ThirdPartyAddon.DoThing()\n}");
     let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
