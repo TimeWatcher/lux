@@ -457,6 +457,15 @@ impl AnalysisWorkspace {
         self.update_file_map(config, collect_file_map(files)?)
     }
 
+    pub fn update_source_root(
+        &mut self,
+        config: AnalysisConfig,
+        overlays: impl IntoIterator<Item = AnalysisFile>,
+    ) -> Result<AnalysisChange, AnalysisError> {
+        let files = load_source_root_files(&config, overlays)?;
+        self.update_file_map(config, files)
+    }
+
     pub fn update_file_map(
         &mut self,
         config: AnalysisConfig,
@@ -1917,6 +1926,55 @@ mod tests {
             "{:#?}",
             workspace.analysis().diagnostics
         );
+    }
+
+    #[test]
+    fn workspace_source_root_update_keeps_disk_files_not_in_overlays() {
+        let root = std::env::temp_dir().join(format!(
+            "lux-analysis-workspace-{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        let api_dir = root.join("api");
+        let hud_dir = root.join("hud");
+        std::fs::create_dir_all(&api_dir).expect("api dir");
+        std::fs::create_dir_all(&hud_dir).expect("hud dir");
+        let api_path = api_dir.join("module.lux");
+        let hud_path = hud_dir.join("module.lux");
+        std::fs::write(&api_path, "export fn old_name() = nil").expect("api file");
+        std::fs::write(
+            &hud_path,
+            "import { old_name } from \"api\"\nfn draw() = old_name()",
+        )
+        .expect("hud file");
+
+        let mut workspace = AnalysisWorkspace::load(AnalysisConfig::new(&root), std::iter::empty())
+            .expect("workspace");
+        let change = workspace
+            .update_source_root(
+                AnalysisConfig::new(&root),
+                [AnalysisFile {
+                    path: api_path.clone(),
+                    text: "export fn new_name() = nil".into(),
+                }],
+            )
+            .expect("overlay update");
+
+        assert_eq!(change.kind, AnalysisChangeKind::Incremental);
+        assert!(workspace.analysis().file_by_path(&hud_path).is_some());
+        assert!(
+            workspace
+                .analysis()
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("MODULE008")),
+            "{:#?}",
+            workspace.analysis().diagnostics
+        );
+
+        std::fs::remove_dir_all(&root).ok();
     }
 
     #[test]
