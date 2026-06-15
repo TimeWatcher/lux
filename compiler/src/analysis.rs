@@ -3,7 +3,7 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::ast::{Module, Realm};
+use crate::ast::{Block, FunctionBody, Module, Realm, Stmt, StmtKind};
 use crate::compile_time::CompileTimePackageRegistry;
 use crate::diag::{Diagnostic, Severity};
 use crate::format::{FormatOutput, format_source};
@@ -627,6 +627,26 @@ impl ProjectAnalysis {
             .map(|file| file.offset_at_line_col_utf16(zero_based_line, zero_based_character))
     }
 
+    pub fn active_realms_at_path_offset(&self, path: &Path, offset: usize) -> Option<RealmSet> {
+        let part = self.part_for_path(path)?;
+        let default_realms = RealmSet::from_realm(part.default_realm);
+        Some(active_realms_in_stmts(
+            &part.module.body,
+            offset,
+            default_realms,
+        ))
+    }
+
+    pub fn active_realms_at_position(
+        &self,
+        path: &Path,
+        zero_based_line: usize,
+        zero_based_character: usize,
+    ) -> Option<RealmSet> {
+        let offset = self.offset_for_position(path, zero_based_line, zero_based_character)?;
+        self.active_realms_at_path_offset(path, offset)
+    }
+
     pub fn symbol_at_path_offset(&self, path: &Path, offset: usize) -> Option<AnalysisSymbol> {
         let module = self.module_for_path(path)?;
 
@@ -833,6 +853,103 @@ impl ProjectAnalysis {
         self.file_by_id(span.file_id)
             .and_then(|file| file.path.clone())
     }
+}
+
+fn active_realms_in_stmts(stmts: &[Stmt], offset: usize, current: RealmSet) -> RealmSet {
+    for stmt in stmts {
+        if !contains_offset(stmt.span, offset) {
+            continue;
+        }
+        if let Some(realms) = active_realms_in_stmt(stmt, offset, current) {
+            return realms;
+        }
+    }
+    current
+}
+
+fn active_realms_in_stmt(stmt: &Stmt, offset: usize, current: RealmSet) -> Option<RealmSet> {
+    match &stmt.kind {
+        StmtKind::RealmDecl { realm, stmt: inner } => {
+            let narrowed = current.intersection(RealmSet::from_realm(*realm));
+            if contains_offset(inner.span, offset) {
+                return Some(active_realms_in_stmt(inner, offset, narrowed).unwrap_or(narrowed));
+            }
+            Some(narrowed)
+        }
+        StmtKind::ExportDecl {
+            realm, stmt: inner, ..
+        } => {
+            let narrowed = realm
+                .map(RealmSet::from_realm)
+                .map(|realms| current.intersection(realms))
+                .unwrap_or(current);
+            if contains_offset(inner.span, offset) {
+                return Some(active_realms_in_stmt(inner, offset, narrowed).unwrap_or(narrowed));
+            }
+            Some(narrowed)
+        }
+        StmtKind::RealmBlock { realm, block } => {
+            let narrowed = current.intersection(RealmSet::from_realm(*realm));
+            if contains_offset(block.span, offset) {
+                return Some(active_realms_in_block(block, offset, narrowed));
+            }
+            Some(narrowed)
+        }
+        StmtKind::InitDecl { realm, block } => {
+            let narrowed = realm
+                .map(RealmSet::from_realm)
+                .map(|realms| current.intersection(realms))
+                .unwrap_or(current);
+            if contains_offset(block.span, offset) {
+                return Some(active_realms_in_block(block, offset, narrowed));
+            }
+            Some(narrowed)
+        }
+        StmtKind::FunctionDecl(decl) => {
+            Some(active_realms_in_function_body(&decl.body, offset, current))
+        }
+        StmtKind::If {
+            then_block,
+            else_block,
+            ..
+        } => {
+            if contains_offset(then_block.span, offset) {
+                return Some(active_realms_in_block(then_block, offset, current));
+            }
+            if let Some(block) = else_block
+                && contains_offset(block.span, offset)
+            {
+                return Some(active_realms_in_block(block, offset, current));
+            }
+            Some(current)
+        }
+        StmtKind::While { body, .. }
+        | StmtKind::NumericFor { body, .. }
+        | StmtKind::GenericFor { body, .. }
+        | StmtKind::RepeatUntil { body, .. }
+        | StmtKind::Do(body) => {
+            if contains_offset(body.span, offset) {
+                return Some(active_realms_in_block(body, offset, current));
+            }
+            Some(current)
+        }
+        _ => Some(current),
+    }
+}
+
+fn active_realms_in_function_body(
+    body: &FunctionBody,
+    offset: usize,
+    current: RealmSet,
+) -> RealmSet {
+    match body {
+        FunctionBody::Expr(_) => current,
+        FunctionBody::Block(block) => active_realms_in_block(block, offset, current),
+    }
+}
+
+fn active_realms_in_block(block: &Block, offset: usize, current: RealmSet) -> RealmSet {
+    active_realms_in_stmts(&block.statements, offset, current)
 }
 
 fn zero_range(file: &SourceFile) -> AnalysisRange {
@@ -1238,6 +1355,104 @@ mod tests {
         let definition_span = symbol.definition_span.expect("definition span");
         let definition_file = output.file_by_id(definition_span.file_id).expect("file");
         assert_eq!(definition_file.slice(definition_span), "p_inv");
+    }
+
+    #[test]
+    fn import_completion_uses_active_realm_at_cursor() {
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("hud/module.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [
+                AnalysisFile {
+                    path: root.join("api/module.lux"),
+                    text: "export client fn open_panel() = nil\nexport server fn grant_item() = nil\nexport fn id(x) = x"
+                        .into(),
+                },
+                AnalysisFile {
+                    path: consumer.clone(),
+                    text: "client {\n  import { id } from \"api\"\n}\nserver {\n  import { id } from \"api\"\n}\n"
+                        .into(),
+                },
+            ],
+        )
+        .expect("analysis");
+
+        let client_realms = output
+            .active_realms_at_position(&consumer, 1, "  import { ".len())
+            .expect("client realms");
+        assert_eq!(client_realms, RealmSet::CLIENT);
+        let client_exports = output.importable_exports(&consumer, "api", client_realms);
+        assert!(
+            client_exports
+                .iter()
+                .any(|candidate| candidate.label == "open_panel")
+        );
+        assert!(
+            !client_exports
+                .iter()
+                .any(|candidate| candidate.label == "grant_item")
+        );
+        assert!(
+            client_exports
+                .iter()
+                .any(|candidate| candidate.label == "id")
+        );
+
+        let server_realms = output
+            .active_realms_at_position(&consumer, 4, "  import { ".len())
+            .expect("server realms");
+        assert_eq!(server_realms, RealmSet::SERVER);
+        let server_exports = output.importable_exports(&consumer, "api", server_realms);
+        assert!(
+            server_exports
+                .iter()
+                .any(|candidate| candidate.label == "grant_item")
+        );
+        assert!(
+            !server_exports
+                .iter()
+                .any(|candidate| candidate.label == "open_panel")
+        );
+        assert!(
+            server_exports
+                .iter()
+                .any(|candidate| candidate.label == "id")
+        );
+    }
+
+    #[test]
+    fn definition_crosses_part_files_for_module_scope_bindings() {
+        let root = std::path::PathBuf::from("src");
+        let module_path = root.join("inventory/module.lux");
+        let state_path = root.join("inventory/state.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [
+                AnalysisFile {
+                    path: module_path.clone(),
+                    text: "part order { \"state\" }\nfn read() = build_item()".into(),
+                },
+                AnalysisFile {
+                    path: state_path.clone(),
+                    text: "fn build_item() = {}".into(),
+                },
+            ],
+        )
+        .expect("analysis");
+
+        let offset = output
+            .offset_for_position(&module_path, 1, "fn read() = build".len())
+            .expect("offset");
+        let symbol = output
+            .symbol_at_path_offset(&module_path, offset)
+            .expect("symbol");
+
+        assert_eq!(symbol.name, "build_item");
+        assert_eq!(symbol.definition_path, Some(state_path.clone()));
+        let definition_span = symbol.definition_span.expect("definition span");
+        let definition_file = output.file_by_id(definition_span.file_id).expect("file");
+        assert_eq!(definition_file.slice(definition_span), "build_item");
     }
 
     #[test]
