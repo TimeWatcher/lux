@@ -10,3 +10,4 @@ path = "src/lib.rs"
 
 [dependencies]
 gmod-api-db = { path = "../lsp/crates/gmod-api-db" }
+gmod-api-update = { path = "../lsp/tools/gmod-api-update" }

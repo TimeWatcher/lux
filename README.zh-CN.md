@@ -184,6 +184,7 @@ luxc map-error <map.json> <generated-line>
 luxc gmod build <source-root> <addon-root> [--generated-root <path>] [--dry-run]
 luxc gmod build --manifest <lux.toml> [--generated-root <path>] [--dry-run]
 luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--generated-root <path>]
+luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--override <json>]
 ```
 
 ## 文档

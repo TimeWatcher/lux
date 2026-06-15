@@ -35,6 +35,9 @@ fn usage() {
     eprintln!(
         "  luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--generated-root <path>]"
     );
+    eprintln!(
+        "  luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--offline] [--allow-failures]"
+    );
 }
 
 fn lex_file(path: PathBuf) -> Result<ExitCode, String> {
@@ -385,6 +388,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        Command::GmodApiUpdate { args } => match gmod_api_update(args) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
         Command::Invalid => {
             usage();
             ExitCode::from(2)
@@ -424,6 +434,9 @@ enum Command {
         output_gma: PathBuf,
         run: bool,
     },
+    GmodApiUpdate {
+        args: Vec<String>,
+    },
     Invalid,
 }
 
@@ -452,6 +465,11 @@ fn parse_command(args: Vec<OsString>) -> Command {
         }
         [scope, command, rest @ ..] if scope == "gmod" && command == "package" => {
             parse_gmod_package_command(rest)
+        }
+        [scope, area, command, rest @ ..]
+            if scope == "gmod" && area == "api" && command == "update" =>
+        {
+            parse_gmod_api_update_command(rest)
         }
         _ => Command::Invalid,
     }
@@ -626,6 +644,31 @@ fn parse_gmod_build_command(args: &[OsString]) -> Command {
     }
 }
 
+fn parse_gmod_api_update_command(args: &[OsString]) -> Command {
+    let mut forwarded = Vec::new();
+    let mut index = 0;
+    while index < args.len() {
+        let arg = args[index].to_string_lossy();
+        match arg.as_ref() {
+            "--out" | "--coverage-out" | "--cache-dir" | "--source-url" | "--base-url"
+            | "--override" | "--limit" | "--concurrency" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                forwarded.push(arg.to_string());
+                forwarded.push(value.to_string_lossy().to_string());
+                index += 2;
+            }
+            "--no-coverage-out" | "--no-cache" | "--allow-failures" | "--offline" => {
+                forwarded.push(arg.to_string());
+                index += 1;
+            }
+            _ => return Command::Invalid,
+        }
+    }
+    Command::GmodApiUpdate { args: forwarded }
+}
+
 fn map_error(map_path: PathBuf, generated_line: usize) -> Result<ExitCode, String> {
     match map_generated_line(&map_path, generated_line)? {
         Some(location) => {
@@ -763,5 +806,26 @@ fn gmod_package(
         output.build_plan.modules.len(),
         output.artifacts.len()
     );
+    Ok(ExitCode::SUCCESS)
+}
+
+fn gmod_api_update(args: Vec<String>) -> Result<ExitCode, String> {
+    let summary = gmod_api_update::run_with_args(args)?;
+    println!(
+        "updated GMod API database: {} entries, {} hooks, {} classes",
+        summary.entries, summary.hooks, summary.classes
+    );
+    println!(
+        "coverage: {} official page(s), {} API candidate page(s), {} structured, {} fallback, {} failed",
+        summary.official_pages,
+        summary.api_candidate_pages,
+        summary.structured_pages,
+        summary.fallback_pages,
+        summary.failed_pages
+    );
+    println!("database: {}", summary.database_path.display());
+    if let Some(path) = summary.coverage_path {
+        println!("coverage manifest: {}", path.display());
+    }
     Ok(ExitCode::SUCCESS)
 }

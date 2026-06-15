@@ -287,13 +287,14 @@ mechanism. Supported modes are:
 Current CLI support:
 
 ```powershell
-cargo run -- compile examples\smoke.lux --map examples\smoke.lua.map.json
-cargo run -- compile examples\smoke.lux --source-comments readable
-cargo run -- compile examples\smoke.lux --source-comments dense
-cargo run -- map-error examples\smoke.lua.map.json 42
-cargo run -- gmod build src path\to\addon
-cargo run -- gmod build src path\to\addon --dry-run
-cargo run -- gmod build --manifest path\to\lux.toml
+luxc compile examples\smoke.lux --map examples\smoke.lua.map.json
+luxc compile examples\smoke.lux --source-comments readable
+luxc compile examples\smoke.lux --source-comments dense
+luxc map-error examples\smoke.lua.map.json 42
+luxc gmod build src path\to\addon
+luxc gmod build src path\to\addon --dry-run
+luxc gmod build --manifest path\to\lux.toml
+luxc gmod api update --out path\to\gmod_api.json --coverage-out path\to\coverage_manifest.json
 ```
 
 Minimal manifest:
