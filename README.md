@@ -12,7 +12,7 @@ spaghetti.**
 
 [Documentation](https://timewatcher.github.io/lux-docs-site/) ·
 [Quick Start](#quick-start) ·
-[Std Packages](https://github.com/TimeWatcher/lux-packages) ·
+[Std Packages](https://github.com/TimeWatcher/lux-std) ·
 [LSP](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://github.com/TimeWatcher/lux-mgfx)
 
@@ -120,7 +120,7 @@ Install the official standard package set only when you need it:
 
 ```powershell
 .\target\release\luxc.exe init .\my_addon --std
-.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages --project .\my_addon
+.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
 ```
 
 Lux has no package registry. A dependency's source and version are selected by
@@ -254,13 +254,15 @@ MGFX lives in its own repository. Use the MGFX repo and docs links above when
 working on it.
 
 Official standard packages live in the separate
-[`lux-packages`](https://github.com/TimeWatcher/lux-packages) repository. Edit that
+[`lux-std`](https://github.com/TimeWatcher/lux-std) repository. Edit that
 repository directly and validate with compiler tests or a GMod project build
 that imports the changed package.
 
 VS Code support standards and GMod API intelligence data live in the `lsp`
 submodule. The language server itself is provided by `luxc lsp`; edit the
-compiler when changing hover, completion, diagnostics, or quick fixes.
+compiler when changing hover, completion, signature help, diagnostics, or quick
+fixes. The LSP uses the compiler's package resolution and module analysis, so
+cross-part and imported definitions stay aligned with the selected `luxc`.
 
 ## License
 

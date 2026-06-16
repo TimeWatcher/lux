@@ -4,8 +4,8 @@ use std::time::{Duration, Instant};
 
 use crate::analysis::{
     AnalysisCodeAction, AnalysisConfig, AnalysisDiagnostic, AnalysisEditKind, AnalysisFile,
-    AnalysisRange, AnalysisSemanticToken, AnalysisWorkspace, CompletionCandidate,
-    CompletionCandidateKind, ProjectAnalysis, SemanticTokenKind, format_text,
+    AnalysisRange, AnalysisSemanticToken, AnalysisSignatureHelp, AnalysisWorkspace,
+    CompletionCandidate, CompletionCandidateKind, ProjectAnalysis, SemanticTokenKind, format_text,
 };
 use crate::diag::Severity;
 use crate::lex::{Lexer, Token, TokenKind};
@@ -546,6 +546,9 @@ impl Server {
         ) else {
             return json_result::<Option<SignatureHelp>>(None);
         };
+        if let Some(help) = analysis.signature_help_at_path_offset(&path, offset) {
+            return json_result(Some(signature_help_from_analysis(help)));
+        }
         let Some(file) = analysis.file_by_path(&path) else {
             return json_result::<Option<SignatureHelp>>(None);
         };
@@ -2202,6 +2205,39 @@ fn signature_help_from_hook(hook: &gmod_api_db::HookEntry) -> SignatureHelp {
         )],
         active_signature: Some(0),
         active_parameter: Some(0),
+    }
+}
+
+fn signature_help_from_analysis(help: AnalysisSignatureHelp) -> SignatureHelp {
+    let signature = help.signature;
+    let active_parameter = if signature.parameters.is_empty() {
+        None
+    } else {
+        Some(help.active_parameter.min(signature.parameters.len() - 1) as u32)
+    };
+    SignatureHelp {
+        signatures: vec![SignatureInformation {
+            label: signature.label,
+            documentation: Some(markdown_documentation(format!(
+                "Defined in `{}`",
+                signature.module_id
+            ))),
+            parameters: Some(
+                signature
+                    .parameters
+                    .into_iter()
+                    .map(|parameter| ParameterInformation {
+                        label: ParameterLabel::Simple(parameter.name),
+                        documentation: parameter
+                            .optional
+                            .then(|| Documentation::String("optional".into())),
+                    })
+                    .collect(),
+            ),
+            active_parameter: None,
+        }],
+        active_signature: Some(0),
+        active_parameter,
     }
 }
 

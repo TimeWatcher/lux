@@ -3,9 +3,12 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use crate::ast::{Block, FunctionBody, Module, Realm, Stmt, StmtKind};
+use crate::ast::{
+    Block, ChainExpr, ChainSegmentKind, Expr, ExprKind, ExprOrBlock, FunctionBody, FunctionDecl,
+    FunctionName, Module, Param, Realm, Stmt, StmtKind, TableFieldKind, TemplatePartKind,
+};
 use crate::compile_time::CompileTimePackageRegistry;
-use crate::diag::{Diagnostic, Severity};
+use crate::diag::{Diagnostic, Label, Severity};
 use crate::format::{FormatOutput, format_source};
 use crate::lex::{Lexer, Token, TokenKind};
 use crate::macro_expansion::{MacroRegistry, expand_macros_with_registry};
@@ -266,6 +269,30 @@ pub struct AnalysisSymbol {
     pub exported_as: Vec<String>,
     pub imported_from: Option<(String, String)>,
     pub external_availability: Option<RealmAvailability>,
+    pub signature: Option<AnalysisFunctionSignature>,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnalysisFunctionSignature {
+    pub name: String,
+    pub label: String,
+    pub parameters: Vec<AnalysisParameter>,
+    pub vararg: bool,
+    pub definition_span: SourceSpan,
+    pub definition_path: Option<PathBuf>,
+    pub module_id: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnalysisParameter {
+    pub name: String,
+    pub optional: bool,
+}
+
+#[derive(Debug, Clone)]
+pub struct AnalysisSignatureHelp {
+    pub signature: AnalysisFunctionSignature,
+    pub active_parameter: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -405,14 +432,16 @@ pub fn analyze_file_map(
         }
     };
 
-    Ok(ProjectAnalysis {
+    let mut analysis = ProjectAnalysis {
         config,
         files: source_files,
         modules: module_vec,
         graph,
         external_exports,
         diagnostics,
-    })
+    };
+    add_call_signature_diagnostics(&mut analysis);
+    Ok(analysis)
 }
 
 pub fn analyze_text(path: impl Into<PathBuf>, text: impl Into<String>) -> ProjectAnalysis {
@@ -539,12 +568,13 @@ impl AnalysisWorkspace {
             .cloned()
             .map(|module| (module.id.clone(), module))
             .collect::<BTreeMap<_, _>>();
+        let affected_paths = affected_paths_for_modules(&self.files, affected_modules);
         let mut unaffected_diagnostics = self
             .analysis
             .diagnostics
             .iter()
             .filter(|diagnostic| {
-                !diagnostic_touches_modules(diagnostic, &self.analysis, affected_modules)
+                !diagnostic_touches_paths(diagnostic, &self.analysis, &affected_paths)
             })
             .cloned()
             .collect::<Vec<_>>();
@@ -573,7 +603,7 @@ impl AnalysisWorkspace {
                 None
             }
         };
-        self.analysis = ProjectAnalysis {
+        let mut analysis = ProjectAnalysis {
             config: self.config.clone(),
             files: source_files_from_cache(&self.files),
             modules: module_vec,
@@ -581,6 +611,8 @@ impl AnalysisWorkspace {
             external_exports,
             diagnostics: unaffected_diagnostics,
         };
+        add_call_signature_diagnostics(&mut analysis);
+        self.analysis = analysis;
         Ok(())
     }
 }
@@ -838,10 +870,16 @@ impl ProjectAnalysis {
 
     pub fn symbol_at_path_offset(&self, path: &Path, offset: usize) -> Option<AnalysisSymbol> {
         let module = self.module_for_path(path)?;
+        let file_id = self.file_by_path(path)?.id;
 
-        if let Some((span, external)) =
-            find_containing_span(module.resolved.external_symbols_by_span.iter(), offset)
-        {
+        if let Some((span, external)) = find_containing_span(
+            module
+                .resolved
+                .external_symbols_by_span
+                .iter()
+                .filter(|(span, _)| span.file_id == file_id),
+            offset,
+        ) {
             return Some(AnalysisSymbol {
                 kind: AnalysisSymbolKind::External,
                 name: external.path.join("."),
@@ -857,21 +895,26 @@ impl ProjectAnalysis {
                 exported_as: Vec::new(),
                 imported_from: None,
                 external_availability: Some(external.availability.clone()),
+                signature: None,
             });
         }
 
-        if let Some((span, symbol)) =
-            find_containing_span(module.resolved.symbols_by_span.iter(), offset)
-        {
+        if let Some((span, symbol)) = find_containing_span(
+            module
+                .resolved
+                .symbols_by_span
+                .iter()
+                .filter(|(span, _)| span.file_id == file_id),
+            offset,
+        ) {
             let binding = module.resolved.bindings.get(symbol.binding.0)?;
             return Some(self.binding_symbol(module, binding, *span));
         }
 
-        if let Some(export) = module
-            .resolved
-            .exports
-            .iter()
-            .find(|export| contains_offset(export.span, offset))
+        if let Some(export) =
+            module.resolved.exports.iter().find(|export| {
+                export.span.file_id == file_id && contains_offset(export.span, offset)
+            })
         {
             let binding = module.resolved.bindings.get(export.binding.0)?;
             return Some(AnalysisSymbol {
@@ -891,6 +934,7 @@ impl ProjectAnalysis {
                 exported_as: vec![export.name.clone()],
                 imported_from: None,
                 external_availability: None,
+                signature: self.function_signature_for_binding(module, binding, &export.name),
             });
         }
 
@@ -898,7 +942,9 @@ impl ProjectAnalysis {
             .resolved
             .bindings
             .iter()
-            .filter(|binding| contains_offset(binding.span, offset))
+            .filter(|binding| {
+                binding.span.file_id == file_id && contains_offset(binding.span, offset)
+            })
             .min_by_key(|binding| binding.span.len())
             .map(|binding| self.binding_symbol(module, binding, binding.span))
     }
@@ -906,6 +952,21 @@ impl ProjectAnalysis {
     pub fn hover_markdown_at_path_offset(&self, path: &Path, offset: usize) -> Option<String> {
         let symbol = self.symbol_at_path_offset(path, offset)?;
         Some(symbol_hover_markdown(&symbol))
+    }
+
+    pub fn signature_help_at_path_offset(
+        &self,
+        path: &Path,
+        offset: usize,
+    ) -> Option<AnalysisSignatureHelp> {
+        let module = self.module_for_path(path)?;
+        let call = find_call_at_offset(module, path, offset)?;
+        let signature = self.signature_for_call_target(module, call.target_span)?;
+        let max_active = signature.parameters.len().saturating_sub(1);
+        Some(AnalysisSignatureHelp {
+            signature,
+            active_parameter: active_parameter_index(call.args, offset).min(max_active),
+        })
     }
 
     pub fn module_path_completions(&self) -> Vec<CompletionCandidate> {
@@ -1122,11 +1183,18 @@ impl ProjectAnalysis {
             .as_ref()
             .zip(binding.imported_name.as_ref())
             .map(|(source, imported)| (source.clone(), imported.clone()));
-        let (definition_span, definition_path) = import_target
-            .as_ref()
-            .and_then(|(source, imported)| self.import_definition(module, source, imported))
-            .map(|span| (Some(span), self.path_for_span(span)))
-            .unwrap_or_else(|| (Some(binding.span), self.path_for_span(binding.span)));
+        let target_binding = import_target.as_ref().and_then(|(source, imported)| {
+            self.import_definition_binding(module, source, imported)
+        });
+        let definition_span = target_binding
+            .map(|(_, _, binding)| binding.span)
+            .or(Some(binding.span));
+        let definition_path = definition_span.and_then(|span| self.path_for_span(span));
+        let signature = target_binding
+            .and_then(|(target_module, export, binding)| {
+                self.function_signature_for_binding(target_module, binding, &export.name)
+            })
+            .or_else(|| self.function_signature_for_binding(module, binding, &binding.name));
         AnalysisSymbol {
             kind: AnalysisSymbolKind::Binding,
             name: binding.name.clone(),
@@ -1139,23 +1207,75 @@ impl ProjectAnalysis {
             exported_as,
             imported_from: import_target,
             external_availability: None,
+            signature,
         }
     }
 
-    fn import_definition(
+    fn import_definition_binding(
         &self,
         module: &AnalyzedModule,
         raw_source: &str,
         imported: &str,
-    ) -> Option<SourceSpan> {
+    ) -> Option<(&AnalyzedModule, &crate::resolve::Export, &Binding)> {
         let target_id = resolve_import_target(&module.package_id, &module.module_path, raw_source)?;
         let target_module = self.modules.iter().find(|module| module.id == target_id)?;
-        target_module
+        let export = target_module
             .resolved
             .exports
             .iter()
-            .find(|export| export.name == imported)
-            .map(|export| export.span)
+            .find(|export| export.name == imported)?;
+        let binding = target_module.resolved.bindings.get(export.binding.0)?;
+        Some((target_module, export, binding))
+    }
+
+    fn signature_for_call_target(
+        &self,
+        module: &AnalyzedModule,
+        target_span: SourceSpan,
+    ) -> Option<AnalysisFunctionSignature> {
+        let symbol = module.resolved.symbols_by_span.get(&target_span)?;
+        let binding = module.resolved.bindings.get(symbol.binding.0)?;
+        let target_binding = binding
+            .source_module
+            .as_ref()
+            .zip(binding.imported_name.as_ref())
+            .and_then(|(source, imported)| {
+                self.import_definition_binding(module, source, imported)
+            });
+        target_binding
+            .and_then(|(target_module, export, binding)| {
+                self.function_signature_for_binding(target_module, binding, &export.name)
+            })
+            .or_else(|| self.function_signature_for_binding(module, binding, &binding.name))
+    }
+
+    fn function_signature_for_binding(
+        &self,
+        module: &AnalyzedModule,
+        binding: &Binding,
+        display_name: &str,
+    ) -> Option<AnalysisFunctionSignature> {
+        if binding.kind != BindingKind::Function {
+            return None;
+        }
+        let decl = function_decl_for_binding(module, binding)?;
+        let parameters = decl
+            .params
+            .iter()
+            .map(|param| AnalysisParameter {
+                name: param.name.name.clone(),
+                optional: param.default.is_some(),
+            })
+            .collect::<Vec<_>>();
+        Some(AnalysisFunctionSignature {
+            name: display_name.to_string(),
+            label: function_signature_label(display_name, &decl.params, decl.vararg),
+            parameters,
+            vararg: decl.vararg,
+            definition_span: binding.span,
+            definition_path: self.path_for_span(binding.span),
+            module_id: module.id.as_str().to_string(),
+        })
     }
 
     pub fn path_for_span(&self, span: SourceSpan) -> Option<PathBuf> {
@@ -1385,6 +1505,28 @@ fn affected_modules_for_change(
         .iter()
         .map(|module| module.id.clone())
         .filter(|module_id| affected.contains(module_id))
+        .chain(
+            changed_modules
+                .iter()
+                .filter(|module_id| {
+                    !analysis
+                        .modules
+                        .iter()
+                        .any(|module| module.id == **module_id)
+                })
+                .cloned(),
+        )
+        .collect()
+}
+
+fn affected_paths_for_modules(
+    files: &BTreeMap<PathBuf, CachedAnalysisFile>,
+    modules: &BTreeSet<ModuleId>,
+) -> BTreeSet<PathBuf> {
+    files
+        .values()
+        .filter(|file| modules.contains(&file.module_id))
+        .map(|file| file.path.clone())
         .collect()
 }
 
@@ -1406,8 +1548,12 @@ fn analyze_single_module(
 
     let package_id = config.effective_package_id();
     let mut module = None::<AnalyzedModule>;
-    for (index, (path, text)) in module_files.into_iter().enumerate() {
-        let source_file = SourceFile::new(index as u32, Some(path.clone()), text);
+    for (path, text) in module_files {
+        let source_file = SourceFile::new(
+            file_id_for_path(files, &path) as u32,
+            Some(path.clone()),
+            text,
+        );
         let module_path = infer_module_path(&config.source_root, &path);
         let parsed_module_id = ModuleId::from_package_path(&package_id, &module_path);
         let default_realm = match infer_part_realm(&config.source_root, &path, source_file.id) {
@@ -1461,6 +1607,13 @@ fn analyze_single_module(
     Ok(Some(module))
 }
 
+fn file_id_for_path(files: &BTreeMap<PathBuf, CachedAnalysisFile>, path: &Path) -> usize {
+    files
+        .keys()
+        .position(|candidate| same_path(candidate, path))
+        .unwrap_or(0)
+}
+
 fn finalize_analyzed_module(
     config: &AnalysisConfig,
     module: &mut AnalyzedModule,
@@ -1503,16 +1656,15 @@ fn finalize_analyzed_module(
     module.imports = module_imports(module);
 }
 
-fn diagnostic_touches_modules(
+fn diagnostic_touches_paths(
     diagnostic: &Diagnostic,
     analysis: &ProjectAnalysis,
-    modules: &BTreeSet<ModuleId>,
+    paths: &BTreeSet<PathBuf>,
 ) -> bool {
     diagnostic.labels.iter().any(|label| {
         analysis
             .path_for_span(label.span)
-            .and_then(|path| analysis.module_for_path(&path))
-            .is_some_and(|module| modules.contains(&module.id))
+            .is_some_and(|path| paths.contains(&path))
     })
 }
 
@@ -1628,6 +1780,430 @@ fn token_kind_to_semantic(kind: &crate::lex::TokenKind) -> Option<SemanticTokenK
     }
 }
 
+fn add_call_signature_diagnostics(analysis: &mut ProjectAnalysis) {
+    analysis
+        .diagnostics
+        .retain(|diagnostic| diagnostic.code.as_deref() != Some("CALL001"));
+    let diagnostics = call_signature_diagnostics(analysis);
+    analysis.diagnostics.extend(diagnostics);
+}
+
+fn call_signature_diagnostics(analysis: &ProjectAnalysis) -> Vec<Diagnostic> {
+    let mut diagnostics = Vec::new();
+    for module in &analysis.modules {
+        for call in call_sites_for_module(module) {
+            let Some(signature) = analysis.signature_for_call_target(module, call.target_span)
+            else {
+                continue;
+            };
+            let argument_count = call.args.len();
+            let required = signature
+                .parameters
+                .iter()
+                .filter(|parameter| !parameter.optional)
+                .count();
+            let maximum = signature.parameters.len();
+            let too_few = argument_count < required;
+            let too_many = !signature.vararg && argument_count > maximum;
+            if !too_few && !too_many {
+                continue;
+            }
+
+            let label_span = if too_many {
+                call.args
+                    .get(maximum)
+                    .map(|arg| arg.span)
+                    .unwrap_or(call.call_span)
+            } else {
+                call.call_span
+            };
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "`{}` expects {}, got {}",
+                    signature.name,
+                    expected_argument_count(required, maximum, signature.vararg),
+                    argument_count
+                ))
+                .with_code("CALL001")
+                .with_label(Label::primary(label_span, "incorrect argument count")),
+            );
+        }
+    }
+    diagnostics
+}
+
+fn expected_argument_count(required: usize, maximum: usize, vararg: bool) -> String {
+    if vararg {
+        return format!("at least {}", argument_count(required));
+    }
+    if required == maximum {
+        return argument_count(maximum);
+    }
+    format!("between {required} and {maximum} arguments")
+}
+
+fn argument_count(count: usize) -> String {
+    let word = if count == 1 { "argument" } else { "arguments" };
+    format!("{count} {word}")
+}
+
+#[derive(Debug, Clone, Copy)]
+struct AnalysisCall<'a> {
+    target_span: SourceSpan,
+    args: &'a [Expr],
+    call_span: SourceSpan,
+}
+
+fn find_call_at_offset<'a>(
+    module: &'a AnalyzedModule,
+    path: &Path,
+    offset: usize,
+) -> Option<AnalysisCall<'a>> {
+    let part = module
+        .parts
+        .iter()
+        .find(|part| same_path(&part.path, path))?;
+    let mut calls = Vec::new();
+    collect_calls_in_stmts(&part.module.body, &mut calls);
+    calls
+        .into_iter()
+        .filter(|call| call.call_span.file_id == part.source_file.id)
+        .filter(|call| contains_offset(call.call_span, offset))
+        .min_by_key(|call| call.call_span.len())
+}
+
+fn call_sites_for_module(module: &AnalyzedModule) -> Vec<AnalysisCall<'_>> {
+    let mut calls = Vec::new();
+    for part in &module.parts {
+        collect_calls_in_stmts(&part.module.body, &mut calls);
+    }
+    calls
+}
+
+fn collect_calls_in_stmts<'a>(statements: &'a [Stmt], calls: &mut Vec<AnalysisCall<'a>>) {
+    for stmt in statements {
+        collect_calls_in_stmt(stmt, calls);
+    }
+}
+
+fn collect_calls_in_stmt<'a>(stmt: &'a Stmt, calls: &mut Vec<AnalysisCall<'a>>) {
+    match &stmt.kind {
+        StmtKind::LocalDecl { values, .. } => collect_calls_in_exprs(values, calls),
+        StmtKind::LocalDestructure { values, .. } => collect_calls_in_exprs(values, calls),
+        StmtKind::Assign { targets, values } => {
+            collect_calls_in_exprs(targets, calls);
+            collect_calls_in_exprs(values, calls);
+        }
+        StmtKind::CompoundAssign { target, value, .. } => {
+            collect_calls_in_expr(target, calls);
+            collect_calls_in_expr(value, calls);
+        }
+        StmtKind::Expr(expr) => collect_calls_in_expr(expr, calls),
+        StmtKind::Return(values) => collect_calls_in_exprs(values, calls),
+        StmtKind::ExportDecl { stmt, .. } | StmtKind::RealmDecl { stmt, .. } => {
+            collect_calls_in_stmt(stmt, calls)
+        }
+        StmtKind::RealmBlock { block, .. } | StmtKind::InitDecl { block, .. } => {
+            collect_calls_in_block(block, calls)
+        }
+        StmtKind::FunctionDecl(decl) => collect_calls_in_function_decl(decl, calls),
+        StmtKind::If {
+            condition,
+            then_block,
+            else_block,
+        } => {
+            collect_calls_in_expr(condition, calls);
+            collect_calls_in_block(then_block, calls);
+            if let Some(block) = else_block {
+                collect_calls_in_block(block, calls);
+            }
+        }
+        StmtKind::While { condition, body } => {
+            collect_calls_in_expr(condition, calls);
+            collect_calls_in_block(body, calls);
+        }
+        StmtKind::NumericFor {
+            start,
+            end,
+            step,
+            body,
+            ..
+        } => {
+            collect_calls_in_expr(start, calls);
+            collect_calls_in_expr(end, calls);
+            if let Some(step) = step {
+                collect_calls_in_expr(step, calls);
+            }
+            collect_calls_in_block(body, calls);
+        }
+        StmtKind::GenericFor { iter, body, .. } => {
+            collect_calls_in_exprs(iter, calls);
+            collect_calls_in_block(body, calls);
+        }
+        StmtKind::RepeatUntil { body, condition } => {
+            collect_calls_in_block(body, calls);
+            collect_calls_in_expr(condition, calls);
+        }
+        StmtKind::Do(block) => collect_calls_in_block(block, calls),
+        StmtKind::Break
+        | StmtKind::Continue
+        | StmtKind::Import(_)
+        | StmtKind::PartOrderDecl(_)
+        | StmtKind::ExternDecl(_)
+        | StmtKind::HostPackageDecl(_)
+        | StmtKind::ExportList { .. }
+        | StmtKind::ExportAll { .. }
+        | StmtKind::EnumDecl(_) => {}
+    }
+}
+
+fn collect_calls_in_block<'a>(block: &'a Block, calls: &mut Vec<AnalysisCall<'a>>) {
+    collect_calls_in_stmts(&block.statements, calls);
+    if let Some(tail) = &block.tail {
+        collect_calls_in_expr(tail, calls);
+    }
+}
+
+fn collect_calls_in_exprs<'a>(exprs: &'a [Expr], calls: &mut Vec<AnalysisCall<'a>>) {
+    for expr in exprs {
+        collect_calls_in_expr(expr, calls);
+    }
+}
+
+fn collect_calls_in_function_decl<'a>(decl: &'a FunctionDecl, calls: &mut Vec<AnalysisCall<'a>>) {
+    for param in &decl.params {
+        if let Some(default) = &param.default {
+            collect_calls_in_expr(default, calls);
+        }
+    }
+    collect_calls_in_function_body(&decl.body, calls);
+}
+
+fn collect_calls_in_function_body<'a>(body: &'a FunctionBody, calls: &mut Vec<AnalysisCall<'a>>) {
+    match body {
+        FunctionBody::Expr(expr) => collect_calls_in_expr(expr, calls),
+        FunctionBody::Block(block) => collect_calls_in_block(block, calls),
+    }
+}
+
+fn collect_calls_in_expr_or_block<'a>(
+    expr_or_block: &'a ExprOrBlock,
+    calls: &mut Vec<AnalysisCall<'a>>,
+) {
+    match expr_or_block {
+        ExprOrBlock::Expr(expr) => collect_calls_in_expr(expr, calls),
+        ExprOrBlock::Block(block) => collect_calls_in_block(block, calls),
+    }
+}
+
+fn collect_calls_in_expr<'a>(expr: &'a Expr, calls: &mut Vec<AnalysisCall<'a>>) {
+    match &expr.kind {
+        ExprKind::Identifier(_)
+        | ExprKind::Nil
+        | ExprKind::Boolean(_)
+        | ExprKind::Number(_)
+        | ExprKind::String(_)
+        | ExprKind::Vararg
+        | ExprKind::PipelinePlaceholder => {}
+        ExprKind::TemplateString(parts) => {
+            for part in parts {
+                if let TemplatePartKind::Expr(expr) = &part.kind {
+                    collect_calls_in_expr(expr, calls);
+                }
+            }
+        }
+        ExprKind::Table(table) => {
+            for field in &table.fields {
+                match &field.kind {
+                    TableFieldKind::Array(value) | TableFieldKind::Spread(value) => {
+                        collect_calls_in_expr(value, calls);
+                    }
+                    TableFieldKind::Named { value, .. } => collect_calls_in_expr(value, calls),
+                    TableFieldKind::ExprKey { key, value } => {
+                        collect_calls_in_expr(key, calls);
+                        collect_calls_in_expr(value, calls);
+                    }
+                }
+            }
+        }
+        ExprKind::Paren(inner) => collect_calls_in_expr(inner, calls),
+        ExprKind::Unary { argument, .. } => collect_calls_in_expr(argument, calls),
+        ExprKind::Binary { left, right, .. } => {
+            collect_calls_in_expr(left, calls);
+            collect_calls_in_expr(right, calls);
+        }
+        ExprKind::Conditional {
+            condition,
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            collect_calls_in_expr(condition, calls);
+            collect_calls_in_expr_or_block(then_branch, calls);
+            collect_calls_in_expr_or_block(else_branch, calls);
+        }
+        ExprKind::Match(match_expr) => {
+            collect_calls_in_expr(&match_expr.subject, calls);
+            for arm in &match_expr.arms {
+                collect_calls_in_expr_or_block(&arm.body, calls);
+            }
+        }
+        ExprKind::Do(block) => collect_calls_in_block(block, calls),
+        ExprKind::Function(function) => {
+            for param in &function.params {
+                if let Some(default) = &param.default {
+                    collect_calls_in_expr(default, calls);
+                }
+            }
+            collect_calls_in_function_body(&function.body, calls);
+        }
+        ExprKind::Chain(chain) => collect_calls_in_chain(chain, calls),
+    }
+}
+
+fn collect_calls_in_chain<'a>(chain: &'a ChainExpr, calls: &mut Vec<AnalysisCall<'a>>) {
+    collect_calls_in_expr(&chain.base, calls);
+    let mut direct_target = match &chain.base.kind {
+        ExprKind::Identifier(identifier) => Some(identifier.span),
+        _ => None,
+    };
+    for segment in &chain.segments {
+        match &segment.kind {
+            ChainSegmentKind::Call { args, .. } => {
+                if let Some(target_span) = direct_target {
+                    calls.push(AnalysisCall {
+                        target_span,
+                        args,
+                        call_span: segment.span,
+                    });
+                }
+                collect_calls_in_exprs(args, calls);
+                direct_target = None;
+            }
+            ChainSegmentKind::SafeDotCall { args, .. }
+            | ChainSegmentKind::MethodCall { args, .. } => {
+                collect_calls_in_exprs(args, calls);
+                direct_target = None;
+            }
+            ChainSegmentKind::Index { index, .. } => {
+                collect_calls_in_expr(index, calls);
+                direct_target = None;
+            }
+            ChainSegmentKind::Member { .. } => {
+                direct_target = None;
+            }
+        }
+    }
+}
+
+fn function_decl_for_binding<'a>(
+    module: &'a AnalyzedModule,
+    binding: &Binding,
+) -> Option<&'a FunctionDecl> {
+    for part in &module.parts {
+        if let Some(decl) = function_decl_for_binding_in_stmts(&part.module.body, binding) {
+            return Some(decl);
+        }
+    }
+    None
+}
+
+fn function_decl_for_binding_in_stmts<'a>(
+    statements: &'a [Stmt],
+    binding: &Binding,
+) -> Option<&'a FunctionDecl> {
+    statements
+        .iter()
+        .find_map(|stmt| function_decl_for_binding_in_stmt(stmt, binding))
+}
+
+fn function_decl_for_binding_in_stmt<'a>(
+    stmt: &'a Stmt,
+    binding: &Binding,
+) -> Option<&'a FunctionDecl> {
+    match &stmt.kind {
+        StmtKind::FunctionDecl(decl) => {
+            if function_decl_matches_binding(decl, binding) {
+                return Some(decl);
+            }
+            function_decl_for_binding_in_function_body(&decl.body, binding)
+        }
+        StmtKind::ExportDecl { stmt, .. } | StmtKind::RealmDecl { stmt, .. } => {
+            function_decl_for_binding_in_stmt(stmt, binding)
+        }
+        StmtKind::RealmBlock { block, .. } | StmtKind::InitDecl { block, .. } => {
+            function_decl_for_binding_in_block(block, binding)
+        }
+        StmtKind::If {
+            then_block,
+            else_block,
+            ..
+        } => function_decl_for_binding_in_block(then_block, binding).or_else(|| {
+            else_block
+                .as_ref()
+                .and_then(|block| function_decl_for_binding_in_block(block, binding))
+        }),
+        StmtKind::While { body, .. }
+        | StmtKind::NumericFor { body, .. }
+        | StmtKind::GenericFor { body, .. }
+        | StmtKind::RepeatUntil { body, .. }
+        | StmtKind::Do(body) => function_decl_for_binding_in_block(body, binding),
+        _ => None,
+    }
+}
+
+fn function_decl_for_binding_in_block<'a>(
+    block: &'a Block,
+    binding: &Binding,
+) -> Option<&'a FunctionDecl> {
+    function_decl_for_binding_in_stmts(&block.statements, binding)
+}
+
+fn function_decl_for_binding_in_function_body<'a>(
+    body: &'a FunctionBody,
+    binding: &Binding,
+) -> Option<&'a FunctionDecl> {
+    match body {
+        FunctionBody::Expr(_) => None,
+        FunctionBody::Block(block) => function_decl_for_binding_in_block(block, binding),
+    }
+}
+
+fn function_decl_matches_binding(decl: &FunctionDecl, binding: &Binding) -> bool {
+    match &decl.name {
+        FunctionName::Simple(name) => name.span == binding.span,
+        FunctionName::Dotted(_) | FunctionName::Method { .. } => false,
+    }
+}
+
+fn function_signature_label(display_name: &str, params: &[Param], vararg: bool) -> String {
+    let mut labels = params
+        .iter()
+        .map(|param| {
+            if param.default.is_some() {
+                format!("{}?", param.name.name)
+            } else {
+                param.name.name.clone()
+            }
+        })
+        .collect::<Vec<_>>();
+    if vararg {
+        labels.push("...".into());
+    }
+    format!("{display_name}({})", labels.join(", "))
+}
+
+fn active_parameter_index(args: &[Expr], offset: usize) -> usize {
+    let mut active = 0usize;
+    for (index, arg) in args.iter().enumerate() {
+        if offset <= arg.span.byte_end {
+            return index;
+        }
+        active = index + 1;
+    }
+    active
+}
+
 fn semantic_kind_for_binding(kind: BindingKind) -> SemanticTokenKind {
     match kind {
         BindingKind::Function => SemanticTokenKind::Function,
@@ -1645,6 +2221,14 @@ fn symbol_hover_markdown(symbol: &AnalysisSymbol) -> String {
     out.push_str(&symbol.detail);
     out.push('\n');
 
+    if let Some(signature) = &symbol.signature {
+        out.push_str("\n\n**Signature:** `");
+        out.push_str(&signature.label);
+        out.push('`');
+        out.push_str("\n\n**Defined in:** `");
+        out.push_str(&signature.module_id);
+        out.push('`');
+    }
     if let Some(module_id) = &symbol.module_id {
         out.push_str("\n\n**Module:** `");
         out.push_str(module_id);
@@ -2374,10 +2958,10 @@ mod tests {
         );
 
         let definition_path = symbol.definition_path.expect("definition path");
-        assert!(definition_path.ends_with("inventory/module.lux"));
+        assert!(definition_path.ends_with("inventory/state.lux"));
         let definition_span = symbol.definition_span.expect("definition span");
         let definition_file = output.file_by_id(definition_span.file_id).expect("file");
-        assert_eq!(definition_file.slice(definition_span), "p_inv");
+        assert_eq!(definition_file.slice(definition_span), "player_inventory");
     }
 
     #[test]
@@ -2571,6 +3155,98 @@ mod tests {
     }
 
     #[test]
+    fn function_metadata_crosses_part_files_for_module_scope_bindings() {
+        let root = std::path::PathBuf::from("src");
+        let hud_path = root.join("hud/module.lux");
+        let math_path = root.join("hud/math.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [
+                AnalysisFile {
+                    path: hud_path.clone(),
+                    text: "part order { \"module\", \"math\" }\nfn draw() = add(1, 2, 3, 4)".into(),
+                },
+                AnalysisFile {
+                    path: math_path.clone(),
+                    text: "fn add(a, b) = a + b".into(),
+                },
+            ],
+        )
+        .expect("analysis");
+
+        let offset = output
+            .offset_for_position(&hud_path, 1, "fn draw() = add".len())
+            .expect("offset");
+        let symbol = output
+            .symbol_at_path_offset(&hud_path, offset)
+            .expect("symbol");
+        let signature = symbol.signature.expect("function signature");
+        assert_eq!(signature.label, "add(a, b)");
+        assert_eq!(symbol.definition_path, Some(math_path.clone()));
+        let definition_span = symbol.definition_span.expect("definition span");
+        let definition_file = output.file_by_id(definition_span.file_id).expect("file");
+        assert_eq!(definition_file.slice(definition_span), "add");
+
+        let hover = output
+            .hover_markdown_at_path_offset(&hud_path, offset)
+            .expect("hover");
+        assert!(hover.contains("**Signature:** `add(a, b)`"), "{hover}");
+
+        let help_offset = output
+            .offset_for_position(&hud_path, 1, "fn draw() = add(1, ".len())
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&hud_path, help_offset)
+            .expect("signature help");
+        assert_eq!(help.signature.label, "add(a, b)");
+        assert_eq!(help.active_parameter, 1);
+
+        assert!(
+            output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("CALL001")
+                    && diagnostic.message == "`add` expects 2 arguments, got 4"
+            }),
+            "{:#?}",
+            output.diagnostics
+        );
+    }
+
+    #[test]
+    fn function_metadata_crosses_imported_modules() {
+        let root = std::path::PathBuf::from("src");
+        let math_path = root.join("math.lux");
+        let hud_path = root.join("hud.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [
+                AnalysisFile {
+                    path: math_path.clone(),
+                    text: "export fn add(a, b) = a + b".into(),
+                },
+                AnalysisFile {
+                    path: hud_path.clone(),
+                    text: "import { add } from \"math\"\nfn draw() = add(1, 2)".into(),
+                },
+            ],
+        )
+        .expect("analysis");
+
+        let offset = output
+            .offset_for_position(&hud_path, 1, "fn draw() = add".len())
+            .expect("offset");
+        let symbol = output
+            .symbol_at_path_offset(&hud_path, offset)
+            .expect("symbol");
+        let signature = symbol.signature.expect("signature");
+        assert_eq!(signature.label, "add(a, b)");
+        assert_eq!(signature.module_id.as_str(), "src/math");
+        assert_eq!(symbol.definition_path, Some(math_path.clone()));
+        let definition_span = symbol.definition_span.expect("definition span");
+        let definition_file = output.file_by_id(definition_span.file_id).expect("file");
+        assert_eq!(definition_file.slice(definition_span), "add");
+    }
+
+    #[test]
     fn workspace_update_reanalyzes_changed_module_and_dependents() {
         let root = std::path::PathBuf::from("src");
         let api_path = root.join("api/module.lux");
@@ -2630,6 +3306,50 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code.as_deref() == Some("MODULE008")),
+            "{:#?}",
+            workspace.analysis().diagnostics
+        );
+    }
+
+    #[test]
+    fn workspace_update_drops_fixed_parse_diagnostics() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("client/ui.lux");
+        let mut workspace = AnalysisWorkspace::from_files(
+            AnalysisConfig::new(&root),
+            [AnalysisFile {
+                path: path.clone(),
+                text: "local state = {\n  count = 1,\n  label = \"Clicks\",\n  test =\n}\n".into(),
+            }],
+        )
+        .expect("workspace");
+        assert!(
+            workspace
+                .analysis()
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("PARSE001")),
+            "{:#?}",
+            workspace.analysis().diagnostics
+        );
+
+        workspace
+            .update_files(
+                AnalysisConfig::new(&root),
+                [AnalysisFile {
+                    path,
+                    text: "local state = {\n  count = 1,\n  label = \"Clicks\",\n  test = 1\n}\n\nlocal aaa = 1\n"
+                        .into(),
+                }],
+            )
+            .expect("incremental update");
+
+        assert!(
+            workspace
+                .analysis()
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("PARSE001")),
             "{:#?}",
             workspace.analysis().diagnostics
         );

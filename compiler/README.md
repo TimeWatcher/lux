@@ -46,7 +46,9 @@ under `out/runtime_base`, and an optional `autorun` forwarder.
 
 `lsp` starts the compiler-owned Language Server Protocol process. Editors should
 launch the same `luxc` selected for project builds so diagnostics, completion,
-package resolution, and emitted Lua semantics stay version-aligned.
+hover, go-to-definition, signature help, package resolution, and emitted Lua
+semantics stay version-aligned. Cross-part and imported Lux symbols are resolved
+through the same analysis graph used by builds.
 
 The GMod build path also injects required compiler-provided runtime modules.
 Currently `import { arr } from "@lux/std"` adds a generated `lux/std` module with
