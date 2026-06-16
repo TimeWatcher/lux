@@ -14,6 +14,7 @@ use luxc::host::HostRegistry;
 use luxc::lex::Lexer;
 use luxc::lint::{LintOptions, lint_module};
 use luxc::lower::Lowerer;
+use luxc::lsp;
 use luxc::package_manager::{
     DependencySource, InitOptions, InstallRequest, LockRequest, RemoveRequest,
     doctor as package_doctor, init_project, install_package, list_locked, lock_project,
@@ -41,6 +42,7 @@ fn usage() {
     eprintln!("  luxc lock [project-root]");
     eprintln!("  luxc list [project-root]");
     eprintln!("  luxc doctor [project-root]");
+    eprintln!("  luxc lsp");
     eprintln!(
         "  luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]"
     );
@@ -423,6 +425,13 @@ fn main() -> ExitCode {
                 ExitCode::from(1)
             }
         },
+        Command::Lsp => match lsp::run() {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(message) => {
+                eprintln!("luxc lsp: {message}");
+                ExitCode::from(1)
+            }
+        },
         Command::GmodBuild {
             manifest,
             source_root,
@@ -513,6 +522,7 @@ enum Command {
     Doctor {
         project_root: PathBuf,
     },
+    Lsp,
     GmodBuild {
         manifest: Option<PathBuf>,
         source_root: Option<PathBuf>,
@@ -578,6 +588,7 @@ fn parse_command(args: Vec<OsString>) -> Command {
         [command, project_root] if command == "doctor" => Command::Doctor {
             project_root: project_root.into(),
         },
+        [command] if command == "lsp" => Command::Lsp,
         [scope, command, rest @ ..] if scope == "gmod" && command == "build" => {
             parse_gmod_build_command(rest)
         }
@@ -1432,5 +1443,14 @@ mod tests {
         };
 
         assert_eq!(project_root, PathBuf::from("demo"));
+    }
+
+    #[test]
+    fn lsp_is_compiler_subcommand() {
+        assert!(matches!(parse_command(args(&["lsp"])), Command::Lsp));
+        assert!(matches!(
+            parse_command(args(&["lsp", "--stdio"])),
+            Command::Invalid
+        ));
     }
 }

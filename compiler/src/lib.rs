@@ -10,6 +10,7 @@ pub mod ir;
 pub mod lex;
 pub mod lint;
 pub mod lower;
+pub mod lsp;
 pub mod macro_expansion;
 pub mod module;
 pub mod package_manager;

@@ -13,6 +13,7 @@ Current responsibilities:
 - Lua/GLua code generation through a source-map-aware writer
 - sidecar source map emission
 - GMod project artifact and loader generation
+- compiler-backed Language Server Protocol entrypoint
 - CLI entrypoints
 
 Planned responsibilities:
@@ -33,6 +34,7 @@ cargo run -- gmod build path\to\src --out path\to\generated\lua
 cargo run -- gmod build path\to\src --out path\to\generated\lua --dry-run
 cargo run -- gmod build path\to\src --out path\to\generated\lua --no-autorun
 cargo run -- gmod build --manifest path\to\lux.toml
+cargo run -- lsp
 ```
 
 `compile` prints generated Lua to stdout. `--map` writes a JSON sidecar source
@@ -41,6 +43,10 @@ map while keeping Lua output on stdout.
 `gmod build` compiles every `.lux` file under the source root, resolves imports
 offline, emits wrapped Lua modules, source-map sidecars, the Lux loader tree
 under `out/runtime_base`, and an optional `autorun` forwarder.
+
+`lsp` starts the compiler-owned Language Server Protocol process. Editors should
+launch the same `luxc` selected for project builds so diagnostics, completion,
+package resolution, and emitted Lua semantics stay version-aligned.
 
 The GMod build path also injects required compiler-provided runtime modules.
 Currently `import { arr } from "@lux/std"` adds a generated `lux/std` module with
