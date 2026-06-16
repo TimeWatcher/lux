@@ -10,6 +10,7 @@ use crate::analysis::{
 use crate::diag::Severity;
 use crate::lex::{Lexer, Token, TokenKind};
 use crate::module::{RealmAvailability, RealmSet};
+use crate::package_manager::{DependencySource, InstallRequest, LUX_STD_REPO, install_package};
 use crate::project::ProjectManifest;
 use crate::source::SourceFile;
 use crossbeam_channel::RecvTimeoutError;
@@ -17,7 +18,7 @@ use gmod_api_db::{ApiIndex, entry_markdown, hook_markdown};
 use lsp_server::{Connection, ExtractError, Message, Notification, Request, RequestId, Response};
 use lsp_types::notification::{
     DidChangeTextDocument, DidChangeWatchedFiles, DidCloseTextDocument, DidOpenTextDocument,
-    DidSaveTextDocument, Notification as LspNotification, PublishDiagnostics,
+    DidSaveTextDocument, Notification as LspNotification, PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
     CodeActionRequest, Completion, ExecuteCommand, Formatting, GotoDefinition, HoverRequest,
@@ -29,14 +30,14 @@ use lsp_types::{
     CompletionParams, CompletionResponse, Diagnostic, DiagnosticRelatedInformation,
     DiagnosticSeverity, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
     DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    DocumentFormattingParams, Documentation, ExecuteCommandParams, GotoDefinitionParams,
-    GotoDefinitionResponse, Hover, HoverContents, HoverParams, InitializeParams, InsertTextFormat,
-    Location, MarkupContent, MarkupKind, OneOf, ParameterInformation, ParameterLabel, Position,
-    PublishDiagnosticsParams, Range, SemanticToken, SemanticTokenType, SemanticTokens,
-    SemanticTokensLegend, SemanticTokensOptions, SemanticTokensParams, SemanticTokensResult,
-    ServerCapabilities, SignatureHelp, SignatureHelpOptions, SignatureInformation,
-    TextDocumentContentChangeEvent, TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit,
-    Uri, WorkDoneProgressOptions,
+    DocumentFormattingParams, Documentation, ExecuteCommandOptions, ExecuteCommandParams,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverContents, HoverParams,
+    InitializeParams, InsertTextFormat, Location, MarkupContent, MarkupKind, MessageType, OneOf,
+    ParameterInformation, ParameterLabel, Position, PublishDiagnosticsParams, Range, SemanticToken,
+    SemanticTokenType, SemanticTokens, SemanticTokensLegend, SemanticTokensOptions,
+    SemanticTokensParams, SemanticTokensResult, ServerCapabilities, ShowMessageParams,
+    SignatureHelp, SignatureHelpOptions, SignatureInformation, TextDocumentContentChangeEvent,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextEdit, Uri, WorkDoneProgressOptions,
 };
 use url::Url;
 
@@ -63,6 +64,7 @@ pub fn run() -> Result<(), String> {
 }
 
 const ANALYSIS_DEBOUNCE: Duration = Duration::from_millis(180);
+const INSTALL_STD_PACKAGES_COMMAND: &str = "lux.installStdPackages";
 
 fn server_capabilities() -> ServerCapabilities {
     ServerCapabilities {
@@ -85,7 +87,10 @@ fn server_capabilities() -> ServerCapabilities {
         definition_provider: Some(OneOf::Left(true)),
         document_formatting_provider: Some(OneOf::Left(true)),
         code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
-        execute_command_provider: None,
+        execute_command_provider: Some(ExecuteCommandOptions {
+            commands: vec![INSTALL_STD_PACKAGES_COMMAND.into()],
+            work_done_progress_options: WorkDoneProgressOptions::default(),
+        }),
         semantic_tokens_provider: Some(
             lsp_types::SemanticTokensServerCapabilities::SemanticTokensOptions(
                 SemanticTokensOptions {
@@ -660,6 +665,12 @@ impl Server {
                 &params.text_document.uri,
             ))
             .chain(manifest_extern_code_actions(analysis, &path, &self.root))
+            .chain(std_package_code_actions(
+                analysis,
+                &path,
+                &self.root,
+                &params.text_document.uri,
+            ))
             .collect::<Vec<_>>();
         json_result(Some(actions))
     }
@@ -689,8 +700,64 @@ impl Server {
                 self.reanalyze_and_publish();
                 json_result(CommandResult::message("Lux workspace analysis reloaded."))
             }
+            INSTALL_STD_PACKAGES_COMMAND => json_result(self.install_std_packages(&params)?),
             other => Err(format!("unsupported command `{other}`")),
         }
+    }
+
+    fn install_std_packages(
+        &mut self,
+        params: &ExecuteCommandParams,
+    ) -> Result<CommandResult, String> {
+        let command = InstallStdPackagesCommand::from_arguments(&params.arguments)?;
+        let Some(project_root) = command.project_root else {
+            let message = "No Lux project root was provided for package installation.";
+            self.show_message(MessageType::ERROR, message);
+            return Ok(CommandResult::message(message));
+        };
+        let packages = command
+            .packages
+            .into_iter()
+            .filter(|package| is_official_lux_package(package))
+            .collect::<BTreeSet<_>>();
+        if packages.is_empty() {
+            let message = "No missing official Lux packages were found for installation.";
+            self.show_message(MessageType::WARNING, message);
+            return Ok(CommandResult::message(message));
+        }
+
+        let mut installed = Vec::new();
+        for package in &packages {
+            let request = InstallRequest {
+                project_root: project_root.clone(),
+                package: package.clone(),
+                source: DependencySource::Github {
+                    repo: LUX_STD_REPO.into(),
+                    tag: None,
+                    branch: None,
+                    commit: None,
+                },
+            };
+            if let Err(err) = install_package(&request) {
+                let message = format!("Failed to install {package}: {err}");
+                self.show_message(MessageType::ERROR, &message);
+                if !installed.is_empty() {
+                    self.workspace = None;
+                    self.reanalyze_and_publish();
+                }
+                return Ok(CommandResult::message(message));
+            }
+            installed.push(package.clone());
+        }
+
+        self.workspace = None;
+        self.reanalyze_and_publish();
+        let message = format!(
+            "Installed {} from github:{LUX_STD_REPO}.",
+            installed.join(", ")
+        );
+        self.show_message(MessageType::INFO, &message);
+        Ok(CommandResult::message(message))
     }
 
     fn analysis_and_offset(
@@ -910,6 +977,20 @@ impl Server {
             }))
             .map_err(|err| format!("failed to send error response: {err}"))
     }
+
+    fn show_message(&self, typ: MessageType, message: impl Into<String>) {
+        let params = ShowMessageParams {
+            typ,
+            message: message.into(),
+        };
+        let _ = self
+            .connection
+            .sender
+            .send(Message::Notification(Notification {
+                method: ShowMessage::METHOD.into(),
+                params: serde_json::to_value(params).unwrap_or_default(),
+            }));
+    }
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -928,6 +1009,26 @@ impl CommandDocumentPosition {
         serde_json::from_value(value.clone())
             .map(Some)
             .map_err(|err| format!("invalid command document position: {err}"))
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallStdPackagesCommand {
+    project_root: Option<PathBuf>,
+    packages: Vec<String>,
+}
+
+impl InstallStdPackagesCommand {
+    fn from_arguments(arguments: &[serde_json::Value]) -> Result<Self, String> {
+        let Some(value) = arguments.first() else {
+            return Ok(Self {
+                project_root: None,
+                packages: Vec::new(),
+            });
+        };
+        serde_json::from_value(value.clone())
+            .map_err(|err| format!("invalid install std packages command: {err}"))
     }
 }
 
@@ -1217,6 +1318,62 @@ fn manifest_extern_code_actions(
             }))
         })
         .collect()
+}
+
+fn std_package_code_actions(
+    analysis: &ProjectAnalysis,
+    path: &Path,
+    root: &Path,
+    _uri: &Uri,
+) -> Vec<CodeActionOrCommand> {
+    let Some(manifest_path) = find_manifest_for_path(root, path) else {
+        return Vec::new();
+    };
+    let Some(project_root) = manifest_path.parent() else {
+        return Vec::new();
+    };
+    let packages = analysis
+        .diagnostics_for_path(path)
+        .into_iter()
+        .filter(|diagnostic| diagnostic.code.as_deref() == Some("MODULE001"))
+        .filter_map(|diagnostic| diagnostic_symbol_name(&diagnostic.message))
+        .filter(|module| is_official_lux_package(module))
+        .collect::<BTreeSet<_>>();
+    if packages.is_empty() {
+        return Vec::new();
+    }
+    let packages = packages.into_iter().collect::<Vec<_>>();
+    vec![CodeActionOrCommand::CodeAction(CodeAction {
+        title: "Fix: Install std packages".into(),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: None,
+        command: Some(lsp_types::Command {
+            title: "Fix: Install std packages".into(),
+            command: INSTALL_STD_PACKAGES_COMMAND.into(),
+            arguments: Some(vec![serde_json::json!({
+                "projectRoot": project_root,
+                "packages": packages,
+            })]),
+        }),
+        is_preferred: None,
+        disabled: None,
+        data: None,
+    })]
+}
+
+fn is_official_lux_package(package: &str) -> bool {
+    matches!(
+        package,
+        "@lux/std"
+            | "@lux/reactive"
+            | "@lux/gmod"
+            | "@lux/gmod/macros"
+            | "@lux/ui"
+            | "@lux/macros"
+            | "@lux/compile/macro"
+            | "@lux/compile/host"
+    )
 }
 
 fn manifest_extern_edit(manifest_path: &Path, symbol: &str, realm: &str) -> TextEdit {
@@ -3576,6 +3733,7 @@ mod tests {
         is_lux_analysis_watched_path, keyword_completion_items, lexical_binding_completions,
         manifest_section_insert_position, method_path_at_offset, module_exports_command,
         path_to_url, resolve_typed_method_path, server_capabilities, signature_help_at,
+        std_package_code_actions,
     };
     use super::{
         CompletionContext, Server, active_manifest, analysis_config, completion_context,
@@ -3591,8 +3749,8 @@ mod tests {
     use crate::source::{SourceFile, SourceSpan};
     use gmod_api_db::ApiIndex;
     use lsp_types::{
-        CompletionItemKind, Documentation, InitializeParams, InsertTextFormat, SemanticToken,
-        TextDocumentContentChangeEvent,
+        CodeActionOrCommand, CompletionItemKind, Documentation, InitializeParams, InsertTextFormat,
+        SemanticToken, TextDocumentContentChangeEvent,
     };
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -3632,8 +3790,68 @@ mod tests {
         assert!(value.get("completionProvider").is_some());
         assert!(value.get("hoverProvider").is_some());
         assert!(value.get("semanticTokensProvider").is_some());
-        assert!(value.get("executeCommandProvider").is_none());
+        let execute_commands = value
+            .get("executeCommandProvider")
+            .and_then(|provider| provider.get("commands"))
+            .and_then(|commands| commands.as_array())
+            .expect("execute commands");
+        assert!(
+            execute_commands
+                .iter()
+                .any(|command| command.as_str() == Some(super::INSTALL_STD_PACKAGES_COMMAND))
+        );
         assert!(value.get("capabilities").is_none());
+    }
+
+    #[test]
+    fn unresolved_official_lux_package_offers_install_std_packages_fix() {
+        let root = temp_root("std_package_fix");
+        let source_root = root.join("src");
+        std::fs::create_dir_all(&source_root).expect("source root");
+        std::fs::write(
+            root.join("lux.toml"),
+            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n[dependencies]\n",
+        )
+        .expect("manifest");
+        let path = source_root.join("ui.lux");
+        let analysis = analyze_files(
+            AnalysisConfig::new(&source_root),
+            [AnalysisFile {
+                path: path.clone(),
+                text: "import { signal } from \"@lux/reactive\"\nexport fn run() = signal(0)\n"
+                    .into(),
+            }],
+        )
+        .expect("analysis");
+        assert!(
+            analysis
+                .diagnostics_for_path(&path)
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("MODULE001")),
+            "{:#?}",
+            analysis.diagnostics
+        );
+
+        let uri = path_to_url(&path).expect("uri");
+        let actions = std_package_code_actions(&analysis, &path, &root, &uri);
+        let action = actions
+            .iter()
+            .find_map(|action| match action {
+                CodeActionOrCommand::CodeAction(action)
+                    if action.title == "Fix: Install std packages" =>
+                {
+                    Some(action)
+                }
+                _ => None,
+            })
+            .expect("install std packages action");
+        let command = action.command.as_ref().expect("command");
+        assert_eq!(command.command, super::INSTALL_STD_PACKAGES_COMMAND);
+        let arguments = command.arguments.as_ref().expect("arguments");
+        assert_eq!(arguments.len(), 1);
+        assert_eq!(arguments[0]["packages"][0], "@lux/reactive");
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
