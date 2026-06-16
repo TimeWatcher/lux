@@ -18,11 +18,18 @@ use crate::module::{
 };
 use crate::parse::Parser;
 use crate::part_order::{PartOrderInput, is_module_entry_path, sort_module_parts};
+use crate::packages::{
+    PackageLoadError, PackagePhase, PackagePhaseKind, discover_compile_time_phases,
+    discover_runtime_phases,
+};
 use crate::project::{
     ProjectManifest, discover_lux_sources, infer_module_path, infer_part_realm,
     resolve_import_target,
 };
-use crate::resolve::{Binding, BindingKind, ResolveOutput, ResolvePart, Resolver, ResolverOptions};
+use crate::resolve::{
+    Binding, BindingKind, ResolveOutput, ResolvePart, Resolver, ResolverOptions,
+    UnknownExternalPolicy,
+};
 use crate::runtime::RuntimePackageRegistry;
 use crate::source::{FileId, SourceFile, SourceSpan};
 
@@ -32,6 +39,13 @@ pub struct AnalysisConfig {
     pub package_id: Option<PackageId>,
     pub package_roots: Vec<PathBuf>,
     pub resolver_options: ResolverOptions,
+    pub mode: AnalysisMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalysisMode {
+    Project,
+    PackageSet,
 }
 
 impl PartialEq for AnalysisConfig {
@@ -40,6 +54,7 @@ impl PartialEq for AnalysisConfig {
             && self.package_id == other.package_id
             && paths_equal(&self.package_roots, &other.package_roots)
             && self.resolver_options == other.resolver_options
+            && self.mode == other.mode
     }
 }
 
@@ -52,6 +67,7 @@ impl AnalysisConfig {
             package_id: None,
             package_roots: Vec::new(),
             resolver_options: ResolverOptions::gmod_default(),
+            mode: AnalysisMode::Project,
         }
     }
 
@@ -66,6 +82,22 @@ impl AnalysisConfig {
             package_id: manifest.package_id.map(PackageId::new),
             package_roots: manifest.package_roots,
             resolver_options,
+            mode: AnalysisMode::Project,
+        }
+    }
+
+    pub fn package_set(root: impl Into<PathBuf>, package_roots: Vec<PathBuf>) -> Self {
+        let root = root.into();
+        let mut roots = vec![root.clone()];
+        roots.extend(package_roots);
+        dedup_paths(&mut roots);
+        Self {
+            source_root: root,
+            package_id: None,
+            package_roots: roots,
+            resolver_options: ResolverOptions::gmod_default()
+                .with_unknown_external(UnknownExternalPolicy::Allow),
+            mode: AnalysisMode::PackageSet,
         }
     }
 
@@ -82,6 +114,10 @@ impl AnalysisConfig {
     pub fn with_resolver_options(mut self, options: ResolverOptions) -> Self {
         self.resolver_options = options;
         self
+    }
+
+    pub fn is_package_set(&self) -> bool {
+        self.mode == AnalysisMode::PackageSet
     }
 
     fn effective_package_id(&self) -> PackageId {
@@ -235,10 +271,24 @@ pub struct AnalyzedModule {
     pub id: ModuleId,
     pub package_id: PackageId,
     pub module_path: String,
+    pub phase: AnalysisModulePhase,
     pub parts: Vec<AnalyzedPart>,
     pub resolved: ResolveOutput,
     pub exports: Vec<ModuleExport>,
     pub imports: Vec<ModuleImport>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AnalysisModulePhase {
+    Runtime,
+    CompileTime,
+    Host,
+}
+
+impl AnalysisModulePhase {
+    fn is_compile_time(self) -> bool {
+        matches!(self, Self::CompileTime | Self::Host)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -326,6 +376,9 @@ pub fn analyze_source_root(
     config: AnalysisConfig,
     overlays: impl IntoIterator<Item = AnalysisFile>,
 ) -> Result<ProjectAnalysis, AnalysisError> {
+    if config.is_package_set() {
+        return analyze_package_set(config, overlays);
+    }
     let mut files = BTreeMap::<PathBuf, String>::new();
     for path in discover_lux_sources(&config.source_root).map_err(project_error_to_analysis)? {
         let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
@@ -357,6 +410,9 @@ pub fn analyze_file_map(
     config: AnalysisConfig,
     files: BTreeMap<PathBuf, String>,
 ) -> Result<ProjectAnalysis, AnalysisError> {
+    if config.is_package_set() {
+        return analyze_package_set_file_map(config, files);
+    }
     let package_id = config.effective_package_id();
     let mut diagnostics = Vec::<Diagnostic>::new();
     let mut modules = BTreeMap::<ModuleId, AnalyzedModule>::new();
@@ -401,6 +457,7 @@ pub fn analyze_file_map(
                 id: module_id.clone(),
                 package_id: package_id.clone(),
                 module_path: module_path.clone(),
+                phase: AnalysisModulePhase::Runtime,
                 parts: Vec::new(),
                 resolved: Resolver::resolve(&Module {
                     body: Vec::new(),
@@ -474,7 +531,7 @@ impl AnalysisWorkspace {
         files: BTreeMap<PathBuf, String>,
     ) -> Result<Self, AnalysisError> {
         let analysis = analyze_file_map(config.clone(), files.clone())?;
-        let files = cached_files(&config, files);
+        let files = cached_files(&config, files, Some(&analysis));
         Ok(Self {
             config,
             files,
@@ -514,8 +571,8 @@ impl AnalysisWorkspace {
     ) -> Result<AnalysisChange, AnalysisError> {
         if self.config != config || file_keys_changed(&self.files, &files) {
             self.config = config;
-            self.files = cached_files(&self.config, files);
-            self.analysis = analyze_cached_files(&self.config, &self.files)?;
+            self.analysis = analyze_file_map(self.config.clone(), files.clone())?;
+            self.files = cached_files(&self.config, files, Some(&self.analysis));
             return Ok(AnalysisChange {
                 kind: AnalysisChangeKind::Full,
                 affected_modules: self
@@ -535,7 +592,21 @@ impl AnalysisWorkspace {
             });
         }
 
-        self.files = cached_files(&config, files);
+        if config.is_package_set() {
+            self.analysis = analyze_file_map(config.clone(), files.clone())?;
+            self.files = cached_files(&config, files, Some(&self.analysis));
+            return Ok(AnalysisChange {
+                kind: AnalysisChangeKind::Full,
+                affected_modules: self
+                    .analysis
+                    .modules
+                    .iter()
+                    .map(|module| module.id.clone())
+                    .collect(),
+            });
+        }
+
+        self.files = cached_files(&config, files, None);
         let affected_modules = affected_modules_for_change(&self.analysis, &changed_modules);
         let affected_set = affected_modules.iter().cloned().collect::<BTreeSet<_>>();
         self.reanalyze_modules(&affected_set)?;
@@ -1169,7 +1240,12 @@ impl ProjectAnalysis {
             .zip(binding.imported_name.as_ref())
             .map(|(source, imported)| (source.clone(), imported.clone()));
         let target_binding = import_target.as_ref().and_then(|(source, imported)| {
-            self.import_definition_binding(module, source, imported)
+            self.import_definition_binding(
+                module,
+                source,
+                imported,
+                binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
+            )
         });
         let definition_span = target_binding
             .map(|(_, _, binding)| binding.span)
@@ -1201,9 +1277,20 @@ impl ProjectAnalysis {
         module: &AnalyzedModule,
         raw_source: &str,
         imported: &str,
+        prefer_compile_time: bool,
     ) -> Option<(&AnalyzedModule, &crate::resolve::Export, &Binding)> {
         let target_id = resolve_import_target(&module.package_id, &module.module_path, raw_source)?;
-        let target_module = self.modules.iter().find(|module| module.id == target_id)?;
+        let target_module = if prefer_compile_time {
+            self.modules
+                .iter()
+                .find(|module| module.id == target_id && module.phase.is_compile_time())
+                .or_else(|| self.modules.iter().find(|module| module.id == target_id))?
+        } else {
+            self.modules
+                .iter()
+                .find(|module| module.id == target_id && !module.phase.is_compile_time())
+                .or_else(|| self.modules.iter().find(|module| module.id == target_id))?
+        };
         let export = target_module
             .resolved
             .exports
@@ -1225,7 +1312,12 @@ impl ProjectAnalysis {
             .as_ref()
             .zip(binding.imported_name.as_ref())
             .and_then(|(source, imported)| {
-                self.import_definition_binding(module, source, imported)
+                self.import_definition_binding(
+                    module,
+                    source,
+                    imported,
+                    binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
+                )
             });
         target_binding
             .and_then(|(target_module, export, binding)| {
@@ -1376,6 +1468,132 @@ fn collect_file_map(
     Ok(map)
 }
 
+fn analyze_package_set(
+    config: AnalysisConfig,
+    overlays: impl IntoIterator<Item = AnalysisFile>,
+) -> Result<ProjectAnalysis, AnalysisError> {
+    let files = load_source_root_files(&config, overlays)?;
+    analyze_package_set_file_map(config, files)
+}
+
+fn analyze_package_set_file_map(
+    config: AnalysisConfig,
+    files: BTreeMap<PathBuf, String>,
+) -> Result<ProjectAnalysis, AnalysisError> {
+    let mut diagnostics = Vec::<Diagnostic>::new();
+    let mut source_files = Vec::<SourceFile>::new();
+    let mut modules = Vec::<AnalyzedModule>::new();
+    let mut next_file_id = 0u32;
+
+    let roots = unique_package_roots(&config);
+    let macro_registry = load_macro_registry(&config, &mut diagnostics);
+    for root in &roots {
+        match discover_runtime_phases(root) {
+            Ok(phases) => {
+                for phase in phases {
+                    if let Some(module) = analyze_package_phase(
+                        &config,
+                        &phase,
+                        &files,
+                        &mut source_files,
+                        &mut next_file_id,
+                        Some(&macro_registry),
+                        &mut diagnostics,
+                    )? {
+                        modules.push(module);
+                    }
+                }
+            }
+            Err(err) => diagnostics.push(Diagnostic::error(format!(
+                "failed to discover Lux runtime packages under {}: {err}",
+                root.display()
+            ))),
+        }
+    }
+
+    let runtime_registry = match RuntimePackageRegistry::load_default_with_package_roots(&roots) {
+        Ok(runtime_registry) => Some(runtime_registry),
+        Err(err) => {
+            diagnostics.push(Diagnostic::error(format!(
+                "failed to load Lux runtime package metadata: {err}"
+            )));
+            None
+        }
+    };
+    if let Some(runtime_registry) = runtime_registry.as_ref() {
+        let existing = modules
+            .iter()
+            .map(|module| module.id.clone())
+            .collect::<BTreeSet<_>>();
+        for (id, package) in runtime_registry.packages() {
+            if !existing.contains(id) {
+                source_files.extend(package.source_files());
+                modules.push(analyzed_runtime_package(id.clone(), package));
+                if let Some(max_id) = package
+                    .source_files()
+                    .into_iter()
+                    .map(|file| file.id.0)
+                    .max()
+                {
+                    next_file_id = next_file_id.max(max_id.saturating_add(1));
+                }
+            }
+        }
+    }
+
+    for root in roots {
+        match discover_compile_time_phases(&root) {
+            Ok(phases) => {
+                for phase in phases {
+                    if let Some(module) = analyze_package_phase(
+                        &config,
+                        &phase,
+                        &files,
+                        &mut source_files,
+                        &mut next_file_id,
+                        None,
+                        &mut diagnostics,
+                    )? {
+                        modules.push(module);
+                    }
+                }
+            }
+            Err(err) => diagnostics.push(Diagnostic::error(format!(
+                "failed to discover Lux compile-time packages under {}: {err}",
+                root.display()
+            ))),
+        }
+    }
+
+    let external_exports = runtime_registry
+        .as_ref()
+        .map(RuntimePackageRegistry::export_metadata)
+        .unwrap_or_default();
+    let graph_modules = modules
+        .iter()
+        .filter(|module| !module.phase.is_compile_time())
+        .cloned()
+        .collect::<Vec<_>>();
+    let graph = match build_analysis_graph(&graph_modules, external_exports.clone()) {
+        Ok(graph) => Some(graph),
+        Err(graph_diagnostics) => {
+            diagnostics.extend(graph_diagnostics);
+            None
+        }
+    };
+
+    let mut analysis = ProjectAnalysis {
+        config,
+        files: source_files,
+        modules,
+        graph,
+        external_exports,
+        diagnostics,
+    };
+    add_call_signature_diagnostics(&mut analysis);
+    Ok(analysis)
+}
+
 fn assemble_analysis(
     config: AnalysisConfig,
     mut source_files: Vec<SourceFile>,
@@ -1426,6 +1644,7 @@ fn analyzed_runtime_package(
         id,
         package_id,
         module_path: String::new(),
+        phase: AnalysisModulePhase::Runtime,
         parts: package
             .source_parts()
             .map(|part| AnalyzedPart {
@@ -1439,6 +1658,89 @@ fn analyzed_runtime_package(
         exports: package.exports.clone(),
         imports: module_imports_for_runtime_package(package),
     }
+}
+
+fn analyze_package_phase(
+    config: &AnalysisConfig,
+    phase: &PackagePhase,
+    files: &BTreeMap<PathBuf, String>,
+    source_files: &mut Vec<SourceFile>,
+    next_file_id: &mut u32,
+    macro_registry: Option<&MacroRegistry>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Result<Option<AnalyzedModule>, AnalysisError> {
+    let mut parts = Vec::new();
+    for path in &phase.source_paths {
+        let Some(text) = files.get(path).cloned() else {
+            continue;
+        };
+        let file = SourceFile::new(*next_file_id, Some(path.clone()), text);
+        *next_file_id = next_file_id.saturating_add(1);
+        source_files.push(file.clone());
+
+        let default_realm = match infer_part_realm(&phase.source_dir, path, file.id) {
+            Ok(realm) => realm,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
+        let lex = Lexer::new(&file).lex_all();
+        if lex.has_errors() {
+            diagnostics.extend(lex.diagnostics);
+            continue;
+        }
+        let parsed = Parser::new(&lex.tokens).parse_module();
+        if parsed.has_errors() {
+            diagnostics.extend(parsed.diagnostics);
+            continue;
+        }
+        let module = if let Some(macro_registry) = macro_registry {
+            let expanded = expand_macros_with_registry(&file, &parsed.module, macro_registry);
+            if expanded.has_errors() {
+                diagnostics.extend(expanded.diagnostics);
+                continue;
+            }
+            expanded.module
+        } else {
+            parsed.module
+        };
+        parts.push(AnalyzedPart {
+            path: path.clone(),
+            default_realm,
+            module,
+            source_file: file,
+        });
+    }
+    if parts.is_empty() {
+        return Ok(None);
+    }
+
+    let id = ModuleId::new(&phase.package_id);
+    let mut module = AnalyzedModule {
+        id: id.clone(),
+        package_id: PackageId::new(&phase.package_id),
+        module_path: String::new(),
+        phase: match phase.kind {
+            PackagePhaseKind::Runtime => AnalysisModulePhase::Runtime,
+            PackagePhaseKind::CompileTime => AnalysisModulePhase::CompileTime,
+            PackagePhaseKind::Host => AnalysisModulePhase::Host,
+        },
+        parts,
+        resolved: Resolver::resolve(&Module {
+            body: Vec::new(),
+            span: SourceSpan::new(FileId(0), 0, 0),
+        }),
+        exports: Vec::new(),
+        imports: Vec::new(),
+    };
+    let resolver_options = if module.phase.is_compile_time() {
+        config.resolver_options.clone().for_compile_time_package()
+    } else {
+        config.resolver_options.clone()
+    };
+    finalize_analyzed_module_with_options(&mut module, resolver_options, diagnostics);
+    Ok(Some(module))
 }
 
 fn module_imports_for_runtime_package(
@@ -1486,12 +1788,26 @@ fn load_source_root_files(
     overlays: impl IntoIterator<Item = AnalysisFile>,
 ) -> Result<BTreeMap<PathBuf, String>, AnalysisError> {
     let mut files = BTreeMap::<PathBuf, String>::new();
-    for path in discover_lux_sources(&config.source_root).map_err(project_error_to_analysis)? {
-        let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
-            path: path.clone(),
-            source,
-        })?;
-        files.insert(path, text);
+    if config.is_package_set() {
+        for root in unique_package_roots(config) {
+            for path in collect_package_set_paths(&root).map_err(|error| {
+                package_error_to_analysis(root.clone(), error)
+            })? {
+                let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
+                    path: path.clone(),
+                    source,
+                })?;
+                files.insert(path, text);
+            }
+        }
+    } else {
+        for path in discover_lux_sources(&config.source_root).map_err(project_error_to_analysis)? {
+            let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
+                path: path.clone(),
+                source,
+            })?;
+            files.insert(path, text);
+        }
     }
     for overlay in overlays {
         if overlay
@@ -1505,16 +1821,60 @@ fn load_source_root_files(
     Ok(files)
 }
 
+fn collect_package_set_paths(root: &Path) -> Result<Vec<PathBuf>, PackageLoadError> {
+    let mut paths = BTreeSet::<PathBuf>::new();
+    for phase in discover_runtime_phases(root)? {
+        paths.extend(phase.source_paths);
+    }
+    for phase in discover_compile_time_phases(root)? {
+        paths.extend(phase.source_paths);
+    }
+    Ok(paths.into_iter().collect())
+}
+
+fn unique_package_roots(config: &AnalysisConfig) -> Vec<PathBuf> {
+    let mut roots: Vec<PathBuf> = Vec::new();
+    for root in &config.package_roots {
+        if !roots.iter().any(|existing| same_path(existing, root)) {
+            roots.push(root.clone());
+        }
+    }
+    roots
+}
+
+fn package_error_to_analysis(path: PathBuf, error: PackageLoadError) -> AnalysisError {
+    AnalysisError::Io {
+        path,
+        source: io::Error::other(error.to_string()),
+    }
+}
+
+fn dedup_paths(paths: &mut Vec<PathBuf>) {
+    let mut unique: Vec<PathBuf> = Vec::new();
+    for path in paths.drain(..) {
+        if !unique.iter().any(|existing| same_path(existing, &path)) {
+            unique.push(path);
+        }
+    }
+    *paths = unique;
+}
+
 fn cached_files(
     config: &AnalysisConfig,
     files: BTreeMap<PathBuf, String>,
+    analysis: Option<&ProjectAnalysis>,
 ) -> BTreeMap<PathBuf, CachedAnalysisFile> {
     let package_id = config.effective_package_id();
     files
         .into_iter()
         .map(|(path, text)| {
-            let module_path = infer_module_path(&config.source_root, &path);
-            let module_id = ModuleId::from_package_path(&package_id, &module_path);
+            let module_id = analysis
+                .and_then(|analysis| analysis.module_for_path(&path))
+                .map(|module| module.id.clone())
+                .unwrap_or_else(|| {
+                    let module_path = infer_module_path(&config.source_root, &path);
+                    ModuleId::from_package_path(&package_id, &module_path)
+                });
             (
                 path.clone(),
                 CachedAnalysisFile {
@@ -1525,19 +1885,6 @@ fn cached_files(
             )
         })
         .collect()
-}
-
-fn analyze_cached_files(
-    config: &AnalysisConfig,
-    files: &BTreeMap<PathBuf, CachedAnalysisFile>,
-) -> Result<ProjectAnalysis, AnalysisError> {
-    analyze_file_map(
-        config.clone(),
-        files
-            .iter()
-            .map(|(path, file)| (path.clone(), file.text.clone()))
-            .collect(),
-    )
 }
 
 fn source_files_from_cache(files: &BTreeMap<PathBuf, CachedAnalysisFile>) -> Vec<SourceFile> {
@@ -1673,6 +2020,7 @@ fn analyze_single_module(
                 id: parsed_module_id.clone(),
                 package_id: package_id.clone(),
                 module_path: module_path.clone(),
+                phase: AnalysisModulePhase::Runtime,
                 parts: Vec::new(),
                 resolved: Resolver::resolve(&Module {
                     body: Vec::new(),
@@ -1709,6 +2057,14 @@ fn finalize_analyzed_module(
     module: &mut AnalyzedModule,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    finalize_analyzed_module_with_options(module, config.resolver_options.clone(), diagnostics);
+}
+
+fn finalize_analyzed_module_with_options(
+    module: &mut AnalyzedModule,
+    resolver_options: ResolverOptions,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
     module.parts.sort_by(|a, b| a.path.cmp(&b.path));
     let inputs = module
         .parts
@@ -1739,11 +2095,15 @@ fn finalize_analyzed_module(
             default_realm: part.default_realm,
         })
         .collect::<Vec<_>>();
-    let resolved = Resolver::resolve_parts_with_options(&parts, config.resolver_options.clone());
+    let resolved = Resolver::resolve_parts_with_options(&parts, resolver_options);
     diagnostics.extend(resolved.diagnostics.clone());
     module.resolved = resolved;
     module.exports = module_exports(module);
-    module.imports = module_imports(module);
+    module.imports = if module.phase.is_compile_time() {
+        Vec::new()
+    } else {
+        module_imports(module)
+    };
 }
 
 fn diagnostic_touches_paths(

@@ -153,6 +153,7 @@ pub struct ResolverOptions {
     pub externs: Vec<ExternSymbol>,
     pub unknown_external: UnknownExternalPolicy,
     pub gmod_api: Option<ApiIndex>,
+    pub compile_time_package: bool,
 }
 
 impl Default for ResolverOptions {
@@ -161,6 +162,7 @@ impl Default for ResolverOptions {
             externs: Vec::new(),
             unknown_external: UnknownExternalPolicy::Allow,
             gmod_api: None,
+            compile_time_package: false,
         }
     }
 }
@@ -171,6 +173,7 @@ impl ResolverOptions {
             externs: Vec::new(),
             unknown_external: UnknownExternalPolicy::Warn,
             gmod_api: Some(ApiIndex::bundled()),
+            compile_time_package: false,
         }
     }
 
@@ -186,6 +189,11 @@ impl ResolverOptions {
 
     pub fn with_gmod_api(mut self, api: ApiIndex) -> Self {
         self.gmod_api = Some(api);
+        self
+    }
+
+    pub fn for_compile_time_package(mut self) -> Self {
+        self.compile_time_package = true;
         self
     }
 }
@@ -582,11 +590,14 @@ impl Resolver {
             StmtKind::Import(import) => self.resolve_import(stmt.span, import),
             StmtKind::PartOrderDecl(_) => {}
             StmtKind::ExternDecl(_) => {}
-            StmtKind::HostPackageDecl(_) => self.error(
-                "RESOLVE007",
-                "host package declarations are only valid in compile-time packages",
-                stmt.span,
-            ),
+            StmtKind::HostPackageDecl(_) if self.options.compile_time_package => {}
+            StmtKind::HostPackageDecl(_) => {
+                self.error(
+                    "RESOLVE007",
+                    "host package declarations are only valid in compile-time packages",
+                    stmt.span,
+                );
+            }
             StmtKind::ExportDecl {
                 kind,
                 realm,
@@ -719,7 +730,7 @@ impl Resolver {
         realm: Option<Realm>,
         stmt: &Stmt,
     ) {
-        if kind != ExportKind::Runtime {
+        if kind != ExportKind::Runtime && !self.options.compile_time_package {
             self.error(
                 "RESOLVE006",
                 "phase-qualified exports are only valid in compile-time packages",

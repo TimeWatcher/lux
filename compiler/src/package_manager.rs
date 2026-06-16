@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 use zip::ZipArchive;
 
 const PROJECT_MANIFEST: &str = "lux.toml";
-const PACKAGE_SET_MANIFEST: &str = "lux.package.toml";
+pub const PACKAGE_SET_MANIFEST: &str = "lux.package.toml";
 const LOCKFILE: &str = "lux.lock";
 pub const LUX_STD_REPO: &str = "TimeWatcher/lux-packages";
 pub const LUX_STD_PACKAGE: &str = "@lux/std";
@@ -384,6 +384,18 @@ pub fn list_locked(project_root: &Path) -> Result<Vec<LockedPackage>, PackageMan
         return Ok(Vec::new());
     }
     Ok(read_toml::<Lockfile>(&lock_path)?.package)
+}
+
+pub fn package_set_source_roots(root: &Path) -> Result<Vec<PathBuf>, PackageManagerError> {
+    let root = canonical_or_current(root)?;
+    let manifest = load_package_set(&root)?;
+    let cache = CacheLayout::new()?;
+    let mut roots = Vec::new();
+    for hint in &manifest.source {
+        let source = dependency_source_from_hint(hint, &root)?;
+        roots.push(resolve_dependency_source_root(&source, &cache, &root)?);
+    }
+    Ok(roots)
 }
 
 fn project_manifest_template(options: &InitOptions) -> String {

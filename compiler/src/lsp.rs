@@ -10,7 +10,10 @@ use crate::analysis::{
 use crate::diag::Severity;
 use crate::lex::{Lexer, Token, TokenKind};
 use crate::module::{RealmAvailability, RealmSet};
-use crate::package_manager::{DependencySource, InstallRequest, LUX_STD_REPO, install_package};
+use crate::package_manager::{
+    DependencySource, InstallRequest, LUX_STD_REPO, PACKAGE_SET_MANIFEST, install_package,
+    package_set_source_roots,
+};
 use crate::project::ProjectManifest;
 use crate::source::SourceFile;
 use crossbeam_channel::RecvTimeoutError;
@@ -1212,6 +1215,13 @@ fn analysis_config(root: &Path, documents: &HashMap<Uri, String>) -> Option<Anal
     if let Some(manifest) = manifest_path.and_then(|path| ProjectManifest::load(path).ok()) {
         return Some(AnalysisConfig::from_manifest(manifest));
     }
+    let package_set_path =
+        active_package_set_manifest(root, documents).or_else(|| find_package_set_manifest(root));
+    if let Some(package_set_path) = package_set_path {
+        let package_root = package_set_path.parent().unwrap_or(root);
+        let source_roots = package_set_source_roots(package_root).unwrap_or_default();
+        return Some(AnalysisConfig::package_set(package_root, source_roots));
+    }
     (!documents.is_empty()).then(|| AnalysisConfig::new(root))
 }
 
@@ -1220,6 +1230,19 @@ fn active_manifest(root: &Path, documents: &HashMap<Uri, String>) -> Option<Path
         .keys()
         .filter_map(url_to_path)
         .filter_map(|path| find_manifest_for_path(root, &path))
+        .max_by(|left, right| {
+            left.components()
+                .count()
+                .cmp(&right.components().count())
+                .then_with(|| left.cmp(right))
+        })
+}
+
+fn active_package_set_manifest(root: &Path, documents: &HashMap<Uri, String>) -> Option<PathBuf> {
+    documents
+        .keys()
+        .filter_map(url_to_path)
+        .filter_map(|path| find_package_set_manifest_for_path(root, &path))
         .max_by(|left, right| {
             left.components()
                 .count()
@@ -1253,13 +1276,39 @@ fn find_manifest(root: &Path) -> Option<PathBuf> {
     }
 }
 
+fn find_package_set_manifest(root: &Path) -> Option<PathBuf> {
+    find_named_manifest(root, PACKAGE_SET_MANIFEST)
+}
+
 fn find_manifest_for_path(root: &Path, path: &Path) -> Option<PathBuf> {
+    find_named_manifest_for_path(root, path, "lux.toml").or_else(|| find_manifest(root))
+}
+
+fn find_package_set_manifest_for_path(root: &Path, path: &Path) -> Option<PathBuf> {
+    find_named_manifest_for_path(root, path, PACKAGE_SET_MANIFEST)
+        .or_else(|| find_package_set_manifest(root))
+}
+
+fn find_named_manifest(root: &Path, name: &str) -> Option<PathBuf> {
+    let mut current = root.to_path_buf();
+    loop {
+        let candidate = current.join(name);
+        if candidate.exists() {
+            return Some(candidate);
+        }
+        if !current.pop() {
+            return None;
+        }
+    }
+}
+
+fn find_named_manifest_for_path(root: &Path, path: &Path, name: &str) -> Option<PathBuf> {
     let mut current = path
         .parent()
         .map(Path::to_path_buf)
         .unwrap_or_else(|| path.to_path_buf());
     loop {
-        let candidate = current.join("lux.toml");
+        let candidate = current.join(name);
         if candidate.exists() {
             return Some(candidate);
         }
@@ -1270,13 +1319,13 @@ fn find_manifest_for_path(root: &Path, path: &Path) -> Option<PathBuf> {
             break;
         }
     }
-    find_manifest(root)
+    None
 }
 
 fn is_lux_analysis_watched_path(path: &Path) -> bool {
     path.file_name()
         .and_then(|name| name.to_str())
-        .is_some_and(|name| matches!(name, "lux.toml" | "lux.lock"))
+        .is_some_and(|name| matches!(name, "lux.toml" | "lux.lock" | "lux.package.toml"))
 }
 
 fn manifest_extern_code_actions(
@@ -3784,6 +3833,31 @@ mod tests {
         .expect("package module");
     }
 
+    fn write_package_set_macro_package(root: &std::path::Path) -> (PathBuf, PathBuf) {
+        let runtime_src = root.join("packages/vendor_caps/src");
+        let macro_src = root.join("packages/vendor_caps/compiletime");
+        std::fs::create_dir_all(&runtime_src).expect("runtime source");
+        std::fs::create_dir_all(&macro_src).expect("macro source");
+        std::fs::write(
+            root.join("lux.package.toml"),
+            "name = \"test-packages\"\n\n[[package]]\nid = \"@vendor/caps\"\nversion = \"0.1.0\"\npath = \"packages/vendor_caps\"\n",
+        )
+        .expect("package manifest");
+        let runtime_path = runtime_src.join("module.lux");
+        std::fs::write(
+            &runtime_path,
+            "import macro { defineValue } from \"@vendor/caps\"\n\ndefineValue()\n",
+        )
+        .expect("runtime module");
+        let macro_path = macro_src.join("module.lux");
+        std::fs::write(
+            &macro_path,
+            "export macro fn defineValue(ctx, call) = nil\n",
+        )
+        .expect("macro module");
+        (runtime_path, macro_path)
+    }
+
     #[test]
     fn initialize_capabilities_are_not_double_wrapped() {
         let value = serde_json::to_value(server_capabilities()).expect("capabilities");
@@ -4113,6 +4187,47 @@ mod tests {
 
         assert!(super::analysis_config(&root, &documents).is_none());
 
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn analysis_config_loads_package_set_workspace_without_project_manifest() {
+        let root = temp_root("package_set_workspace");
+        std::fs::create_dir_all(&root).expect("root");
+        let (runtime_path, macro_path) = write_package_set_macro_package(&root);
+
+        let mut documents = HashMap::new();
+        documents.insert(path_to_url(&runtime_path).expect("runtime uri"), {
+            std::fs::read_to_string(&runtime_path).expect("runtime text")
+        });
+        let config = analysis_config(&root, &documents).expect("analysis config");
+        assert!(config.is_package_set());
+        assert!(
+            config.package_roots.iter().any(|path| path == &root),
+            "{:?}",
+            config.package_roots
+        );
+
+        let workspace = AnalysisWorkspace::load(config, Vec::new()).expect("analysis");
+        let analysis = workspace.analysis();
+        assert!(analysis.file_by_path(&runtime_path).is_some());
+        assert!(analysis.file_by_path(&macro_path).is_some());
+        assert!(
+            analysis
+                .lsp_diagnostics_for_path(&macro_path)
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("RESOLVE006")),
+            "{:#?}",
+            analysis.lsp_diagnostics_for_path(&macro_path)
+        );
+        assert!(
+            analysis
+                .lsp_diagnostics_for_path(&runtime_path)
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("MACRO001")),
+            "{:#?}",
+            analysis.lsp_diagnostics_for_path(&runtime_path)
+        );
         let _ = std::fs::remove_dir_all(root);
     }
 
