@@ -14,6 +14,7 @@ use crate::package_manager::{
     DependencySource, InstallRequest, LUX_STD_REPO, PACKAGE_SET_MANIFEST, install_package,
     package_set_source_roots,
 };
+use crate::packages::{discover_compile_time_phases, discover_runtime_phases};
 use crate::project::ProjectManifest;
 use crate::source::SourceFile;
 use crossbeam_channel::RecvTimeoutError;
@@ -138,7 +139,7 @@ struct Server {
     documents: HashMap<Uri, String>,
     document_versions: HashMap<Uri, i32>,
     published_diagnostics: BTreeSet<Uri>,
-    workspace: Option<AnalysisWorkspace>,
+    workspaces: BTreeMap<String, AnalysisWorkspace>,
     gmod_api: ApiIndex,
     analysis_due: Option<Instant>,
 }
@@ -158,7 +159,7 @@ impl Server {
             documents: HashMap::new(),
             document_versions: HashMap::new(),
             published_diagnostics: BTreeSet::new(),
-            workspace: None,
+            workspaces: BTreeMap::new(),
             gmod_api: ApiIndex::bundled(),
             analysis_due: None,
         }
@@ -349,7 +350,6 @@ impl Server {
                 ));
                 self.document_versions.insert(uri.clone(), version);
                 self.documents.insert(uri.clone(), text);
-                self.clear_diagnostics_for_uri(&uri);
                 self.schedule_reanalysis();
             }
             DidSaveTextDocument::METHOD => {
@@ -387,7 +387,7 @@ impl Server {
                 if params.changes.iter().any(|event| {
                     url_to_path(&event.uri).is_some_and(|path| is_lux_analysis_watched_path(&path))
                 }) {
-                    self.workspace = None;
+                    self.workspaces.clear();
                     self.reanalyze_and_publish();
                 }
             }
@@ -441,7 +441,10 @@ impl Server {
         let uri = &params.text_document_position.text_document.uri;
         let snapshot = self.document_snapshot(uri, params.text_document_position.position);
         let path = snapshot.path;
-        let analysis = self.analysis();
+        let analysis = path
+            .as_deref()
+            .and_then(|path| self.analysis_for_path(path))
+            .or_else(|| self.analysis());
         let offset = snapshot.offset;
         let line_prefix = snapshot.file.text[..offset]
             .rsplit('\n')
@@ -634,10 +637,10 @@ impl Server {
         &mut self,
         params: SemanticTokensParams,
     ) -> Result<serde_json::Value, String> {
-        let Some(analysis) = self.analysis() else {
+        let Some(path) = url_to_path(&params.text_document.uri) else {
             return json_result::<Option<SemanticTokensResult>>(None);
         };
-        let Some(path) = url_to_path(&params.text_document.uri) else {
+        let Some(analysis) = self.analysis_for_path(&path) else {
             return json_result::<Option<SemanticTokensResult>>(None);
         };
         let Some(file) = analysis.file_by_path(&path) else {
@@ -651,10 +654,10 @@ impl Server {
     }
 
     fn code_actions(&mut self, params: CodeActionParams) -> Result<serde_json::Value, String> {
-        let Some(analysis) = self.analysis() else {
+        let Some(path) = url_to_path(&params.text_document.uri) else {
             return json_result::<Option<Vec<CodeActionOrCommand>>>(None);
         };
-        let Some(path) = url_to_path(&params.text_document.uri) else {
+        let Some(analysis) = self.analysis_for_path(&path) else {
             return json_result::<Option<Vec<CodeActionOrCommand>>>(None);
         };
         let actions = analysis
@@ -684,22 +687,32 @@ impl Server {
     ) -> Result<serde_json::Value, String> {
         match params.command.as_str() {
             "lux.showModuleExports" => {
-                let Some(analysis) = self.analysis() else {
+                let command = CommandDocumentPosition::from_arguments(&params.arguments)?;
+                let Some(analysis) = command
+                    .as_ref()
+                    .and_then(|position| url_to_path(&position.uri))
+                    .and_then(|path| self.analysis_for_path(&path))
+                    .or_else(|| self.analysis())
+                else {
                     return json_result(CommandResult::message("Lux analysis is not ready."));
                 };
-                let command = CommandDocumentPosition::from_arguments(&params.arguments)?;
                 json_result(module_exports_command(analysis, command.as_ref()))
             }
             "lux.showActiveRealm" => {
-                let Some(analysis) = self.analysis() else {
+                let command = CommandDocumentPosition::from_arguments(&params.arguments)?;
+                let Some(analysis) = command
+                    .as_ref()
+                    .and_then(|position| url_to_path(&position.uri))
+                    .and_then(|path| self.analysis_for_path(&path))
+                    .or_else(|| self.analysis())
+                else {
                     return json_result(CommandResult::message("Lux analysis is not ready."));
                 };
-                let command = CommandDocumentPosition::from_arguments(&params.arguments)?;
                 json_result(active_realm_command(analysis, command.as_ref()))
             }
             "lux.gmodApiCoverage" => json_result(gmod_api_coverage_command(&self.gmod_api)),
             "lux.reloadWorkspace" => {
-                self.workspace = None;
+                self.workspaces.clear();
                 self.reanalyze_and_publish();
                 json_result(CommandResult::message("Lux workspace analysis reloaded."))
             }
@@ -745,7 +758,7 @@ impl Server {
                 let message = format!("Failed to install {package}: {err}");
                 self.show_message(MessageType::ERROR, &message);
                 if !installed.is_empty() {
-                    self.workspace = None;
+                    self.workspaces.clear();
                     self.reanalyze_and_publish();
                 }
                 return Ok(CommandResult::message(message));
@@ -753,7 +766,7 @@ impl Server {
             installed.push(package.clone());
         }
 
-        self.workspace = None;
+        self.workspaces.clear();
         self.reanalyze_and_publish();
         let message = format!(
             "Installed {} from github:{LUX_STD_REPO}.",
@@ -768,8 +781,8 @@ impl Server {
         uri: &Uri,
         position: Position,
     ) -> Option<(&ProjectAnalysis, PathBuf, usize)> {
-        let analysis = self.analysis()?;
         let path = url_to_path(uri)?;
+        let analysis = self.analysis_for_path(&path)?;
         let offset = analysis.offset_for_position(
             &path,
             position.line as usize,
@@ -787,7 +800,7 @@ impl Server {
             .cloned()
             .or_else(|| {
                 path.as_deref().and_then(|path| {
-                    self.analysis()
+                    self.analysis_for_path(path)
                         .and_then(|analysis| analysis.file_by_path(path))
                         .map(|file| file.text.clone())
                 })
@@ -805,11 +818,18 @@ impl Server {
 
     fn reanalyze_and_publish(&mut self) {
         self.analysis_due = None;
-        let Some(config) = analysis_config(&self.root, &self.documents) else {
-            self.workspace = None;
+        let configs = analysis_configs(&self.root, &self.documents);
+        debug_log(format!(
+            "reanalyze root={} configs=[{}] open_documents={}",
+            self.root.display(),
+            analysis_config_summary(&configs),
+            self.documents.len()
+        ));
+        if configs.is_empty() {
+            self.workspaces.clear();
             self.clear_all_diagnostics();
             return;
-        };
+        }
         let overlays = self
             .documents
             .iter()
@@ -820,81 +840,139 @@ impl Server {
                 })
             })
             .collect::<Vec<_>>();
-        let result = if let Some(workspace) = &mut self.workspace {
-            workspace.update_source_root(config, overlays).map(|_| ())
-        } else {
-            AnalysisWorkspace::load(config, overlays).map(|workspace| {
-                self.workspace = Some(workspace);
-            })
-        };
-        match result {
-            Ok(()) => {
-                let analysis = self
-                    .workspace
-                    .as_ref()
-                    .expect("workspace loaded")
-                    .analysis()
-                    .clone();
-                self.publish_diagnostics(&analysis);
-            }
-            Err(err) => {
-                eprintln!("analysis failed: {err}");
-                if self.workspace.is_none() {
-                    self.clear_all_diagnostics();
-                } else {
-                    self.clear_open_document_diagnostics();
-                }
+        let desired_keys = configs
+            .iter()
+            .map(analysis_config_key)
+            .collect::<BTreeSet<_>>();
+        let obsolete = self
+            .workspaces
+            .keys()
+            .filter(|key| !desired_keys.contains(*key))
+            .cloned()
+            .collect::<Vec<_>>();
+        for key in obsolete {
+            self.workspaces.remove(&key);
+        }
+
+        for config in configs {
+            let key = analysis_config_key(&config);
+            let config_overlays = overlays_for_config(&config, &overlays);
+            debug_log(format!(
+                "reanalyze config={} key={} overlays=[{}]",
+                analysis_config_label(&config),
+                key,
+                overlays_summary(&config_overlays)
+            ));
+            let result = if let Some(workspace) = self.workspaces.get_mut(&key) {
+                workspace
+                    .update_source_root(config.clone(), config_overlays)
+                    .map(|_| ())
+            } else {
+                AnalysisWorkspace::load(config, config_overlays).map(|workspace| {
+                    self.workspaces.insert(key.clone(), workspace);
+                })
+            };
+            if let Err(err) = result {
+                eprintln!("analysis failed for {key}: {err}");
             }
         }
+
+        if self.workspaces.is_empty() {
+            self.clear_all_diagnostics();
+            return;
+        }
+        self.publish_all_diagnostics();
+    }
+
+    fn analysis_for_path(&self, path: &Path) -> Option<&ProjectAnalysis> {
+        let selected = self
+            .workspaces
+            .values()
+            .filter_map(|workspace| {
+                let analysis = workspace.analysis();
+                analysis
+                    .file_by_path(path)
+                    .is_some()
+                    .then_some((analysis_path_score(analysis, path), analysis))
+            })
+            .max_by_key(|(score, _)| *score)
+            .map(|(_, analysis)| analysis)
+            .or_else(|| self.analysis());
+        debug_log(format!(
+            "analysis_for_path path={} selected={}",
+            path.display(),
+            selected
+                .map(analysis_config_label_for_analysis)
+                .unwrap_or_else(|| "<none>".into())
+        ));
+        selected
     }
 
     fn analysis(&self) -> Option<&ProjectAnalysis> {
-        self.workspace.as_ref().map(AnalysisWorkspace::analysis)
+        self.workspaces
+            .values()
+            .next()
+            .map(AnalysisWorkspace::analysis)
     }
 
-    fn publish_diagnostics(&mut self, analysis: &ProjectAnalysis) {
+    fn publish_all_diagnostics(&mut self) {
+        let analyses = self
+            .workspaces
+            .values()
+            .map(|workspace| workspace.analysis().clone())
+            .collect::<Vec<_>>();
+        self.publish_diagnostics(&analyses);
+    }
+
+    fn publish_diagnostics(&mut self, analyses: &[ProjectAnalysis]) {
         let mut diagnostics_by_url = BTreeMap::<Uri, Vec<Diagnostic>>::new();
-        for file in &analysis.files {
-            let Some(path) = file.path.as_ref() else {
-                continue;
-            };
-            let Some(uri) = path_to_url(path) else {
-                continue;
-            };
-            let document_text = self
-                .documents
-                .get(&uri)
-                .map(String::as_str)
-                .unwrap_or(file.text.as_str());
-            let is_open = self.documents.contains_key(&uri);
-            let raw_diagnostics = analysis.lsp_diagnostics_for_path(path);
-            let raw_summary = diagnostic_summary(&raw_diagnostics);
-            let suppress_parse_cascade = is_open
-                && raw_diagnostics.iter().any(|diagnostic| {
-                    is_transient_import_parse_diagnostic(diagnostic, document_text)
-                });
-            let diagnostics = raw_diagnostics
-                .into_iter()
-                .filter(|diagnostic| {
-                    should_publish_diagnostic(
-                        diagnostic,
-                        document_text,
-                        is_open,
-                        suppress_parse_cascade,
-                    )
-                })
-                .map(lsp_diagnostic)
-                .collect::<Vec<_>>();
-            if is_open || !diagnostics.is_empty() {
-                debug_log(format!(
-                    "publish uri={uri:?} version={:?} is_open={is_open} raw=[{}] sent={} suppress_parse_cascade={suppress_parse_cascade} focus={}",
-                    self.document_versions.get(&uri),
-                    raw_summary,
-                    diagnostics.len(),
-                    focus_lines(document_text)
-                ));
+        for analysis in analyses {
+            for file in &analysis.files {
+                let Some(path) = file.path.as_ref() else {
+                    continue;
+                };
+                let Some(uri) = path_to_url(path) else {
+                    continue;
+                };
+                let document_text = self
+                    .documents
+                    .get(&uri)
+                    .map(String::as_str)
+                    .unwrap_or(file.text.as_str());
+                let is_open = self.documents.contains_key(&uri);
+                let raw_diagnostics = analysis.lsp_diagnostics_for_path(path);
+                let raw_summary = diagnostic_summary(&raw_diagnostics);
+                let suppress_parse_cascade = is_open
+                    && raw_diagnostics.iter().any(|diagnostic| {
+                        is_transient_import_parse_diagnostic(diagnostic, document_text)
+                    });
+                let diagnostics = raw_diagnostics
+                    .into_iter()
+                    .filter(|diagnostic| {
+                        should_publish_diagnostic(
+                            diagnostic,
+                            document_text,
+                            is_open,
+                            suppress_parse_cascade,
+                        )
+                    })
+                    .map(lsp_diagnostic)
+                    .collect::<Vec<_>>();
+                if is_open || !diagnostics.is_empty() {
+                    debug_log(format!(
+                        "publish config={} uri={uri:?} version={:?} is_open={is_open} raw=[{}] sent={} suppress_parse_cascade={suppress_parse_cascade} focus={}",
+                        analysis_config_label(&analysis.config),
+                        self.document_versions.get(&uri),
+                        raw_summary,
+                        diagnostics.len(),
+                        focus_lines(document_text)
+                    ));
+                }
+                diagnostics_by_url
+                    .entry(uri)
+                    .or_default()
+                    .extend(diagnostics);
             }
-            diagnostics_by_url.insert(uri, diagnostics);
         }
         for uri in self
             .published_diagnostics
@@ -924,18 +1002,6 @@ impl Server {
         for uri in std::mem::take(&mut self.published_diagnostics) {
             self.send_empty_diagnostics(uri);
         }
-    }
-
-    fn clear_open_document_diagnostics(&mut self) {
-        let uris = self.documents.keys().cloned().collect::<Vec<_>>();
-        for uri in uris {
-            self.clear_diagnostics_for_uri(&uri);
-        }
-    }
-
-    fn clear_diagnostics_for_uri(&mut self, uri: &Uri) {
-        self.published_diagnostics.remove(uri);
-        self.send_empty_diagnostics(uri.clone());
     }
 
     fn send_empty_diagnostics(&self, uri: Uri) {
@@ -1210,45 +1276,209 @@ fn gmod_api_coverage_command(api: &ApiIndex) -> CommandResult {
     }
 }
 
-fn analysis_config(root: &Path, documents: &HashMap<Uri, String>) -> Option<AnalysisConfig> {
-    let manifest_path = active_manifest(root, documents).or_else(|| find_manifest(root));
-    if let Some(manifest) = manifest_path.and_then(|path| ProjectManifest::load(path).ok()) {
-        return Some(AnalysisConfig::from_manifest(manifest));
+fn analysis_configs(root: &Path, documents: &HashMap<Uri, String>) -> Vec<AnalysisConfig> {
+    let mut configs = Vec::new();
+    let mut seen = BTreeSet::<String>::new();
+
+    if let Some(config) = root_analysis_config(root) {
+        insert_analysis_config(&mut configs, &mut seen, config);
     }
-    let package_set_path =
-        active_package_set_manifest(root, documents).or_else(|| find_package_set_manifest(root));
-    if let Some(package_set_path) = package_set_path {
-        let package_root = package_set_path.parent().unwrap_or(root);
-        let source_roots = package_set_source_roots(package_root).unwrap_or_default();
-        return Some(AnalysisConfig::package_set(package_root, source_roots));
+
+    for path in documents.keys().filter_map(url_to_path) {
+        if let Some(config) = analysis_config_for_path(root, &path) {
+            insert_analysis_config(&mut configs, &mut seen, config);
+        }
     }
-    (!documents.is_empty()).then(|| AnalysisConfig::new(root))
+
+    if configs.is_empty() && !documents.is_empty() {
+        insert_analysis_config(&mut configs, &mut seen, AnalysisConfig::new(root));
+    }
+
+    configs
 }
 
-fn active_manifest(root: &Path, documents: &HashMap<Uri, String>) -> Option<PathBuf> {
-    documents
-        .keys()
-        .filter_map(url_to_path)
-        .filter_map(|path| find_manifest_for_path(root, &path))
-        .max_by(|left, right| {
-            left.components()
-                .count()
-                .cmp(&right.components().count())
-                .then_with(|| left.cmp(right))
+fn root_analysis_config(root: &Path) -> Option<AnalysisConfig> {
+    find_package_set_manifest(root)
+        .and_then(|path| package_set_analysis_config(root, &path))
+        .or_else(|| {
+            find_manifest(root)
+                .and_then(|path| ProjectManifest::load(path).ok())
+                .map(AnalysisConfig::from_manifest)
         })
 }
 
-fn active_package_set_manifest(root: &Path, documents: &HashMap<Uri, String>) -> Option<PathBuf> {
-    documents
-        .keys()
-        .filter_map(url_to_path)
-        .filter_map(|path| find_package_set_manifest_for_path(root, &path))
-        .max_by(|left, right| {
-            left.components()
-                .count()
-                .cmp(&right.components().count())
-                .then_with(|| left.cmp(right))
+fn analysis_config_for_path(root: &Path, path: &Path) -> Option<AnalysisConfig> {
+    let project_manifest = find_named_manifest_for_path(root, path, "lux.toml");
+    let package_set_manifest = find_named_manifest_for_path(root, path, PACKAGE_SET_MANIFEST);
+    match (project_manifest, package_set_manifest) {
+        (Some(project), Some(package_set)) => {
+            if manifest_is_deeper(&project, &package_set) {
+                ProjectManifest::load(project)
+                    .ok()
+                    .map(AnalysisConfig::from_manifest)
+            } else {
+                package_set_analysis_config(root, &package_set)
+            }
+        }
+        (Some(project), None) => ProjectManifest::load(project)
+            .ok()
+            .map(AnalysisConfig::from_manifest),
+        (None, Some(package_set)) => package_set_analysis_config(root, &package_set),
+        (None, None) => root_analysis_config(root),
+    }
+}
+
+fn package_set_analysis_config(root: &Path, package_set_path: &Path) -> Option<AnalysisConfig> {
+    let package_root = package_set_path.parent().unwrap_or(root);
+    let source_roots = package_set_source_roots(package_root).unwrap_or_default();
+    Some(AnalysisConfig::package_set(package_root, source_roots))
+}
+
+fn overlays_for_config(config: &AnalysisConfig, overlays: &[AnalysisFile]) -> Vec<AnalysisFile> {
+    overlays
+        .iter()
+        .filter(|overlay| analysis_config_contains_path(config, &overlay.path))
+        .cloned()
+        .collect()
+}
+
+fn analysis_config_contains_path(config: &AnalysisConfig, path: &Path) -> bool {
+    if config.is_package_set() {
+        return package_set_config_contains_path(config, path);
+    }
+    path_is_under(path, &config.source_root)
+}
+
+fn package_set_config_contains_path(config: &AnalysisConfig, path: &Path) -> bool {
+    config.package_roots.iter().any(|root| {
+        discover_runtime_phases(root)
+            .into_iter()
+            .chain(discover_compile_time_phases(root))
+            .flatten()
+            .flat_map(|phase| phase.source_paths)
+            .any(|source_path| same_path(&source_path, path))
+    })
+}
+
+fn insert_analysis_config(
+    configs: &mut Vec<AnalysisConfig>,
+    seen: &mut BTreeSet<String>,
+    config: AnalysisConfig,
+) {
+    let key = analysis_config_key(&config);
+    if seen.insert(key) {
+        configs.push(config);
+    }
+}
+
+fn analysis_config_key(config: &AnalysisConfig) -> String {
+    let mode = if config.is_package_set() {
+        "package-set"
+    } else {
+        "project"
+    };
+    let package_id = config
+        .package_id
+        .as_ref()
+        .map(|id| id.as_str())
+        .unwrap_or_default();
+    let package_roots = config
+        .package_roots
+        .iter()
+        .map(|path| normalized_path(path))
+        .collect::<Vec<_>>()
+        .join("|");
+    let externs = config
+        .resolver_options
+        .externs
+        .iter()
+        .map(|symbol| {
+            format!(
+                "{}:{:?}:{}",
+                symbol.path_string(),
+                symbol.availability,
+                symbol.span.is_some()
+            )
         })
+        .collect::<Vec<_>>()
+        .join("|");
+    let unknown_external = match config.resolver_options.unknown_external {
+        crate::resolve::UnknownExternalPolicy::Allow => "allow",
+        crate::resolve::UnknownExternalPolicy::Warn => "warn",
+        crate::resolve::UnknownExternalPolicy::Error => "error",
+    };
+    let gmod_api = if config.resolver_options.gmod_api.is_some() {
+        "api"
+    } else {
+        "no-api"
+    };
+    format!(
+        "{mode}:{}:{package_id}:{package_roots}:{unknown_external}:{}:{gmod_api}:{externs}",
+        normalized_path(&config.source_root),
+        config.resolver_options.compile_time_package
+    )
+}
+
+fn analysis_path_score(analysis: &ProjectAnalysis, path: &Path) -> (bool, usize) {
+    (
+        !analysis.config.is_package_set(),
+        common_path_prefix_len(&analysis.config.source_root, path),
+    )
+}
+
+fn common_path_prefix_len(left: &Path, right: &Path) -> usize {
+    left.components()
+        .zip(right.components())
+        .take_while(|(left, right)| left == right)
+        .count()
+}
+
+fn path_is_under(path: &Path, root: &Path) -> bool {
+    let path = normalized_path(path);
+    let root = normalized_path(root).trim_end_matches('/').to_string();
+    path == root || path.starts_with(&(root + "/"))
+}
+
+fn analysis_config_summary(configs: &[AnalysisConfig]) -> String {
+    configs
+        .iter()
+        .map(analysis_config_label)
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn analysis_config_label_for_analysis(analysis: &ProjectAnalysis) -> String {
+    analysis_config_label(&analysis.config)
+}
+
+fn analysis_config_label(config: &AnalysisConfig) -> String {
+    let mode = if config.is_package_set() {
+        "package-set"
+    } else {
+        "project"
+    };
+    format!(
+        "{}:{}:{}",
+        mode,
+        normalized_path(&config.source_root),
+        config
+            .package_id
+            .as_ref()
+            .map(|id| id.as_str())
+            .unwrap_or("<none>")
+    )
+}
+
+fn overlays_summary(overlays: &[AnalysisFile]) -> String {
+    overlays
+        .iter()
+        .map(|overlay| normalized_path(&overlay.path))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
+fn manifest_is_deeper(left: &Path, right: &Path) -> bool {
+    left.components().count() >= right.components().count()
 }
 
 #[allow(deprecated)]
@@ -1282,11 +1512,6 @@ fn find_package_set_manifest(root: &Path) -> Option<PathBuf> {
 
 fn find_manifest_for_path(root: &Path, path: &Path) -> Option<PathBuf> {
     find_named_manifest_for_path(root, path, "lux.toml").or_else(|| find_manifest(root))
-}
-
-fn find_package_set_manifest_for_path(root: &Path, path: &Path) -> Option<PathBuf> {
-    find_named_manifest_for_path(root, path, PACKAGE_SET_MANIFEST)
-        .or_else(|| find_package_set_manifest(root))
 }
 
 fn find_named_manifest(root: &Path, name: &str) -> Option<PathBuf> {
@@ -3781,12 +4006,12 @@ mod tests {
         hook_name_at_offset, identifier_prefix, import_completion_item, infer_receiver_class,
         is_lux_analysis_watched_path, keyword_completion_items, lexical_binding_completions,
         manifest_section_insert_position, method_path_at_offset, module_exports_command,
-        path_to_url, resolve_typed_method_path, server_capabilities, signature_help_at,
+        path_to_url, resolve_typed_method_path, same_path, server_capabilities, signature_help_at,
         std_package_code_actions,
     };
     use super::{
-        CompletionContext, Server, active_manifest, analysis_config, completion_context,
-        encode_semantic_tokens, url_to_path,
+        CompletionContext, Server, analysis_configs, completion_context, encode_semantic_tokens,
+        url_to_path,
     };
     use crate::analysis::{
         AnalysisConfig, AnalysisDiagnostic, AnalysisFile, AnalysisPosition, AnalysisRange,
@@ -3797,9 +4022,10 @@ mod tests {
     use crate::package_manager::{LockRequest, lock_project};
     use crate::source::{SourceFile, SourceSpan};
     use gmod_api_db::ApiIndex;
+    use lsp_types::notification::{Notification as _, PublishDiagnostics};
     use lsp_types::{
         CodeActionOrCommand, CompletionItemKind, Documentation, InitializeParams, InsertTextFormat,
-        SemanticToken, TextDocumentContentChangeEvent,
+        PublishDiagnosticsParams, SemanticToken, TextDocumentContentChangeEvent,
     };
     use std::collections::HashMap;
     use std::path::PathBuf;
@@ -3856,6 +4082,28 @@ mod tests {
         )
         .expect("macro module");
         (runtime_path, macro_path)
+    }
+
+    fn published_diagnostics_for(
+        connection: &lsp_server::Connection,
+        path: &std::path::Path,
+    ) -> Vec<lsp_types::Diagnostic> {
+        let uri = path_to_url(path).expect("uri");
+        let mut latest = None;
+        while let Ok(message) = connection.receiver.try_recv() {
+            let lsp_server::Message::Notification(notification) = message else {
+                continue;
+            };
+            if notification.method != PublishDiagnostics::METHOD {
+                continue;
+            }
+            let params: PublishDiagnosticsParams =
+                serde_json::from_value(notification.params).expect("publish diagnostics params");
+            if params.uri == uri {
+                latest = Some(params.diagnostics);
+            }
+        }
+        latest.unwrap_or_default()
     }
 
     #[test]
@@ -3966,6 +4214,74 @@ mod tests {
         };
         assert_eq!(response.id, lsp_server::RequestId::from(1));
         assert!(response.error.is_none());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn reanalysis_keeps_package_set_diagnostics_when_nested_project_document_opens() {
+        let root = temp_root("mixed_publish");
+        let package_source = root.join("lux/mgfx/src/module.lux");
+        std::fs::create_dir_all(package_source.parent().expect("package parent"))
+            .expect("package dir");
+        std::fs::write(
+            root.join("lux.package.toml"),
+            "name = \"mixed\"\n\n[[package]]\nid = \"@lux/mgfx\"\nversion = \"0.1.0\"\npath = \"lux/mgfx\"\n",
+        )
+        .expect("package manifest");
+        std::fs::write(
+            &package_source,
+            "export fn needsArg(value) = value\nneedsArg()\n",
+        )
+        .expect("package source");
+
+        let nested_root = root.join("precompiled");
+        let nested_source = nested_root.join("src/cl_mgfx.lux");
+        std::fs::create_dir_all(nested_source.parent().expect("nested parent"))
+            .expect("nested dir");
+        std::fs::write(
+            nested_root.join("lux.toml"),
+            "package_id = \"mgfx_precompiled\"\nbundle_id = \"mgfx\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"../dist/lua\"\nruntime_base = \"mgfx\"\nautorun = true\nsource_comments = \"none\"\n\n[dependencies]\n",
+        )
+        .expect("nested manifest");
+        std::fs::write(&nested_source, "local ok = true\n").expect("nested source");
+
+        let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+            "processId": null,
+            "rootUri": path_to_url(&root).expect("root uri"),
+            "capabilities": {}
+        }))
+        .expect("initialize params");
+        let (server_connection, client_connection) = lsp_server::Connection::memory();
+        let mut server = Server::new(server_connection, initialize);
+
+        server.reanalyze_and_publish();
+        assert!(
+            published_diagnostics_for(&client_connection, &package_source)
+                .iter()
+                .any(
+                    |diagnostic| diagnostic.code.as_ref().and_then(|code| match code {
+                        lsp_types::NumberOrString::String(value) => Some(value.as_str()),
+                        lsp_types::NumberOrString::Number(_) => None,
+                    }) == Some("CALL001")
+                )
+        );
+
+        server.documents.insert(
+            path_to_url(&nested_source).expect("nested uri"),
+            std::fs::read_to_string(&nested_source).expect("nested text"),
+        );
+        server.reanalyze_and_publish();
+        assert!(
+            published_diagnostics_for(&client_connection, &package_source)
+                .iter()
+                .any(
+                    |diagnostic| diagnostic.code.as_ref().and_then(|code| match code {
+                        lsp_types::NumberOrString::String(value) => Some(value.as_str()),
+                        lsp_types::NumberOrString::Number(_) => None,
+                    }) == Some("CALL001")
+                )
+        );
 
         let _ = std::fs::remove_dir_all(root);
     }
@@ -4140,7 +4456,7 @@ mod tests {
     }
 
     #[test]
-    fn active_manifest_prefers_nearest_open_document_manifest() {
+    fn analysis_configs_include_nearest_open_document_manifest() {
         let root = std::env::temp_dir().join(format!(
             "lux_lsp_manifest_test_{}",
             std::time::SystemTime::now()
@@ -4165,10 +4481,133 @@ mod tests {
 
         let mut documents = HashMap::new();
         documents.insert(path_to_url(&source).expect("source uri"), String::new());
-        assert_eq!(
-            active_manifest(&root, &documents),
-            Some(project.join("lux.toml"))
+        let configs = analysis_configs(&root, &documents);
+        assert!(
+            configs
+                .iter()
+                .any(|config| same_path(&config.source_root, &project.join("src"))),
+            "{configs:#?}"
         );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn analysis_configs_keep_package_set_root_when_nested_project_exists() {
+        let root = temp_root("mixed_workspace");
+        std::fs::create_dir_all(&root).expect("root");
+        let package_runtime = root.join("lux/mgfx/src/module.lux");
+        std::fs::create_dir_all(package_runtime.parent().expect("runtime parent"))
+            .expect("runtime dir");
+        std::fs::write(
+            root.join("lux.package.toml"),
+            "name = \"mixed\"\n\n[[package]]\nid = \"@lux/mgfx\"\nversion = \"0.1.0\"\npath = \"lux/mgfx\"\n",
+        )
+        .expect("package manifest");
+        std::fs::write(
+            &package_runtime,
+            "import { installGlobal } from \"@lux/mgfx\"\n",
+        )
+        .expect("package source");
+
+        let nested_root = root.join("precompiled");
+        std::fs::create_dir_all(nested_root.join("src")).expect("nested dir");
+        std::fs::write(
+            nested_root.join("lux.toml"),
+            "package_id = \"mgfx_precompiled\"\nbundle_id = \"mgfx\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"../dist/lua\"\nruntime_base = \"mgfx\"\nautorun = true\nsource_comments = \"none\"\n\n[dependencies]\n",
+        )
+        .expect("nested manifest");
+        std::fs::write(
+            nested_root.join("src/cl_mgfx.lux"),
+            "import { installGlobal } from \"@lux/mgfx\"\n",
+        )
+        .expect("nested source");
+
+        let documents = HashMap::from([
+            (
+                path_to_url(&package_runtime).expect("runtime uri"),
+                std::fs::read_to_string(&package_runtime).expect("runtime text"),
+            ),
+            (
+                path_to_url(&nested_root.join("src/cl_mgfx.lux")).expect("nested uri"),
+                "import { installGlobal } from \"@lux/mgfx\"\n".to_string(),
+            ),
+        ]);
+
+        let configs = super::analysis_configs(&root, &documents);
+        assert!(
+            configs.iter().any(|config| config.is_package_set()),
+            "{configs:#?}"
+        );
+        assert!(
+            configs.iter().any(|config| !config.is_package_set()
+                && same_path(&config.source_root, &nested_root.join("src"))),
+            "{configs:#?}"
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn overlays_are_filtered_to_the_owning_analysis_config() {
+        let root = temp_root("mixed_overlays");
+        std::fs::create_dir_all(&root).expect("root");
+        let package_runtime = root.join("lux/mgfx/src/module.lux");
+        std::fs::create_dir_all(package_runtime.parent().expect("runtime parent"))
+            .expect("runtime dir");
+        std::fs::write(
+            root.join("lux.package.toml"),
+            "name = \"mixed\"\n\n[[package]]\nid = \"@lux/mgfx\"\nversion = \"0.1.0\"\npath = \"lux/mgfx\"\n",
+        )
+        .expect("package manifest");
+        std::fs::write(&package_runtime, "export fn installGlobal() = true\n")
+            .expect("package source");
+
+        let nested_root = root.join("precompiled");
+        let nested_source = nested_root.join("src/cl_mgfx.lux");
+        std::fs::create_dir_all(nested_source.parent().expect("nested parent"))
+            .expect("nested dir");
+        std::fs::write(
+            nested_root.join("lux.toml"),
+            "package_id = \"mgfx_precompiled\"\nbundle_id = \"mgfx\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"../dist/lua\"\nruntime_base = \"mgfx\"\nautorun = true\nsource_comments = \"none\"\n\n[dependencies]\n",
+        )
+        .expect("nested manifest");
+        std::fs::write(&nested_source, "local ok = true\n").expect("nested source");
+
+        let documents = HashMap::from([
+            (
+                path_to_url(&package_runtime).expect("runtime uri"),
+                std::fs::read_to_string(&package_runtime).expect("runtime text"),
+            ),
+            (
+                path_to_url(&nested_source).expect("nested uri"),
+                std::fs::read_to_string(&nested_source).expect("nested text"),
+            ),
+        ]);
+        let overlays = documents
+            .iter()
+            .map(|(uri, text)| AnalysisFile {
+                path: url_to_path(uri).expect("overlay path"),
+                text: text.clone(),
+            })
+            .collect::<Vec<_>>();
+        let configs = analysis_configs(&root, &documents);
+        let package_config = configs
+            .iter()
+            .find(|config| config.is_package_set())
+            .expect("package-set config");
+        let project_config = configs
+            .iter()
+            .find(|config| !config.is_package_set())
+            .expect("project config");
+
+        let package_overlays = super::overlays_for_config(package_config, &overlays);
+        assert_eq!(package_overlays.len(), 1, "{package_overlays:#?}");
+        assert!(same_path(&package_overlays[0].path, &package_runtime));
+
+        let project_overlays = super::overlays_for_config(project_config, &overlays);
+        assert_eq!(project_overlays.len(), 1, "{project_overlays:#?}");
+        assert!(same_path(&project_overlays[0].path, &nested_source));
 
         let _ = std::fs::remove_dir_all(root);
     }
@@ -4185,7 +4624,7 @@ mod tests {
         std::fs::create_dir_all(&root).expect("root");
         let documents = HashMap::new();
 
-        assert!(super::analysis_config(&root, &documents).is_none());
+        assert!(super::analysis_configs(&root, &documents).is_empty());
 
         let _ = std::fs::remove_dir_all(root);
     }
@@ -4200,7 +4639,10 @@ mod tests {
         documents.insert(path_to_url(&runtime_path).expect("runtime uri"), {
             std::fs::read_to_string(&runtime_path).expect("runtime text")
         });
-        let config = analysis_config(&root, &documents).expect("analysis config");
+        let config = analysis_configs(&root, &documents)
+            .into_iter()
+            .find(AnalysisConfig::is_package_set)
+            .expect("analysis config");
         assert!(config.is_package_set());
         assert!(
             config.package_roots.iter().any(|path| path == &root),
@@ -4257,7 +4699,10 @@ mod tests {
         })
         .expect("lock project");
 
-        let config = analysis_config(&project, &HashMap::new()).expect("analysis config");
+        let config = analysis_configs(&project, &HashMap::new())
+            .into_iter()
+            .next()
+            .expect("analysis config");
         assert!(
             config
                 .package_roots
@@ -4405,8 +4850,12 @@ mod tests {
         })
         .expect("lock project");
         let path = source_root.join("client/ui.lux");
+        let config = analysis_configs(&project, &HashMap::new())
+            .into_iter()
+            .find(|config| !config.is_package_set())
+            .expect("analysis config");
         let analysis = analyze_files(
-            analysis_config(&project, &HashMap::new()).expect("analysis config"),
+            config,
             [AnalysisFile {
                 path: path.clone(),
                 text: "import { Bu".into(),
