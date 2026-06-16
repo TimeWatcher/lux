@@ -24,6 +24,7 @@ pub mod runtime;
 pub mod runtime_map;
 pub mod source;
 pub mod sourcemap;
+pub mod toolchain;
 
 #[cfg(test)]
 pub(crate) mod test_support;

@@ -24,7 +24,14 @@ use luxc::pipeline::parse_expand_resolve;
 use luxc::project::{GmodBuildOptions, ProjectManifest, build_gmod_project};
 use luxc::runtime_map::map_generated_line;
 use luxc::source::SourceFile;
-use luxc::sourcemap::{SourceCommentMode, map_after_source_comments, with_source_comments};
+use luxc::sourcemap::{
+    SourceCommentMode, SourceMap, map_after_source_comments, with_source_comments,
+};
+use luxc::toolchain::{
+    InstallToolchainRequest, ToolchainCommand, ToolchainLayout, ToolchainSelectionSource,
+    dispatch_from_shim_if_needed, install_toolchain, list_toolchains, pin_toolchain,
+    select_toolchain, set_default_toolchain, unpin_toolchain, update_toolchain,
+};
 
 fn usage() {
     eprintln!("usage:");
@@ -32,6 +39,9 @@ fn usage() {
     eprintln!("  luxc parse <path>");
     eprintln!("  luxc lint <path>");
     eprintln!("  luxc format <path> [--check] [--write]");
+    eprintln!(
+        "  luxc build <source-root> --out <path> [--map] [--source-comments [none|readable|boundary|dense]]"
+    );
     eprintln!(
         "  luxc init [path] [--name <name>] [--std] [--out <path>] [--runtime-base <path>] [--no-autorun]"
     );
@@ -42,6 +52,13 @@ fn usage() {
     eprintln!("  luxc lock [project-root]");
     eprintln!("  luxc list [project-root]");
     eprintln!("  luxc doctor [project-root]");
+    eprintln!("  luxc self install [version] [--from <path|url>] [--default]");
+    eprintln!("  luxc self update");
+    eprintln!("  luxc self default <version>");
+    eprintln!("  luxc self list");
+    eprintln!("  luxc self which [--project <project-root>]");
+    eprintln!("  luxc self pin <version> [--project <project-root>]");
+    eprintln!("  luxc self unpin [--project <project-root>]");
     eprintln!("  luxc lsp");
     eprintln!(
         "  luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]"
@@ -175,6 +192,12 @@ fn write_file_atomically(path: &Path, contents: &[u8]) -> Result<(), String> {
         .parent()
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("."));
+    fs::create_dir_all(&parent).map_err(|err| {
+        format!(
+            "failed to create output directory {}: {err}",
+            parent.display()
+        )
+    })?;
     let file_name = path
         .file_name()
         .ok_or_else(|| format!("cannot format path without a file name: {}", path.display()))?
@@ -259,7 +282,31 @@ fn compile_file(
     map_path: Option<PathBuf>,
     source_comments: SourceCommentMode,
 ) -> Result<ExitCode, String> {
-    let file = SourceFile::load(0, &path)
+    let Some(output) = compile_source_file(&path, source_comments)? else {
+        return Ok(ExitCode::from(1));
+    };
+
+    if let Some(map_path) = map_path {
+        let json = output.source_map.to_json(&[&output.file]);
+        fs::write(&map_path, json)
+            .map_err(|err| format!("failed to write {}: {err}", map_path.display()))?;
+    }
+    print!("{}", output.lua);
+    Ok(ExitCode::SUCCESS)
+}
+
+#[derive(Debug)]
+struct SingleFileCompileOutput {
+    file: SourceFile,
+    lua: String,
+    source_map: SourceMap,
+}
+
+fn compile_source_file(
+    path: &Path,
+    source_comments: SourceCommentMode,
+) -> Result<Option<SingleFileCompileOutput>, String> {
+    let file = SourceFile::load(0, path)
         .map_err(|err| format!("failed to read {}: {err}", path.display()))?;
 
     let lex = Lexer::new(&file).lex_all();
@@ -267,7 +314,7 @@ fn compile_file(
         eprintln!("{}", DiagnosticEmitter::render(diagnostic, &file));
     }
     if lex.has_errors() {
-        return Ok(ExitCode::from(1));
+        return Ok(None);
     }
 
     let parsed = parse_expand_resolve(&file, &lex.tokens);
@@ -275,7 +322,7 @@ fn compile_file(
         eprintln!("{}", DiagnosticEmitter::render(diagnostic, &file));
     }
     if parsed.has_errors() {
-        return Ok(ExitCode::from(1));
+        return Ok(None);
     }
 
     let ir = Lowerer::lower(&parsed.module, &parsed.resolved)
@@ -292,39 +339,125 @@ fn compile_file(
         eprintln!("{}", DiagnosticEmitter::render(diagnostic, &file));
     }
     if transformed.has_errors() {
+        return Ok(None);
+    }
+
+    let output = LuaCodegen::generate(&transformed.module)
+        .map_err(|err| format!("codegen failed for {}: {err}", path.display()))?;
+    let (lua, source_map) = if source_comments != SourceCommentMode::None {
+        (
+            with_source_comments(&output.lua, &output.source_map, &file, source_comments),
+            map_after_source_comments(&output.lua, &output.source_map, &file, source_comments),
+        )
+    } else {
+        (output.lua, output.source_map)
+    };
+
+    Ok(Some(SingleFileCompileOutput {
+        file,
+        lua,
+        source_map,
+    }))
+}
+
+fn build_directory(options: BuildOptions) -> Result<ExitCode, String> {
+    let source_root = options
+        .source_root
+        .canonicalize()
+        .map_err(|err| format!("failed to read {}: {err}", options.source_root.display()))?;
+    if !source_root.is_dir() {
+        return Err(format!(
+            "source root is not a directory: {}",
+            source_root.display()
+        ));
+    }
+
+    let mut files = collect_lux_files(&source_root)?;
+    files.sort();
+
+    let mut built = 0usize;
+    let mut failed = 0usize;
+    for path in files {
+        let relative = path.strip_prefix(&source_root).map_err(|err| {
+            format!(
+                "failed to make {} relative to {}: {err}",
+                path.display(),
+                source_root.display()
+            )
+        })?;
+        let lua_path = build_output_path(&options.output_root, relative);
+        match compile_source_file(&path, options.source_comments) {
+            Ok(Some(output)) => {
+                write_file_atomically(&lua_path, output.lua.as_bytes())?;
+                if options.write_maps {
+                    let map_path = lua_map_path(&lua_path);
+                    let json = output.source_map.to_json(&[&output.file]);
+                    write_file_atomically(&map_path, json.as_bytes())?;
+                }
+                built += 1;
+                println!("built {} -> {}", relative.display(), lua_path.display());
+            }
+            Ok(None) => {
+                failed += 1;
+            }
+            Err(message) => {
+                eprintln!("{message}");
+                failed += 1;
+            }
+        }
+    }
+
+    if failed > 0 {
+        eprintln!("build failed: {failed} file(s) failed, {built} file(s) written");
         return Ok(ExitCode::from(1));
     }
-    let ir = transformed.module;
+    println!(
+        "built {built} Lux file(s) into {}",
+        options.output_root.display()
+    );
+    Ok(ExitCode::SUCCESS)
+}
 
-    match LuaCodegen::generate(&ir) {
-        Ok(output) => {
-            if let Some(map_path) = map_path {
-                let source_map = if source_comments != SourceCommentMode::None {
-                    map_after_source_comments(
-                        &output.lua,
-                        &output.source_map,
-                        &file,
-                        source_comments,
-                    )
-                } else {
-                    output.source_map.clone()
-                };
-                let json = source_map.to_json(&[&file]);
-                fs::write(&map_path, json)
-                    .map_err(|err| format!("failed to write {}: {err}", map_path.display()))?;
-            }
-            if source_comments != SourceCommentMode::None {
-                print!(
-                    "{}",
-                    with_source_comments(&output.lua, &output.source_map, &file, source_comments)
-                );
-            } else {
-                print!("{}", output.lua);
-            }
-            Ok(ExitCode::SUCCESS)
+fn collect_lux_files(root: &Path) -> Result<Vec<PathBuf>, String> {
+    let mut files = Vec::new();
+    collect_lux_files_inner(root, &mut files)?;
+    Ok(files)
+}
+
+fn collect_lux_files_inner(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), String> {
+    for entry in
+        fs::read_dir(path).map_err(|err| format!("failed to read {}: {err}", path.display()))?
+    {
+        let entry = entry.map_err(|err| format!("failed to read {}: {err}", path.display()))?;
+        let path = entry.path();
+        let file_type = entry
+            .file_type()
+            .map_err(|err| format!("failed to inspect {}: {err}", path.display()))?;
+        if file_type.is_dir() {
+            collect_lux_files_inner(&path, files)?;
+        } else if file_type.is_file() && is_lux_file(&path) {
+            files.push(path);
         }
-        Err(err) => Err(format!("codegen failed: {err}")),
     }
+    Ok(())
+}
+
+fn is_lux_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("lux"))
+}
+
+fn build_output_path(output_root: &Path, relative_source: &Path) -> PathBuf {
+    let mut output = output_root.join(relative_source);
+    output.set_extension("lua");
+    output
+}
+
+fn lua_map_path(lua_path: &Path) -> PathBuf {
+    let mut path = lua_path.as_os_str().to_os_string();
+    path.push(".map.json");
+    PathBuf::from(path)
 }
 
 fn main() -> ExitCode {
@@ -332,6 +465,14 @@ fn main() -> ExitCode {
     let _exe = args.next();
 
     let rest = args.collect::<Vec<_>>();
+    match dispatch_from_shim_if_needed(&rest) {
+        Ok(Some(code)) => return code,
+        Ok(None) => {}
+        Err(message) => {
+            eprintln!("{message}");
+            return ExitCode::from(1);
+        }
+    }
 
     match parse_command(rest) {
         Command::Lex(path) => match lex_file(path) {
@@ -356,6 +497,13 @@ fn main() -> ExitCode {
             }
         },
         Command::Format { path, check, write } => match format_file(path, check, write) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
+        Command::Build(options) => match build_directory(options) {
             Ok(code) => code,
             Err(message) => {
                 eprintln!("{message}");
@@ -419,6 +567,13 @@ fn main() -> ExitCode {
             }
         },
         Command::Doctor { project_root } => match package_doctor_command(project_root) {
+            Ok(code) => code,
+            Err(message) => {
+                eprintln!("{message}");
+                ExitCode::from(1)
+            }
+        },
+        Command::SelfCommand(command) => match toolchain_command(command) {
             Ok(code) => code,
             Err(message) => {
                 eprintln!("{message}");
@@ -501,6 +656,7 @@ enum Command {
         check: bool,
         write: bool,
     },
+    Build(BuildOptions),
     Compile {
         path: PathBuf,
         map_path: Option<PathBuf>,
@@ -522,6 +678,7 @@ enum Command {
     Doctor {
         project_root: PathBuf,
     },
+    SelfCommand(ToolchainCommand),
     Lsp,
     GmodBuild {
         manifest: Option<PathBuf>,
@@ -554,6 +711,9 @@ fn parse_command(args: Vec<OsString>) -> Command {
         [command, path] if command == "lint" => Command::Lint(path.into()),
         [command, path, rest @ ..] if command == "format" => {
             parse_format_command(path.into(), rest)
+        }
+        [command, source_root, rest @ ..] if command == "build" => {
+            parse_build_command(source_root.into(), rest)
         }
         [command, path, rest @ ..] if command == "compile" => {
             parse_compile_command(path.into(), rest)
@@ -588,6 +748,7 @@ fn parse_command(args: Vec<OsString>) -> Command {
         [command, project_root] if command == "doctor" => Command::Doctor {
             project_root: project_root.into(),
         },
+        [command, rest @ ..] if command == "self" => parse_self_command(rest),
         [command] if command == "lsp" => Command::Lsp,
         [scope, command, rest @ ..] if scope == "gmod" && command == "build" => {
             parse_gmod_build_command(rest)
@@ -604,6 +765,137 @@ fn parse_command(args: Vec<OsString>) -> Command {
     }
 }
 
+fn parse_self_command(args: &[OsString]) -> Command {
+    match args {
+        [command, rest @ ..] if command == "install" => parse_self_install_command(rest),
+        [command] if command == "update" => Command::SelfCommand(ToolchainCommand::Update),
+        [command, version] if command == "default" => {
+            let Some(version) = version.to_str() else {
+                return Command::Invalid;
+            };
+            Command::SelfCommand(ToolchainCommand::Default {
+                version: version.to_string(),
+            })
+        }
+        [command] if command == "list" => Command::SelfCommand(ToolchainCommand::List),
+        [command, rest @ ..] if command == "which" => parse_self_which_command(rest),
+        [command, rest @ ..] if command == "pin" => parse_self_pin_command(rest),
+        [command, rest @ ..] if command == "unpin" => parse_self_unpin_command(rest),
+        _ => Command::Invalid,
+    }
+}
+
+fn parse_self_install_command(args: &[OsString]) -> Command {
+    let mut version = None;
+    let mut source = None;
+    let mut make_default = false;
+    let mut index = 0;
+
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--from" => {
+                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+                    return Command::Invalid;
+                };
+                source = Some(value.to_string());
+                index += 2;
+            }
+            "--default" => {
+                make_default = true;
+                index += 1;
+            }
+            value if value.starts_with("--") => return Command::Invalid,
+            _ => {
+                if version.is_some() {
+                    return Command::Invalid;
+                }
+                let Some(value) = args[index].to_str() else {
+                    return Command::Invalid;
+                };
+                version = Some(value.to_string());
+                index += 1;
+            }
+        }
+    }
+
+    Command::SelfCommand(ToolchainCommand::Install {
+        version,
+        source,
+        make_default,
+    })
+}
+
+fn parse_self_which_command(args: &[OsString]) -> Command {
+    let mut project_root = PathBuf::from(".");
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--project" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                project_root = PathBuf::from(value);
+                index += 2;
+            }
+            _ => return Command::Invalid,
+        }
+    }
+    Command::SelfCommand(ToolchainCommand::Which { project_root })
+}
+
+fn parse_self_pin_command(args: &[OsString]) -> Command {
+    let mut version = None;
+    let mut project_root = PathBuf::from(".");
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--project" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                project_root = PathBuf::from(value);
+                index += 2;
+            }
+            value if value.starts_with("--") => return Command::Invalid,
+            _ => {
+                if version.is_some() {
+                    return Command::Invalid;
+                }
+                let Some(value) = args[index].to_str() else {
+                    return Command::Invalid;
+                };
+                version = Some(value.to_string());
+                index += 1;
+            }
+        }
+    }
+    let Some(version) = version else {
+        return Command::Invalid;
+    };
+    Command::SelfCommand(ToolchainCommand::Pin {
+        version,
+        project_root,
+    })
+}
+
+fn parse_self_unpin_command(args: &[OsString]) -> Command {
+    let mut project_root = PathBuf::from(".");
+    let mut index = 0;
+    while index < args.len() {
+        match args[index].to_string_lossy().as_ref() {
+            "--project" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                project_root = PathBuf::from(value);
+                index += 2;
+            }
+            _ => return Command::Invalid,
+        }
+    }
+    Command::SelfCommand(ToolchainCommand::Unpin { project_root })
+}
+
 fn parse_format_command(path: PathBuf, rest: &[OsString]) -> Command {
     let mut check = false;
     let mut write = false;
@@ -618,6 +910,59 @@ fn parse_format_command(path: PathBuf, rest: &[OsString]) -> Command {
         return Command::Invalid;
     }
     Command::Format { path, check, write }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BuildOptions {
+    source_root: PathBuf,
+    output_root: PathBuf,
+    write_maps: bool,
+    source_comments: SourceCommentMode,
+}
+
+fn parse_build_command(source_root: PathBuf, rest: &[OsString]) -> Command {
+    let mut output_root = None;
+    let mut write_maps = false;
+    let mut source_comments = SourceCommentMode::None;
+    let mut index = 0;
+
+    while index < rest.len() {
+        match rest[index].to_string_lossy().as_ref() {
+            "--out" => {
+                let Some(path) = rest.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                output_root = Some(PathBuf::from(path));
+                index += 2;
+            }
+            "--map" => {
+                write_maps = true;
+                index += 1;
+            }
+            "--source-comments" => {
+                if let Some(value) = rest.get(index + 1).and_then(|arg| arg.to_str()) {
+                    if let Some(mode) = SourceCommentMode::parse(value) {
+                        source_comments = mode;
+                        index += 2;
+                        continue;
+                    }
+                }
+                source_comments = SourceCommentMode::Readable;
+                index += 1;
+            }
+            _ => return Command::Invalid,
+        }
+    }
+
+    let Some(output_root) = output_root else {
+        return Command::Invalid;
+    };
+    Command::Build(BuildOptions {
+        source_root,
+        output_root,
+        write_maps,
+        source_comments,
+    })
 }
 
 fn parse_compile_command(path: PathBuf, rest: &[OsString]) -> Command {
@@ -1301,12 +1646,127 @@ fn package_doctor_command(project_root: PathBuf) -> Result<ExitCode, String> {
     Ok(ExitCode::SUCCESS)
 }
 
+fn toolchain_command(command: ToolchainCommand) -> Result<ExitCode, String> {
+    let layout = ToolchainLayout::discover().map_err(|err| err.to_string())?;
+    match command {
+        ToolchainCommand::Install {
+            version,
+            source,
+            make_default,
+        } => {
+            let output = install_toolchain(
+                &layout,
+                &InstallToolchainRequest {
+                    version,
+                    source,
+                    make_default,
+                },
+            )
+            .map_err(|err| err.to_string())?;
+            println!(
+                "installed Lux compiler {} at {}",
+                output.version,
+                output.executable.display()
+            );
+            println!("stable luxc entry: {}", output.shim.display());
+            if let Some(default) = output.default_version {
+                println!("default toolchain: {default}");
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        ToolchainCommand::Update => {
+            let output = update_toolchain(&layout).map_err(|err| err.to_string())?;
+            println!(
+                "updated Lux compiler to {} at {}",
+                output.version,
+                output.executable.display()
+            );
+            println!("stable luxc entry: {}", output.shim.display());
+            println!("default toolchain: {}", output.version);
+            Ok(ExitCode::SUCCESS)
+        }
+        ToolchainCommand::Default { version } => {
+            set_default_toolchain(&layout, &version).map_err(|err| err.to_string())?;
+            println!("default toolchain: {version}");
+            Ok(ExitCode::SUCCESS)
+        }
+        ToolchainCommand::List => {
+            let installed = list_toolchains(&layout).map_err(|err| err.to_string())?;
+            if installed.is_empty() {
+                println!(
+                    "no Lux compiler toolchains installed in {}",
+                    layout.root.display()
+                );
+                return Ok(ExitCode::SUCCESS);
+            }
+            for toolchain in installed {
+                let marker = if toolchain.is_default { "*" } else { " " };
+                println!(
+                    "{marker} {} {}",
+                    toolchain.version,
+                    toolchain.path.display()
+                );
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        ToolchainCommand::Which { project_root } => {
+            let selected =
+                select_toolchain(&layout, &project_root).map_err(|err| err.to_string())?;
+            if let Some(selected) = selected {
+                println!("toolchain: {}", selected.version);
+                println!("executable: {}", selected.executable.display());
+                match selected.source {
+                    ToolchainSelectionSource::ProjectPin(path) => {
+                        println!("source: project pin {}", path.display());
+                    }
+                    ToolchainSelectionSource::GlobalDefault(path) => {
+                        println!("source: global default {}", path.display());
+                    }
+                }
+            } else {
+                let current = env::current_exe().map_err(|err| err.to_string())?;
+                println!("toolchain: current executable");
+                println!("executable: {}", current.display());
+                println!("source: no project pin or global default");
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+        ToolchainCommand::Pin {
+            version,
+            project_root,
+        } => {
+            let path = pin_toolchain(&project_root, &version).map_err(|err| err.to_string())?;
+            println!("pinned Lux compiler {version} in {}", path.display());
+            Ok(ExitCode::SUCCESS)
+        }
+        ToolchainCommand::Unpin { project_root } => {
+            match unpin_toolchain(&project_root).map_err(|err| err.to_string())? {
+                Some(path) => println!("removed Lux compiler pin {}", path.display()),
+                None => println!("no Lux compiler pin in {}", project_root.display()),
+            }
+            Ok(ExitCode::SUCCESS)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn args(values: &[&str]) -> Vec<OsString> {
         values.iter().map(OsString::from).collect()
+    }
+
+    fn temp_root(name: &str) -> PathBuf {
+        let mut root = std::env::temp_dir();
+        root.push(format!(
+            "lux_main_{name}_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .expect("time")
+                .as_nanos()
+        ));
+        root
     }
 
     #[test]
@@ -1395,6 +1855,34 @@ mod tests {
     }
 
     #[test]
+    fn build_accepts_output_controls() {
+        let Command::Build(options) = parse_command(args(&[
+            "build",
+            "src",
+            "--out",
+            "generated/lua",
+            "--map",
+            "--source-comments",
+            "boundary",
+        ])) else {
+            panic!("expected build command");
+        };
+
+        assert_eq!(options.source_root, PathBuf::from("src"));
+        assert_eq!(options.output_root, PathBuf::from("generated/lua"));
+        assert!(options.write_maps);
+        assert_eq!(options.source_comments, SourceCommentMode::Boundary);
+    }
+
+    #[test]
+    fn build_rejects_missing_output_root() {
+        assert!(matches!(
+            parse_command(args(&["build", "src"])),
+            Command::Invalid
+        ));
+    }
+
+    #[test]
     fn install_rejects_removed_builtin_source() {
         assert!(matches!(
             parse_command(args(&["install", "@lux/std", "--builtin"])),
@@ -1450,6 +1938,91 @@ mod tests {
         assert!(matches!(parse_command(args(&["lsp"])), Command::Lsp));
         assert!(matches!(
             parse_command(args(&["lsp", "--stdio"])),
+            Command::Invalid
+        ));
+    }
+
+    #[test]
+    fn build_directory_compiles_lux_files_preserving_relative_paths() {
+        let root = temp_root("build_directory");
+        let source_root = root.join("src");
+        let output_root = root.join("generated").join("lua");
+        std::fs::create_dir_all(source_root.join("nested")).expect("source dirs");
+        std::fs::write(source_root.join("main.lux"), "export fn main() = 1\n")
+            .expect("main source");
+        std::fs::write(
+            source_root.join("nested").join("ui.lux"),
+            "export fn mount() = true\n",
+        )
+        .expect("nested source");
+        std::fs::write(source_root.join("ignore.lua"), "return 1\n").expect("ignored source");
+
+        let code = build_directory(BuildOptions {
+            source_root: source_root.clone(),
+            output_root: output_root.clone(),
+            write_maps: true,
+            source_comments: SourceCommentMode::None,
+        })
+        .expect("build directory");
+
+        assert_eq!(code, ExitCode::SUCCESS);
+        let main_lua = std::fs::read_to_string(output_root.join("main.lua")).expect("main lua");
+        let nested_lua =
+            std::fs::read_to_string(output_root.join("nested").join("ui.lua")).expect("nested lua");
+        assert!(main_lua.contains("return __lux_exports"), "{main_lua}");
+        assert!(nested_lua.contains("return __lux_exports"), "{nested_lua}");
+        assert!(output_root.join("main.lua.map.json").is_file());
+        assert!(output_root.join("nested").join("ui.lua.map.json").is_file());
+        assert!(!output_root.join("ignore.lua").exists());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn self_install_accepts_version_source_and_default_flag() {
+        let Command::SelfCommand(ToolchainCommand::Install {
+            version,
+            source,
+            make_default,
+        }) = parse_command(args(&[
+            "self",
+            "install",
+            "0.1.0-alpha.4",
+            "--from",
+            "C:\\tools\\luxc.exe",
+            "--default",
+        ]))
+        else {
+            panic!("expected self install command");
+        };
+
+        assert_eq!(version.as_deref(), Some("0.1.0-alpha.4"));
+        assert_eq!(source.as_deref(), Some("C:\\tools\\luxc.exe"));
+        assert!(make_default);
+    }
+
+    #[test]
+    fn self_pin_accepts_project_root() {
+        let Command::SelfCommand(ToolchainCommand::Pin {
+            version,
+            project_root,
+        }) = parse_command(args(&["self", "pin", "0.1.0-alpha.4", "--project", "demo"]))
+        else {
+            panic!("expected self pin command");
+        };
+
+        assert_eq!(version, "0.1.0-alpha.4");
+        assert_eq!(project_root, PathBuf::from("demo"));
+    }
+
+    #[test]
+    fn self_commands_reject_unknown_flags() {
+        assert!(matches!(
+            parse_command(args(&["self", "install", "--latest"])),
+            Command::Invalid
+        ));
+        assert!(matches!(
+            parse_command(args(&["self", "which", "--default"])),
             Command::Invalid
         ));
     }

@@ -376,7 +376,7 @@ keep in sync with the compiler.
 ## Quick Start
 
 Lux is currently in alpha. No public binary release is active, so build `luxc`
-from source:
+from source once, then let Lux install its stable user entrypoint:
 
 ```powershell
 git clone https://github.com/TimeWatcher/lux.git
@@ -384,8 +384,23 @@ cd lux\compiler
 cargo build --release
 
 $Luxc = Resolve-Path .\target\release\luxc.exe
-& $Luxc --help
+& $Luxc self install --default
+$Luxc = Join-Path $env:USERPROFILE ".lux\bin\luxc.exe"
 ```
+
+This installs:
+
+```text
+~/.lux/bin/luxc                         stable entrypoint
+~/.lux/toolchains/<version>/luxc        installed compiler version
+~/.lux/default-toolchain                selected global default
+```
+
+On Windows this is `%USERPROFILE%\.lux\bin\luxc.exe` and
+`%USERPROFILE%\.lux\toolchains\<version>\luxc.exe`. Add `~/.lux/bin` to `PATH`
+if you want plain `luxc` in every terminal. The VS Code extension also detects
+`~/.lux/bin/luxc` directly, so editor support does not require a manual
+`lux.compiler.path` setting or PATH setup.
 
 Create an offline, dependency-free project:
 
@@ -411,11 +426,34 @@ Build the GMod output:
 & $Luxc gmod build --manifest ..\my_addon\lux.toml
 ```
 
+For gradual integration without generated GMod loaders, compile a directory of
+`.lux` files to matching `.lua` files:
+
+```powershell
+& $Luxc build ..\my_addon\src --out ..\my_addon\generated\lua
+```
+
 If you clone an example or project that has dependencies but no `lux.lock`, run
 the install or lock step before building:
 
 ```powershell
 & $Luxc lock ..\my_addon
+```
+
+Compiler updates are explicit. Once binary releases are published, use:
+
+```powershell
+& $Luxc self update
+& $Luxc self install 0.1.0-alpha.4 --default
+& $Luxc self list
+& $Luxc self which
+```
+
+Most projects do not need to pin a compiler. Single files and ordinary projects
+use the global default. Teams and CI can opt into a project-local pin:
+
+```powershell
+& $Luxc self pin 0.1.0-alpha.4 --project .\my_addon
 ```
 
 ## When To Use Lux
@@ -448,9 +486,11 @@ What works today:
 - `client`, `server`, and `shared` declarations and blocks
 - explicit `import` / `export` APIs with realm-aware validation
 - generated GMod loader trees with optional `autorun` forwarders
+- recursive plain Lua directory builds that preserve source-relative paths
 - source maps and source comments for generated Lua
 - dependency sources from GitHub, URL, or local paths
 - `luxc install`, `luxc lock`, `luxc remove`, `luxc doctor`, and `lux.lock`
+- `luxc self install`, `luxc self update`, and optional project toolchain pins
 - `luxc lsp` for editor support
 - official GMod API data shared by compiler checks and editor intelligence
 
