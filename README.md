@@ -146,11 +146,14 @@ Build a GMod addon project:
 A small GMod manifest:
 
 ```toml
-[gmod]
-source_root = "src"
-addon_root = "generated"
 package_id = "my_addon"
 bundle_id = "my_addon"
+
+[target.gmod]
+source_root = "src"
+out = "generated/lua"
+runtime_base = "lux/my-addon"
+autorun = true
 
 [target.gmod.realm]
 unknown_external = "warn"
@@ -202,7 +205,7 @@ luxc lex <path>
 luxc parse <path>
 luxc lint <path>
 luxc format <path> [--check] [--write]
-luxc init [path] [--name <name>] [--std] [--template gmod-addon]
+luxc init [path] [--name <name>] [--std] [--out <path>] [--runtime-base <path>] [--no-autorun]
 luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]
 luxc remove <package-id> [--project <project-root>]
 luxc lock [project-root]
@@ -210,9 +213,9 @@ luxc list [project-root]
 luxc doctor [project-root]
 luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]
 luxc map-error <map.json> <generated-line>
-luxc gmod build <source-root> <addon-root> [--generated-root <path>] [--dry-run]
-luxc gmod build --manifest <lux.toml> [--generated-root <path>] [--dry-run]
-luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--generated-root <path>]
+luxc gmod build <source-root> --out <path> [--runtime-base <path>] [--no-autorun] [--dry-run]
+luxc gmod build --manifest <lux.toml> [--out <path>] [--runtime-base <path>] [--no-autorun] [--dry-run]
+luxc gmod package --manifest <lux.toml> --root <path> --gmad <path> --out <path> [--run] [--build-out <path>] [--runtime-base <path>] [--no-autorun]
 luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--override <json>]
 ```
 

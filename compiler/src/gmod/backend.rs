@@ -1,4 +1,5 @@
 use std::ffi::OsString;
+use std::fmt;
 use std::path::{Component, Path, PathBuf};
 
 use crate::sourcemap::SourceCommentMode;
@@ -21,12 +22,11 @@ pub struct GmodModule {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GmodBackendConfig {
     pub source_root: PathBuf,
-    pub addon_root: PathBuf,
-    pub generated_root: PathBuf,
+    pub output_root: PathBuf,
     pub bundle_id: String,
-    pub lua_module_root: PathBuf,
+    pub runtime_base: PathBuf,
     pub source_comments: SourceCommentMode,
-    pub loader_namespace: String,
+    pub autorun: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -34,6 +34,7 @@ pub struct GmodBuildPlan {
     pub config: GmodBackendConfig,
     pub modules: Vec<GmodModule>,
     pub loader: LoaderPlan,
+    pub autorun: Option<AutorunForwarder>,
     pub registry: ModuleRegistryPlan,
     pub packaging: Option<GmaPackagePlan>,
 }
@@ -48,6 +49,7 @@ pub struct LoaderPlan {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LoaderFile {
     pub path: PathBuf,
+    pub runtime_path: PathBuf,
     pub operations: Vec<LoaderOperation>,
 }
 
@@ -56,6 +58,15 @@ pub enum LoaderOperation {
     AddCsLuaFile(PathBuf),
     Include(PathBuf),
     RegisterModule { module_id: String, path: PathBuf },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AutorunForwarder {
+    pub path: PathBuf,
+    pub runtime_path: PathBuf,
+    pub shared_loader: PathBuf,
+    pub client_loader: PathBuf,
+    pub server_loader: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -78,6 +89,31 @@ pub struct CommandPlan {
     pub program: PathBuf,
     pub args: Vec<OsString>,
 }
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GmodPathError {
+    path: PathBuf,
+}
+
+impl GmodPathError {
+    fn new(path: impl AsRef<Path>) -> Self {
+        Self {
+            path: path.as_ref().to_path_buf(),
+        }
+    }
+}
+
+impl fmt::Display for GmodPathError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "GMod runtime path `{}` must be a non-empty relative path without `..`",
+            self.path.display()
+        )
+    }
+}
+
+impl std::error::Error for GmodPathError {}
 
 impl Realm {
     pub const fn as_str(self) -> &'static str {
@@ -110,54 +146,47 @@ impl Realm {
 }
 
 impl GmodBackendConfig {
-    pub fn new(
-        source_root: impl Into<PathBuf>,
-        addon_root: impl Into<PathBuf>,
-        generated_root: impl Into<PathBuf>,
-    ) -> Self {
+    pub fn new(source_root: impl Into<PathBuf>, output_root: impl Into<PathBuf>) -> Self {
         let source_root = source_root.into();
-        let addon_root = addon_root.into();
-        let generated_root = generated_root.into();
-        let loader_namespace = loader_namespace_from_path(&addon_root);
-        let bundle_id = sanitize_bundle_id(&loader_namespace);
+        let output_root = output_root.into();
+        let bundle_id = sanitize_bundle_id(&bundle_id_from_path(&output_root));
+        let runtime_base = default_runtime_base_for_bundle(&bundle_id);
         Self {
             source_root,
-            addon_root,
-            generated_root,
-            lua_module_root: lua_module_root_for_bundle(&bundle_id),
+            output_root,
             bundle_id,
+            runtime_base,
             source_comments: SourceCommentMode::Readable,
-            loader_namespace,
+            autorun: true,
         }
-    }
-
-    pub fn set_loader_namespace(&mut self, namespace: impl AsRef<str>) {
-        self.loader_namespace = sanitize_loader_namespace(namespace.as_ref());
     }
 
     pub fn set_bundle_id(&mut self, bundle_id: impl AsRef<str>) {
         self.bundle_id = sanitize_bundle_id(bundle_id.as_ref());
-        self.lua_module_root = lua_module_root_for_bundle(&self.bundle_id);
+        self.runtime_base = default_runtime_base_for_bundle(&self.bundle_id);
     }
 
-    pub fn project_bundle_id(package_id: &str, addon_root: impl AsRef<Path>) -> String {
-        let stem = sanitize_bundle_id(package_id);
-        let addon_path = addon_root.as_ref().to_string_lossy().replace('\\', "/");
-        let hash = stable_short_hash(&format!("{package_id}|{addon_path}"));
-        sanitize_bundle_id(&format!("{stem}_{hash}"))
+    pub fn set_runtime_base(
+        &mut self,
+        runtime_base: impl AsRef<Path>,
+    ) -> Result<(), GmodPathError> {
+        self.runtime_base = safe_gmod_relative_path(runtime_base.as_ref())
+            .ok_or_else(|| GmodPathError::new(runtime_base.as_ref()))?;
+        Ok(())
     }
 }
 
 impl GmodBuildPlan {
-    pub fn new(addon_root: impl Into<PathBuf>) -> Self {
-        let addon_root = addon_root.into();
-        let config = GmodBackendConfig::new("src", addon_root.clone(), addon_root.clone());
+    pub fn new(output_root: impl Into<PathBuf>) -> Self {
+        let output_root = output_root.into();
+        let config = GmodBackendConfig::new("src", output_root);
         Self::from_config(config)
     }
 
     pub fn from_config(config: GmodBackendConfig) -> Self {
         Self {
-            loader: LoaderPlan::empty(&config.generated_root, &config.loader_namespace),
+            loader: LoaderPlan::empty(&config.output_root, &config.runtime_base),
+            autorun: None,
             registry: ModuleRegistryPlan::for_bundle(&config.bundle_id),
             config,
             modules: Vec::new(),
@@ -217,14 +246,14 @@ impl GmodBuildPlan {
         self.modules.iter().collect()
     }
 
-    pub fn gma_command(&self) -> Option<CommandPlan> {
+    pub fn gma_command(&self, package_root: impl AsRef<Path>) -> Option<CommandPlan> {
         let packaging = self.packaging.as_ref()?;
         Some(CommandPlan {
             program: packaging.gmad_path.clone(),
             args: vec![
                 OsString::from("create"),
                 OsString::from("-folder"),
-                self.config.addon_root.as_os_str().to_os_string(),
+                package_root.as_ref().as_os_str().to_os_string(),
                 OsString::from("-out"),
                 packaging.output_gma.as_os_str().to_os_string(),
             ],
@@ -233,11 +262,11 @@ impl GmodBuildPlan {
 
     pub fn rebuild_loader(&mut self) {
         let shared_loader_path =
-            loader_relative_path(&self.config.loader_namespace, LoaderKind::Shared);
+            loader_relative_path(&self.config.runtime_base, LoaderKind::Shared);
         let client_loader_path =
-            loader_relative_path(&self.config.loader_namespace, LoaderKind::Client);
+            loader_relative_path(&self.config.runtime_base, LoaderKind::Client);
         let server_loader_path =
-            loader_relative_path(&self.config.loader_namespace, LoaderKind::Server);
+            loader_relative_path(&self.config.runtime_base, LoaderKind::Server);
         let mut shared_ops = vec![
             LoaderOperation::AddCsLuaFile(shared_loader_path.clone()),
             LoaderOperation::AddCsLuaFile(client_loader_path.clone()),
@@ -246,7 +275,7 @@ impl GmodBuildPlan {
         let mut server_ops = Vec::new();
 
         for module in self.sorted_modules() {
-            let lua_path = normalize_lua_path(&module.lua_path);
+            let lua_path = runtime_path_for_output_path(&self.config, &module.lua_path);
             match module.realm {
                 Realm::Shared => {
                     shared_ops.push(LoaderOperation::AddCsLuaFile(lua_path.clone()));
@@ -281,39 +310,89 @@ impl GmodBuildPlan {
 
         self.loader = LoaderPlan {
             shared_loader: LoaderFile {
-                path: self.config.generated_root.join(shared_loader_path),
+                path: self.config.output_root.join(&shared_loader_path),
+                runtime_path: shared_loader_path,
                 operations: shared_ops,
             },
             client_loader: LoaderFile {
-                path: self.config.generated_root.join(client_loader_path),
+                path: self.config.output_root.join(&client_loader_path),
+                runtime_path: client_loader_path,
                 operations: client_ops,
             },
             server_loader: LoaderFile {
-                path: self.config.generated_root.join(server_loader_path),
+                path: self.config.output_root.join(&server_loader_path),
+                runtime_path: server_loader_path,
                 operations: server_ops,
             },
         };
+        self.autorun = self.config.autorun.then(|| {
+            let runtime_path = autorun_relative_path(&self.config.bundle_id);
+            AutorunForwarder {
+                path: self.config.output_root.join(&runtime_path),
+                runtime_path,
+                shared_loader: self.loader.shared_loader.runtime_path.clone(),
+                client_loader: self.loader.client_loader.runtime_path.clone(),
+                server_loader: self.loader.server_loader.runtime_path.clone(),
+            }
+        });
     }
 }
 
 impl LoaderPlan {
-    pub fn empty(root: impl AsRef<Path>, namespace: impl AsRef<str>) -> Self {
+    pub fn empty(root: impl AsRef<Path>, runtime_base: impl AsRef<Path>) -> Self {
         let root = root.as_ref();
-        let namespace = sanitize_loader_namespace(namespace.as_ref());
+        let runtime_base = safe_gmod_relative_path(runtime_base.as_ref())
+            .unwrap_or_else(|| PathBuf::from("lux/app"));
+        let shared_loader_path = loader_relative_path(&runtime_base, LoaderKind::Shared);
+        let client_loader_path = loader_relative_path(&runtime_base, LoaderKind::Client);
+        let server_loader_path = loader_relative_path(&runtime_base, LoaderKind::Server);
         Self {
             shared_loader: LoaderFile {
-                path: root.join(loader_relative_path(&namespace, LoaderKind::Shared)),
+                path: root.join(&shared_loader_path),
+                runtime_path: shared_loader_path,
                 operations: Vec::new(),
             },
             client_loader: LoaderFile {
-                path: root.join(loader_relative_path(&namespace, LoaderKind::Client)),
+                path: root.join(&client_loader_path),
+                runtime_path: client_loader_path,
                 operations: Vec::new(),
             },
             server_loader: LoaderFile {
-                path: root.join(loader_relative_path(&namespace, LoaderKind::Server)),
+                path: root.join(&server_loader_path),
+                runtime_path: server_loader_path,
                 operations: Vec::new(),
             },
         }
+    }
+}
+
+impl AutorunForwarder {
+    pub fn render(&self) -> String {
+        let mut out = String::new();
+        out.push_str("-- Generated by luxc. Do not edit by hand.\n");
+        out.push_str("if SERVER then\n");
+        out.push_str(&format!(
+            "  AddCSLuaFile({})\n",
+            lua_string_gmod_path(&self.runtime_path)
+        ));
+        out.push_str("end\n");
+        out.push_str(&format!(
+            "include({})\n",
+            lua_string_gmod_path(&self.shared_loader)
+        ));
+        out.push_str("if SERVER then\n");
+        out.push_str(&format!(
+            "  include({})\n",
+            lua_string_gmod_path(&self.server_loader)
+        ));
+        out.push_str("end\n");
+        out.push_str("if CLIENT then\n");
+        out.push_str(&format!(
+            "  include({})\n",
+            lua_string_gmod_path(&self.client_loader)
+        ));
+        out.push_str("end\n");
+        out
     }
 }
 
@@ -408,13 +487,13 @@ impl ModuleRegistryPlan {
 }
 
 impl GmaPackagePlan {
-    pub fn command(&self, addon_root: impl AsRef<Path>) -> CommandPlan {
+    pub fn command(&self, package_root: impl AsRef<Path>) -> CommandPlan {
         CommandPlan {
             program: self.gmad_path.clone(),
             args: vec![
                 OsString::from("create"),
                 OsString::from("-folder"),
-                addon_root.as_ref().as_os_str().to_os_string(),
+                package_root.as_ref().as_os_str().to_os_string(),
                 OsString::from("-out"),
                 self.output_gma.as_os_str().to_os_string(),
             ],
@@ -429,30 +508,28 @@ enum LoaderKind {
     Server,
 }
 
-fn loader_relative_path(namespace: &str, kind: LoaderKind) -> PathBuf {
-    let namespace = sanitize_loader_namespace(namespace);
+fn loader_relative_path(runtime_base: &Path, kind: LoaderKind) -> PathBuf {
+    let mut path =
+        safe_gmod_relative_path(runtime_base).unwrap_or_else(|| PathBuf::from("lux/app"));
     match kind {
-        LoaderKind::Shared => PathBuf::from(format!("lua/autorun/lux_{}_init.lua", namespace)),
-        LoaderKind::Client => {
-            PathBuf::from(format!("lua/autorun/client/lux_{}_cl_init.lua", namespace))
-        }
-        LoaderKind::Server => {
-            PathBuf::from(format!("lua/autorun/server/lux_{}_sv_init.lua", namespace))
-        }
+        LoaderKind::Shared => path.push("loader_shared.lua"),
+        LoaderKind::Client => path.push("loader_client.lua"),
+        LoaderKind::Server => path.push("loader_server.lua"),
     }
+    path
 }
 
-fn loader_namespace_from_path(path: &Path) -> String {
+fn autorun_relative_path(bundle_id: &str) -> PathBuf {
+    PathBuf::from("autorun").join(format!("{}.lua", sanitize_bundle_id(bundle_id)))
+}
+
+fn bundle_id_from_path(path: &Path) -> String {
     let raw = path
         .file_name()
         .map(|name| name.to_string_lossy())
         .filter(|name| !name.is_empty())
         .unwrap_or_else(|| "app".into());
-    sanitize_loader_namespace(&raw)
-}
-
-fn sanitize_loader_namespace(raw: &str) -> String {
-    sanitize_lua_path_segment(raw)
+    sanitize_bundle_id(&raw)
 }
 
 fn sanitize_bundle_id(raw: &str) -> String {
@@ -477,17 +554,24 @@ fn sanitize_lua_path_segment(raw: &str) -> String {
     if out.is_empty() { "app".into() } else { out }
 }
 
-fn lua_module_root_for_bundle(bundle_id: &str) -> PathBuf {
-    PathBuf::from("lua/lux").join(sanitize_bundle_id(bundle_id))
+pub fn default_runtime_base_for_bundle(bundle_id: &str) -> PathBuf {
+    PathBuf::from("lux").join(sanitize_bundle_id(bundle_id))
 }
 
-fn stable_short_hash(value: &str) -> String {
-    let mut hash = 0xcbf29ce484222325u64;
-    for byte in value.as_bytes() {
-        hash ^= u64::from(*byte);
-        hash = hash.wrapping_mul(0x100000001b3);
+pub fn safe_gmod_relative_path(path: &Path) -> Option<PathBuf> {
+    let mut out = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::Normal(part) => out.push(part),
+            Component::CurDir => {}
+            Component::Prefix(_) | Component::RootDir | Component::ParentDir => return None,
+        }
     }
-    format!("{:08x}", hash as u32)
+    if out.as_os_str().is_empty() {
+        None
+    } else {
+        Some(out)
+    }
 }
 
 fn module_id_for_source(config: &GmodBackendConfig, lux_path: &Path, realm: Realm) -> String {
@@ -508,7 +592,7 @@ fn module_id_for_source(config: &GmodBackendConfig, lux_path: &Path, realm: Real
 }
 
 fn lua_path_for_source(config: &GmodBackendConfig, lux_path: &Path, realm: Realm) -> PathBuf {
-    let mut path = config.generated_root.join(&config.lua_module_root);
+    let mut path = config.output_root.join(&config.runtime_base);
     path.push(realm_dir(realm));
     let rel = strip_source_realm_prefix(&config.source_root, lux_path, realm).unwrap_or(lux_path);
     for component in rel.components() {
@@ -540,15 +624,12 @@ fn module_id_from_lua_path(lua_path: &Path, realm: Realm) -> String {
         }
     }
 
-    if let Some(lux_index) = parts.windows(2).position(|window| window == ["lua", "lux"]) {
-        if let Some(realm_index) = parts
-            .iter()
-            .enumerate()
-            .skip(lux_index + 2)
-            .find_map(|(index, part)| (part == realm_dir(realm)).then_some(index))
-        {
-            parts.drain(0..realm_index);
-        }
+    if let Some(realm_index) = parts
+        .iter()
+        .enumerate()
+        .find_map(|(index, part)| (part == realm_dir(realm)).then_some(index))
+    {
+        parts.drain(0..realm_index);
     }
 
     if let Some(last) = parts.last_mut() {
@@ -567,46 +648,23 @@ fn realm_dir(realm: Realm) -> &'static str {
     }
 }
 
-fn normalize_lua_path(path: &Path) -> PathBuf {
-    let mut parts = Vec::new();
-    let mut saw_lua = false;
-    for component in path.components() {
-        let Component::Normal(part) = component else {
-            continue;
-        };
-        if part == "lua" {
-            saw_lua = true;
-        }
-        if saw_lua {
-            parts.push(part.to_os_string());
-        }
-    }
-
-    if parts.is_empty() {
-        return path.to_path_buf();
-    }
-
-    parts.into_iter().collect()
+fn runtime_path_for_output_path(config: &GmodBackendConfig, path: &Path) -> PathBuf {
+    path.strip_prefix(&config.output_root)
+        .map(clean_gmod_path)
+        .unwrap_or_else(|_| clean_gmod_path(path))
 }
 
-fn gmod_lua_path(path: &Path) -> PathBuf {
-    let mut components = path.components();
-    if matches!(
-        components.next(),
-        Some(Component::Normal(part)) if part == "lua"
-    ) {
-        return components
-            .filter_map(|component| match component {
-                Component::Normal(part) => Some(part.to_os_string()),
-                _ => None,
-            })
-            .collect();
-    }
-    path.to_path_buf()
+fn clean_gmod_path(path: &Path) -> PathBuf {
+    path.components()
+        .filter_map(|component| match component {
+            Component::Normal(part) => Some(part.to_os_string()),
+            _ => None,
+        })
+        .collect()
 }
 
 fn lua_string_gmod_path(path: &Path) -> String {
-    lua_string_path(&gmod_lua_path(path))
+    lua_string_path(&clean_gmod_path(path))
 }
 
 fn lua_string_path(path: &Path) -> String {
@@ -656,10 +714,10 @@ mod tests {
     use super::{GmaPackagePlan, GmodBackendConfig, GmodBuildPlan, LoaderOperation, Realm};
 
     #[test]
-    fn creates_loader_paths_under_addon_root() {
+    fn creates_loader_paths_under_output_root() {
         let plan = GmodBuildPlan::new("addon").add_module(
             "src/shared/foo.lux",
-            "lua/lux/addon/shared/foo.lua",
+            "addon/lux/addon/shared/foo.lua",
             Realm::Shared,
         );
 
@@ -668,7 +726,14 @@ mod tests {
             plan.loader
                 .shared_loader
                 .path
-                .ends_with("lua/autorun/lux_addon_init.lua")
+                .ends_with("lux/addon/loader_shared.lua")
+        );
+        assert!(
+            plan.autorun
+                .as_ref()
+                .expect("autorun")
+                .path
+                .ends_with("autorun/addon.lua")
         );
     }
 
@@ -691,7 +756,7 @@ mod tests {
 
     #[test]
     fn builds_loader_operations_for_gmod_realms() {
-        let config = GmodBackendConfig::new("src", "addon", "generated");
+        let config = GmodBackendConfig::new("src", "generated");
         let plan = GmodBuildPlan::from_config(config)
             .add_source_module("src/shared/core.lux")
             .add_source_module("src/client/ui.lux")
@@ -702,7 +767,7 @@ mod tests {
                 .shared_loader
                 .operations
                 .contains(&LoaderOperation::AddCsLuaFile(PathBuf::from(
-                    "lua/lux/addon/shared/core.lua"
+                    "lux/generated/shared/core.lua"
                 )))
         );
         assert!(
@@ -710,7 +775,7 @@ mod tests {
                 .shared_loader
                 .operations
                 .contains(&LoaderOperation::AddCsLuaFile(PathBuf::from(
-                    "lua/lux/addon/client/ui.lua"
+                    "lux/generated/client/ui.lua"
                 )))
         );
         assert!(
@@ -719,7 +784,7 @@ mod tests {
                 .operations
                 .contains(&LoaderOperation::RegisterModule {
                     module_id: "client/ui".into(),
-                    path: PathBuf::from("lua/lux/addon/client/ui.lua")
+                    path: PathBuf::from("lux/generated/client/ui.lua")
                 })
         );
         assert!(
@@ -728,7 +793,7 @@ mod tests {
                 .operations
                 .contains(&LoaderOperation::RegisterModule {
                     module_id: "server/init".into(),
-                    path: PathBuf::from("lua/lux/addon/server/init.lua")
+                    path: PathBuf::from("lux/generated/server/init.lua")
                 })
         );
 
@@ -738,7 +803,7 @@ mod tests {
                 .operations
                 .contains(&LoaderOperation::RegisterModule {
                     module_id: "shared/core".into(),
-                    path: PathBuf::from("lua/lux/addon/shared/core.lua")
+                    path: PathBuf::from("lux/generated/shared/core.lua")
                 })
         );
         assert!(
@@ -747,7 +812,7 @@ mod tests {
                 .operations
                 .contains(&LoaderOperation::RegisterModule {
                     module_id: "shared/core".into(),
-                    path: PathBuf::from("lua/lux/addon/shared/core.lua")
+                    path: PathBuf::from("lux/generated/shared/core.lua")
                 })
         );
     }
@@ -756,12 +821,12 @@ mod tests {
     fn renders_loader_lua_with_forward_slashes() {
         let plan = GmodBuildPlan::new("addon").add_module(
             "src/client/ui.lux",
-            "generated\\lua\\lux\\addon\\client\\ui.lua",
+            "addon\\lux\\addon\\client\\ui.lua",
             Realm::Client,
         );
         let lua = plan.loader.shared_loader.render(&plan.registry);
         assert!(lua.contains(
-            "if SERVER then\n  AddCSLuaFile(\"autorun/lux_addon_init.lua\")\n  AddCSLuaFile(\"autorun/client/lux_addon_cl_init.lua\")\n  AddCSLuaFile(\"lux/addon/client/ui.lua\")\nend\n"
+            "if SERVER then\n  AddCSLuaFile(\"lux/addon/loader_shared.lua\")\n  AddCSLuaFile(\"lux/addon/loader_client.lua\")\n  AddCSLuaFile(\"lux/addon/client/ui.lua\")\nend\n"
         ));
         assert!(!lua.contains("if SERVER then AddCSLuaFile"));
     }
@@ -770,7 +835,7 @@ mod tests {
     fn loader_registers_modules_in_private_registry() {
         let plan = GmodBuildPlan::new("addon").add_module(
             "src/shared/foo.lux",
-            "lua/lux/addon/shared/foo.lua",
+            "addon/lux/addon/shared/foo.lua",
             Realm::Shared,
         );
         let lua = plan.loader.shared_loader.render(&plan.registry);
@@ -779,6 +844,21 @@ mod tests {
         assert!(lua.contains("if __lux_registry[\"shared/foo\"] == nil then"));
         assert!(lua.contains("local __lux_factory = include(\"lux/addon/shared/foo.lua\")"));
         assert!(lua.contains("__lux_registry[\"shared/foo\"] = __lux_factory(__lux_import) or {}"));
+    }
+
+    #[test]
+    fn autorun_forwarder_includes_generated_loaders() {
+        let plan = GmodBuildPlan::new("addon").add_module(
+            "src/shared/foo.lux",
+            "addon/lux/addon/shared/foo.lua",
+            Realm::Shared,
+        );
+        let lua = plan.autorun.expect("autorun").render();
+
+        assert!(lua.contains("AddCSLuaFile(\"autorun/addon.lua\")"));
+        assert!(lua.contains("include(\"lux/addon/loader_shared.lua\")"));
+        assert!(lua.contains("include(\"lux/addon/loader_server.lua\")"));
+        assert!(lua.contains("include(\"lux/addon/loader_client.lua\")"));
     }
 
     #[test]

@@ -31,7 +31,9 @@ fn usage() {
     eprintln!("  luxc parse <path>");
     eprintln!("  luxc lint <path>");
     eprintln!("  luxc format <path> [--check] [--write]");
-    eprintln!("  luxc init [path] [--name <name>] [--std] [--template gmod-addon]");
+    eprintln!(
+        "  luxc init [path] [--name <name>] [--std] [--out <path>] [--runtime-base <path>] [--no-autorun]"
+    );
     eprintln!(
         "  luxc install <package-id> --from <github:owner/repo|url|path> [--tag <tag>|--branch <branch>|--commit <commit>]"
     );
@@ -43,10 +45,14 @@ fn usage() {
         "  luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]"
     );
     eprintln!("  luxc map-error <map.json> <generated-line>");
-    eprintln!("  luxc gmod build <source-root> <addon-root> [--generated-root <path>] [--dry-run]");
-    eprintln!("  luxc gmod build --manifest <lux.toml> [--generated-root <path>] [--dry-run]");
     eprintln!(
-        "  luxc gmod package --manifest <lux.toml> --gmad <path> --out <path> [--run] [--generated-root <path>]"
+        "  luxc gmod build <source-root> --out <path> [--runtime-base <path>] [--no-autorun] [--dry-run]"
+    );
+    eprintln!(
+        "  luxc gmod build --manifest <lux.toml> [--out <path>] [--runtime-base <path>] [--no-autorun] [--dry-run]"
+    );
+    eprintln!(
+        "  luxc gmod package --manifest <lux.toml> --root <path> --gmad <path> --out <path> [--run] [--build-out <path>] [--runtime-base <path>] [--no-autorun]"
     );
     eprintln!(
         "  luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--offline] [--allow-failures]"
@@ -420,10 +426,18 @@ fn main() -> ExitCode {
         Command::GmodBuild {
             manifest,
             source_root,
-            addon_root,
-            generated_root,
+            output_root,
+            runtime_base,
+            autorun,
             dry_run,
-        } => match gmod_build(manifest, source_root, addon_root, generated_root, dry_run) {
+        } => match gmod_build(
+            manifest,
+            source_root,
+            output_root,
+            runtime_base,
+            autorun,
+            dry_run,
+        ) {
             Ok(code) => code,
             Err(message) => {
                 eprintln!("{message}");
@@ -432,11 +446,23 @@ fn main() -> ExitCode {
         },
         Command::GmodPackage {
             manifest,
-            generated_root,
+            package_root,
+            output_root,
+            runtime_base,
+            autorun,
             gmad_path,
             output_gma,
             run,
-        } => match gmod_package(manifest, generated_root, gmad_path, output_gma, run) {
+        } => match gmod_package(
+            manifest,
+            package_root,
+            output_root,
+            runtime_base,
+            autorun,
+            gmad_path,
+            output_gma,
+            run,
+        ) {
             Ok(code) => code,
             Err(message) => {
                 eprintln!("{message}");
@@ -490,13 +516,17 @@ enum Command {
     GmodBuild {
         manifest: Option<PathBuf>,
         source_root: Option<PathBuf>,
-        addon_root: Option<PathBuf>,
-        generated_root: Option<PathBuf>,
+        output_root: Option<PathBuf>,
+        runtime_base: Option<PathBuf>,
+        autorun: Option<bool>,
         dry_run: bool,
     },
     GmodPackage {
         manifest: PathBuf,
-        generated_root: Option<PathBuf>,
+        package_root: PathBuf,
+        output_root: Option<PathBuf>,
+        runtime_base: Option<PathBuf>,
+        autorun: Option<bool>,
         gmad_path: PathBuf,
         output_gma: PathBuf,
         run: bool,
@@ -619,6 +649,9 @@ fn parse_init_command(args: &[OsString]) -> Command {
     let mut root = None;
     let mut name = None;
     let mut install_std = false;
+    let mut output_root = None;
+    let mut runtime_base = None;
+    let mut autorun = true;
     let mut index = 0;
 
     while index < args.len() {
@@ -630,14 +663,23 @@ fn parse_init_command(args: &[OsString]) -> Command {
                 name = Some(value.to_string());
                 index += 2;
             }
-            "--template" => {
-                let Some(value) = args.get(index + 1).and_then(|arg| arg.to_str()) else {
+            "--out" => {
+                let Some(value) = args.get(index + 1) else {
                     return Command::Invalid;
                 };
-                if value != "gmod-addon" {
-                    return Command::Invalid;
-                }
+                output_root = Some(PathBuf::from(value));
                 index += 2;
+            }
+            "--runtime-base" => {
+                let Some(value) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                runtime_base = Some(PathBuf::from(value));
+                index += 2;
+            }
+            "--no-autorun" => {
+                autorun = false;
+                index += 1;
             }
             "--std" => {
                 install_std = true;
@@ -665,6 +707,9 @@ fn parse_init_command(args: &[OsString]) -> Command {
         root,
         name,
         install_std,
+        output_root,
+        runtime_base,
+        autorun,
     })
 }
 
@@ -804,7 +849,10 @@ fn parse_dependency_source(
 
 fn parse_gmod_package_command(args: &[OsString]) -> Command {
     let mut manifest = None;
-    let mut generated_root = None;
+    let mut package_root = None;
+    let mut output_root = None;
+    let mut runtime_base = None;
+    let mut autorun = None;
     let mut gmad_path = None;
     let mut output_gma = None;
     let mut run = false;
@@ -819,12 +867,30 @@ fn parse_gmod_package_command(args: &[OsString]) -> Command {
                 manifest = Some(PathBuf::from(path));
                 index += 2;
             }
-            "--generated-root" => {
+            "--root" => {
                 let Some(path) = args.get(index + 1) else {
                     return Command::Invalid;
                 };
-                generated_root = Some(PathBuf::from(path));
+                package_root = Some(PathBuf::from(path));
                 index += 2;
+            }
+            "--build-out" => {
+                let Some(path) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                output_root = Some(PathBuf::from(path));
+                index += 2;
+            }
+            "--runtime-base" => {
+                let Some(path) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                runtime_base = Some(PathBuf::from(path));
+                index += 2;
+            }
+            "--no-autorun" => {
+                autorun = Some(false);
+                index += 1;
             }
             "--gmad" => {
                 let Some(path) = args.get(index + 1) else {
@@ -848,14 +914,18 @@ fn parse_gmod_package_command(args: &[OsString]) -> Command {
         }
     }
 
-    let (Some(manifest), Some(gmad_path), Some(output_gma)) = (manifest, gmad_path, output_gma)
+    let (Some(manifest), Some(package_root), Some(gmad_path), Some(output_gma)) =
+        (manifest, package_root, gmad_path, output_gma)
     else {
         return Command::Invalid;
     };
 
     Command::GmodPackage {
         manifest,
-        generated_root,
+        package_root,
+        output_root,
+        runtime_base,
+        autorun,
         gmad_path,
         output_gma,
         run,
@@ -865,7 +935,9 @@ fn parse_gmod_package_command(args: &[OsString]) -> Command {
 fn parse_gmod_build_command(args: &[OsString]) -> Command {
     let mut positionals = Vec::<PathBuf>::new();
     let mut manifest = None;
-    let mut generated_root = None;
+    let mut output_root = None;
+    let mut runtime_base = None;
+    let mut autorun = None;
     let mut dry_run = false;
     let mut index = 0;
 
@@ -878,12 +950,23 @@ fn parse_gmod_build_command(args: &[OsString]) -> Command {
                 manifest = Some(PathBuf::from(path));
                 index += 2;
             }
-            "--generated-root" => {
+            "--out" => {
                 let Some(path) = args.get(index + 1) else {
                     return Command::Invalid;
                 };
-                generated_root = Some(PathBuf::from(path));
+                output_root = Some(PathBuf::from(path));
                 index += 2;
+            }
+            "--runtime-base" => {
+                let Some(path) = args.get(index + 1) else {
+                    return Command::Invalid;
+                };
+                runtime_base = Some(PathBuf::from(path));
+                index += 2;
+            }
+            "--no-autorun" => {
+                autorun = Some(false);
+                index += 1;
             }
             "--dry-run" => {
                 dry_run = true;
@@ -900,21 +983,22 @@ fn parse_gmod_build_command(args: &[OsString]) -> Command {
         return Command::Invalid;
     }
 
-    let (source_root, addon_root) = match positionals.as_slice() {
-        [] => (None, None),
-        [source_root, addon_root] => (Some(source_root.clone()), Some(addon_root.clone())),
+    let source_root = match positionals.as_slice() {
+        [] => None,
+        [source_root] => Some(source_root.clone()),
         _ => return Command::Invalid,
     };
 
-    if manifest.is_none() && (source_root.is_none() || addon_root.is_none()) {
+    if manifest.is_none() && (source_root.is_none() || output_root.is_none()) {
         return Command::Invalid;
     }
 
     Command::GmodBuild {
         manifest,
         source_root,
-        addon_root,
-        generated_root,
+        output_root,
+        runtime_base,
+        autorun,
         dry_run,
     }
 }
@@ -974,8 +1058,9 @@ fn map_error(map_path: PathBuf, generated_line: usize) -> Result<ExitCode, Strin
 fn gmod_build(
     manifest: Option<PathBuf>,
     source_root: Option<PathBuf>,
-    addon_root: Option<PathBuf>,
-    generated_root: Option<PathBuf>,
+    output_root: Option<PathBuf>,
+    runtime_base: Option<PathBuf>,
+    autorun: Option<bool>,
     dry_run: bool,
 ) -> Result<ExitCode, String> {
     let mut options = if let Some(manifest_path) = manifest {
@@ -983,13 +1068,20 @@ fn gmod_build(
         GmodBuildOptions::from_manifest(manifest)
     } else {
         let source_root = source_root.expect("parse_command validates source root");
-        let addon_root = addon_root.expect("parse_command validates addon root");
-        let generated_root = generated_root.clone().unwrap_or_else(|| addon_root.clone());
-        GmodBuildOptions::new(source_root, addon_root, generated_root)
+        let output_root = output_root
+            .clone()
+            .expect("parse_command validates output root");
+        GmodBuildOptions::new(source_root, output_root)
     };
 
-    if let Some(generated_root) = generated_root {
-        options.generated_root = generated_root;
+    if let Some(output_root) = output_root {
+        options.output_root = output_root;
+    }
+    if let Some(runtime_base) = runtime_base {
+        options.runtime_base = Some(runtime_base);
+    }
+    if let Some(autorun) = autorun {
+        options.autorun = autorun;
     }
     options.write_files = !dry_run;
     let output = build_gmod_project(&options).map_err(|err| err.to_string())?;
@@ -1015,11 +1107,16 @@ fn gmod_build(
         "server loader: {}",
         output.build_plan.loader.server_loader.path.display()
     );
+    if let Some(autorun) = &output.build_plan.autorun {
+        println!("autorun forwarder: {}", autorun.path.display());
+    } else {
+        println!("autorun forwarder: disabled");
+    }
 
     if dry_run {
         println!("dry run: no files written");
     } else {
-        println!("wrote generated Lua, source maps, and loader files");
+        println!("wrote generated Lua, source maps, loader files, and optional autorun forwarder");
     }
 
     Ok(ExitCode::SUCCESS)
@@ -1027,15 +1124,24 @@ fn gmod_build(
 
 fn gmod_package(
     manifest_path: PathBuf,
-    generated_root: Option<PathBuf>,
+    package_root: PathBuf,
+    output_root: Option<PathBuf>,
+    runtime_base: Option<PathBuf>,
+    autorun: Option<bool>,
     gmad_path: PathBuf,
     output_gma: PathBuf,
     run: bool,
 ) -> Result<ExitCode, String> {
     let manifest = ProjectManifest::load(&manifest_path).map_err(|err| err.to_string())?;
     let mut options = GmodBuildOptions::from_manifest(manifest);
-    if let Some(generated_root) = generated_root {
-        options.generated_root = generated_root;
+    if let Some(output_root) = output_root {
+        options.output_root = output_root;
+    }
+    if let Some(runtime_base) = runtime_base {
+        options.runtime_base = Some(runtime_base);
+    }
+    if let Some(autorun) = autorun {
+        options.autorun = autorun;
     }
     options.write_files = true;
 
@@ -1046,7 +1152,7 @@ fn gmod_package(
     let args = vec![
         OsString::from("create"),
         OsString::from("-folder"),
-        options.addon_root.as_os_str().to_os_string(),
+        package_root.as_os_str().to_os_string(),
         OsString::from("-out"),
         output_gma.as_os_str().to_os_string(),
     ];
@@ -1107,10 +1213,7 @@ fn gmod_api_update(args: Vec<String>) -> Result<ExitCode, String> {
 
 fn package_init(options: InitOptions) -> Result<ExitCode, String> {
     init_project(&options).map_err(|err| err.to_string())?;
-    println!(
-        "initialized Lux project at {} using gmod-addon template",
-        options.root.display()
-    );
+    println!("initialized Lux project at {}", options.root.display());
     if options.install_std {
         println!("installed @lux/std from github:TimeWatcher/lux-std");
     }
@@ -1204,6 +1307,9 @@ mod tests {
         assert_eq!(options.root, PathBuf::from("demo"));
         assert_eq!(options.name, "demo");
         assert!(!options.install_std);
+        assert_eq!(options.output_root, None);
+        assert_eq!(options.runtime_base, None);
+        assert!(options.autorun);
     }
 
     #[test]
@@ -1213,6 +1319,68 @@ mod tests {
         };
 
         assert!(options.install_std);
+    }
+
+    #[test]
+    fn init_accepts_gmod_output_controls() {
+        let Command::Init(options) = parse_command(args(&[
+            "init",
+            "demo",
+            "--out",
+            "generated",
+            "--runtime-base",
+            "framework/lux/demo",
+            "--no-autorun",
+        ])) else {
+            panic!("expected init command");
+        };
+
+        assert_eq!(options.output_root, Some(PathBuf::from("generated")));
+        assert_eq!(
+            options.runtime_base,
+            Some(PathBuf::from("framework/lux/demo"))
+        );
+        assert!(!options.autorun);
+    }
+
+    #[test]
+    fn gmod_build_accepts_output_controls() {
+        let Command::GmodBuild {
+            manifest,
+            source_root,
+            output_root,
+            runtime_base,
+            autorun,
+            dry_run,
+        } = parse_command(args(&[
+            "gmod",
+            "build",
+            "src",
+            "--out",
+            "generated",
+            "--runtime-base",
+            "lux/demo",
+            "--no-autorun",
+            "--dry-run",
+        ]))
+        else {
+            panic!("expected gmod build command");
+        };
+
+        assert_eq!(manifest, None);
+        assert_eq!(source_root, Some(PathBuf::from("src")));
+        assert_eq!(output_root, Some(PathBuf::from("generated")));
+        assert_eq!(runtime_base, Some(PathBuf::from("lux/demo")));
+        assert_eq!(autorun, Some(false));
+        assert!(dry_run);
+    }
+
+    #[test]
+    fn gmod_build_rejects_second_positional_path() {
+        assert!(matches!(
+            parse_command(args(&["gmod", "build", "src", "addon"])),
+            Command::Invalid
+        ));
     }
 
     #[test]

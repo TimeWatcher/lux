@@ -15,7 +15,7 @@ use crate::ast::{
 use crate::codegen::{CodegenError, LuaCodegen, LuaOutput};
 use crate::compile_time::{CompileTimeError, CompileTimePackageRegistry};
 use crate::diag::{Diagnostic, DiagnosticEmitter, Label};
-use crate::gmod::{GmodBackendConfig, GmodBuildPlan, GmodModule};
+use crate::gmod::{GmodBackendConfig, GmodBuildPlan, GmodModule, GmodPathError};
 use crate::host::HostRegistry;
 use crate::ir::{IrBlock, IrFunctionBody, IrModule, IrStmtKind};
 use crate::lex::Lexer;
@@ -138,8 +138,9 @@ pub(crate) struct ArtifactModulePart<'a> {
 #[derive(Debug, Clone)]
 pub struct GmodBuildOptions {
     pub source_root: PathBuf,
-    pub addon_root: PathBuf,
-    pub generated_root: PathBuf,
+    pub output_root: PathBuf,
+    pub runtime_base: Option<PathBuf>,
+    pub autorun: bool,
     pub bundle_id: Option<String>,
     pub package_id: Option<PackageId>,
     pub package_roots: Vec<PathBuf>,
@@ -149,15 +150,12 @@ pub struct GmodBuildOptions {
 }
 
 impl GmodBuildOptions {
-    pub fn new(
-        source_root: impl Into<PathBuf>,
-        addon_root: impl Into<PathBuf>,
-        generated_root: impl Into<PathBuf>,
-    ) -> Self {
+    pub fn new(source_root: impl Into<PathBuf>, output_root: impl Into<PathBuf>) -> Self {
         Self {
             source_root: source_root.into(),
-            addon_root: addon_root.into(),
-            generated_root: generated_root.into(),
+            output_root: output_root.into(),
+            runtime_base: None,
+            autorun: true,
             bundle_id: None,
             package_id: None,
             package_roots: Vec::new(),
@@ -168,13 +166,15 @@ impl GmodBuildOptions {
     }
 
     pub fn from_manifest(manifest: ProjectManifest) -> Self {
-        let generated_root = manifest
-            .generated_root
-            .clone()
-            .unwrap_or_else(|| manifest.addon_root.clone());
-        let mut options = Self::new(manifest.source_root, manifest.addon_root, generated_root);
+        let mut options = Self::new(manifest.source_root, manifest.output_root);
         if let Some(source_comments) = manifest.source_comments {
             options.source_comments = source_comments;
+        }
+        if let Some(runtime_base) = manifest.runtime_base {
+            options.runtime_base = Some(runtime_base);
+        }
+        if let Some(autorun) = manifest.autorun {
+            options.autorun = autorun;
         }
         options.package_roots = manifest.package_roots;
         options.package_id = manifest.package_id.map(PackageId::new);
@@ -196,6 +196,7 @@ pub enum ProjectError {
     HostDiagnostics(Vec<RenderedDiagnostic>),
     Runtime(RuntimePackageError),
     CompileTime(CompileTimeError),
+    GmodPath(GmodPathError),
     Lower { path: PathBuf, source: LowerError },
     Codegen { path: PathBuf, source: CodegenError },
 }
@@ -223,6 +224,7 @@ impl fmt::Display for ProjectError {
             }
             Self::Runtime(source) => write!(f, "{source}"),
             Self::CompileTime(source) => write!(f, "{source}"),
+            Self::GmodPath(source) => write!(f, "{source}"),
             Self::Lower { path, source } => {
                 write!(f, "lowering failed for {}: {source}", path.display())
             }
@@ -402,17 +404,19 @@ pub fn build_gmod_project(options: &GmodBuildOptions) -> Result<GmodProjectOutpu
     let runtime_registry =
         RuntimePackageRegistry::load_default_with_package_roots(&options.package_roots)
             .map_err(ProjectError::Runtime)?;
-    let mut backend_config = GmodBackendConfig::new(
-        &options.source_root,
-        &options.addon_root,
-        &options.generated_root,
-    );
+    let mut backend_config = GmodBackendConfig::new(&options.source_root, &options.output_root);
     backend_config.source_comments = options.source_comments;
-    backend_config.set_loader_namespace(package_id.as_str());
-    let bundle_id = options.bundle_id.clone().unwrap_or_else(|| {
-        GmodBackendConfig::project_bundle_id(package_id.as_str(), &options.addon_root)
-    });
+    backend_config.autorun = options.autorun;
+    let bundle_id = options
+        .bundle_id
+        .clone()
+        .unwrap_or_else(|| package_id.as_str().to_string());
     backend_config.set_bundle_id(bundle_id);
+    if let Some(runtime_base) = &options.runtime_base {
+        backend_config
+            .set_runtime_base(runtime_base)
+            .map_err(ProjectError::GmodPath)?;
+    }
     let mut plan = GmodBuildPlan::from_config(backend_config);
     let mut artifacts = Vec::new();
 
@@ -1683,6 +1687,9 @@ fn write_gmod_artifacts(
         &plan.loader.server_loader.path,
         &plan.loader.server_loader.render(&plan.registry),
     )?;
+    if let Some(autorun) = &plan.autorun {
+        write_file(&autorun.path, &autorun.render())?;
+    }
     Ok(())
 }
 
@@ -1825,7 +1832,7 @@ fn gmod_lua_path(
     module_id: &ModuleId,
     artifact_realm: ArtifactRealm,
 ) -> PathBuf {
-    let mut path = config.generated_root.join(&config.lua_module_root);
+    let mut path = config.output_root.join(&config.runtime_base);
     path.push(artifact_realm.as_str());
     for part in module_id.as_str().split('/') {
         path.push(part);
@@ -1847,7 +1854,7 @@ fn runtime_module_artifact(
         .compile_for_realm(external.artifact_realm)
         .map_err(ProjectError::Runtime)?;
 
-    let mut lua_path = config.generated_root.join(&config.lua_module_root);
+    let mut lua_path = config.output_root.join(&config.runtime_base);
     lua_path.push(external.artifact_realm.as_str());
     lua_path.push("runtime");
     for part in external.id.as_str().split('/') {

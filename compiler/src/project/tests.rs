@@ -277,14 +277,14 @@ fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
     let root = temp_project("runtime_loader_order");
     let std_root = test_std_package_root();
     let source_root = root.join("src");
-    let addon_root = root.join("addon");
+    let output_root = root.join("generated");
     let source = source_root.join("cl_ui_test.lux");
     write_lux(
         &source,
         "import { mount, node } from \"@lux/ui\"\nmount(() => node(\"Label\", {}, {}), (tree) => tree)",
     );
 
-    let mut options = GmodBuildOptions::new(&source_root, &addon_root, &addon_root);
+    let mut options = GmodBuildOptions::new(&source_root, &output_root);
     options.bundle_id = Some("runtime_order".into());
     options.package_roots = vec![std_root.clone()];
     let output = build_gmod_project(&options).expect("build gmod project");
@@ -306,4 +306,41 @@ fn gmod_loader_keeps_runtime_dependencies_before_dependents() {
 
     let _ = fs::remove_dir_all(root);
     let _ = fs::remove_dir_all(std_root);
+}
+
+#[test]
+fn gmod_build_can_disable_autorun_without_disabling_loader() {
+    let root = temp_project("manual_entry");
+    let source_root = root.join("src");
+    let output_root = root.join("generated");
+    let source = source_root.join("cl_ui.lux");
+    write_lux(&source, "export client fn main() = true");
+
+    let mut options = GmodBuildOptions::new(&source_root, &output_root);
+    options.bundle_id = Some("demo".into());
+    options.runtime_base = Some(PathBuf::from("framework/lux/demo"));
+    options.autorun = false;
+    options.write_files = true;
+
+    let output = build_gmod_project(&options).expect("build gmod project");
+
+    assert!(output.build_plan.autorun.is_none());
+    assert!(
+        output_root
+            .join("framework/lux/demo/loader_shared.lua")
+            .is_file()
+    );
+    assert!(
+        output_root
+            .join("framework/lux/demo/loader_client.lua")
+            .is_file()
+    );
+    assert!(!output_root.join("autorun/demo.lua").exists());
+    assert!(output.artifacts.iter().any(|artifact| {
+        artifact
+            .lua_path
+            .starts_with(output_root.join("framework/lux/demo"))
+    }));
+
+    let _ = fs::remove_dir_all(root);
 }

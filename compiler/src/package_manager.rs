@@ -20,6 +20,9 @@ pub struct InitOptions {
     pub root: PathBuf,
     pub name: String,
     pub install_std: bool,
+    pub output_root: Option<PathBuf>,
+    pub runtime_base: Option<PathBuf>,
+    pub autorun: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -272,7 +275,7 @@ pub fn init_project(options: &InitOptions) -> Result<(), PackageManagerError> {
     })?;
     write_new_file(
         &options.root.join(PROJECT_MANIFEST),
-        &project_manifest_template(&options.name),
+        &project_manifest_template(options),
     )?;
     write_new_file(&source_root.join("module.lux"), "export fn main() = true\n")?;
     if options.install_std {
@@ -383,11 +386,23 @@ pub fn list_locked(project_root: &Path) -> Result<Vec<LockedPackage>, PackageMan
     Ok(read_toml::<Lockfile>(&lock_path)?.package)
 }
 
-fn project_manifest_template(name: &str) -> String {
+fn project_manifest_template(options: &InitOptions) -> String {
+    let name = escape_toml_string(&options.name);
+    let output_root = options
+        .output_root
+        .as_ref()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| "generated/lua".into());
+    let runtime_base = options
+        .runtime_base
+        .as_ref()
+        .map(|path| path.to_string_lossy().replace('\\', "/"))
+        .unwrap_or_else(|| format!("lux/{}", options.name));
     format!(
-        "package_id = \"{}\"\nbundle_id = \"{}\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\nsource_comments = \"boundary\"\n\n[dependencies]\n",
-        escape_toml_string(name),
-        escape_toml_string(name)
+        "package_id = \"{name}\"\nbundle_id = \"{name}\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"{}\"\nruntime_base = \"{}\"\nautorun = {}\nsource_comments = \"boundary\"\n\n[dependencies]\n",
+        escape_toml_string(&output_root),
+        escape_toml_string(&runtime_base),
+        options.autorun
     )
 }
 
@@ -406,9 +421,11 @@ impl ProjectDependencyManifest {
                     "package_id = \"lux-project\"".into(),
                     "bundle_id = \"lux-project\"".into(),
                     "".into(),
-                    "[gmod]".into(),
+                    "[target.gmod]".into(),
                     "source_root = \"src\"".into(),
-                    "addon_root = \"generated\"".into(),
+                    "out = \"generated/lua\"".into(),
+                    "runtime_base = \"lux/lux-project\"".into(),
+                    "autorun = true".into(),
                     "".into(),
                 ],
                 dependencies: BTreeMap::new(),
@@ -1349,7 +1366,7 @@ mod tests {
         fs::create_dir_all(project).expect("project");
         fs::write(
             project.join("lux.toml"),
-            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n[dependencies]\n",
+            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n[dependencies]\n",
         )
         .expect("project manifest");
     }
@@ -1394,6 +1411,9 @@ depends = ["@vendor/core >=0.1 <0.2"]
             root: root.clone(),
             name: "demo".into(),
             install_std: false,
+            output_root: None,
+            runtime_base: None,
+            autorun: true,
         })
         .expect("init project");
 
@@ -1411,7 +1431,7 @@ depends = ["@vendor/core >=0.1 <0.2"]
     #[test]
     fn project_manifest_dependency_section_is_command_written() {
         let mut manifest = parse_project_dependency_manifest(
-            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
+            "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n",
         );
         manifest.set_dependency(
             "@vendor/ui-ext",
@@ -1511,7 +1531,7 @@ path = "{}"
         fs::create_dir_all(&project).expect("project");
         fs::write(
             project.join("lux.toml"),
-            "name = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
+            "name = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n",
         )
         .expect("project manifest");
 
@@ -1547,7 +1567,7 @@ path = "{}"
         fs::write(
             project.join("lux.toml"),
             format!(
-                "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n[dependencies]\n\"@vendor/ui\" = {{ path = \"{}\" }}\n",
+                "package_id = \"demo\"\nbundle_id = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n[dependencies]\n\"@vendor/ui\" = {{ path = \"{}\" }}\n",
                 source.to_string_lossy().replace('\\', "\\\\")
             ),
         )
@@ -1693,7 +1713,7 @@ path = "{}"
         fs::create_dir_all(&project).expect("project");
         fs::write(
             project.join("lux.toml"),
-            "name = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
+            "name = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n",
         )
         .expect("project manifest");
 
@@ -1819,7 +1839,7 @@ path = "packages/core"
         fs::create_dir_all(&project).expect("project");
         fs::write(
             project.join("lux.toml"),
-            "name = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
+            "name = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n",
         )
         .expect("project manifest");
 
@@ -1894,7 +1914,7 @@ path = "{}"
         fs::create_dir_all(&project).expect("project");
         fs::write(
             project.join("lux.toml"),
-            "name = \"demo\"\n\n[gmod]\nsource_root = \"src\"\naddon_root = \"generated\"\n\n",
+            "name = \"demo\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/demo\"\nautorun = true\n\n",
         )
         .expect("project manifest");
 

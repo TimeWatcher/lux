@@ -1,3 +1,5 @@
-[gmod]
+[target.gmod]
 source_root = "src"
-addon_root = "generated"
+out = "generated/lua"
+runtime_base = "lux/invalid_project"
+autorun = true

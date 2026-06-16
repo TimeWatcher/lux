@@ -23,7 +23,7 @@ import macro * as gmodMacros from "lux/gmod/macros"
 Project builds may add package roots through `lux.toml`:
 
 ```toml
-[gmod]
+[target.gmod]
 package_roots = "vendor/lux-std, vendor/project-packages"
 ```
 

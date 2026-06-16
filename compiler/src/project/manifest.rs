@@ -12,8 +12,9 @@ pub struct ProjectManifest {
     pub package_id: Option<String>,
     pub bundle_id: Option<String>,
     pub source_root: PathBuf,
-    pub addon_root: PathBuf,
-    pub generated_root: Option<PathBuf>,
+    pub output_root: PathBuf,
+    pub runtime_base: Option<PathBuf>,
+    pub autorun: Option<bool>,
     pub package_roots: Vec<PathBuf>,
     pub source_comments: Option<SourceCommentMode>,
     pub gmod_unknown_external: Option<UnknownExternalPolicy>,
@@ -57,8 +58,9 @@ impl ProjectManifest {
         let mut source_root = None;
         let mut package_id = None;
         let mut bundle_id = None;
-        let mut addon_root = None;
-        let mut generated_root = None;
+        let mut output_root = None;
+        let mut runtime_base = None;
+        let mut autorun = None;
         let mut package_roots = Vec::new();
         let mut source_comments = None;
         let mut gmod_unknown_external = None;
@@ -87,37 +89,34 @@ impl ProjectManifest {
 
             match (section.as_str(), key) {
                 ("dependencies", _) => {}
-                ("", "package_id") | ("project", "package_id") => {
+                ("", "package_id") | ("project", "package_id") | ("package", "id") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
                     package_id = Some(value);
                 }
-                ("", "bundle_id") | ("project", "bundle_id") | ("gmod", "bundle_id") => {
+                ("", "bundle_id") | ("project", "bundle_id") | ("target.gmod", "bundle_id") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
                     bundle_id = Some(value);
                 }
-                ("", "source_root") | ("project", "source_root") | ("gmod", "source_root") => {
+                ("target.gmod", "source_root") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
                     source_root = Some(resolve_path(base, &value));
                 }
-                ("", "addon_root") | ("project", "addon_root") | ("gmod", "addon_root") => {
+                ("target.gmod", "out") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
-                    addon_root = Some(resolve_path(base, &value));
+                    output_root = Some(resolve_path(base, &value));
                 }
-                ("", "generated_root")
-                | ("project", "generated_root")
-                | ("gmod", "generated_root") => {
+                ("target.gmod", "runtime_base") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
-                    generated_root = Some(resolve_path(base, &value));
+                    runtime_base = Some(PathBuf::from(value));
                 }
-                ("", "package_roots")
-                | ("project", "package_roots")
-                | ("gmod", "package_roots") => {
+                ("target.gmod", "autorun") => {
+                    autorun = Some(parse_bool_value(path, line_index, raw_value)?);
+                }
+                ("target.gmod", "package_roots") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
                     package_roots = parse_path_list(base, &value);
                 }
-                ("", "source_comments")
-                | ("project", "source_comments")
-                | ("gmod", "source_comments") => {
+                ("target.gmod", "source_comments") => {
                     let value = parse_string_value(path, line_index, raw_value)?;
                     let Some(mode) = SourceCommentMode::parse(&value) else {
                         return Err(parse_error(
@@ -174,16 +173,18 @@ impl ProjectManifest {
             }
         }
 
-        let source_root =
-            source_root.ok_or_else(|| parse_error(path, 0, "missing `source_root`"))?;
-        let addon_root = addon_root.ok_or_else(|| parse_error(path, 0, "missing `addon_root`"))?;
+        let source_root = source_root
+            .ok_or_else(|| parse_error(path, 0, "missing `[target.gmod].source_root`"))?;
+        let output_root =
+            output_root.ok_or_else(|| parse_error(path, 0, "missing `[target.gmod].out`"))?;
 
         let mut manifest = Self {
             package_id,
             bundle_id,
             source_root,
-            addon_root,
-            generated_root,
+            output_root,
+            runtime_base,
+            autorun,
             package_roots,
             source_comments,
             gmod_unknown_external,
@@ -229,6 +230,18 @@ fn parse_string_value(
     Ok(stripped.replace("\\\"", "\"").replace("\\\\", "\\"))
 }
 
+fn parse_bool_value(path: &Path, line_index: usize, value: &str) -> Result<bool, ManifestError> {
+    match value {
+        "true" => Ok(true),
+        "false" => Ok(false),
+        _ => Err(parse_error(
+            path,
+            line_index,
+            "boolean manifest values must be true or false",
+        )),
+    }
+}
+
 fn resolve_path(base: &Path, value: &str) -> PathBuf {
     let path = PathBuf::from(value);
     if path.is_absolute() {
@@ -270,10 +283,11 @@ mod tests {
         let manifest = ProjectManifest::parse(
             Path::new("C:/game/addons/lux/lux.toml"),
             r#"
-            [gmod]
+            [target.gmod]
             source_root = "src"
-            addon_root = "."
-            generated_root = "generated"
+            out = "generated"
+            runtime_base = "lux/docs"
+            autorun = false
             package_roots = "packages, vendor/project-packages"
             source_comments = "boundary"
             bundle_id = "docs_bundle"
@@ -283,13 +297,12 @@ mod tests {
 
         assert_eq!(manifest.bundle_id.as_deref(), Some("docs_bundle"));
         assert!(manifest.source_root.ends_with("src"));
-        assert!(manifest.addon_root.ends_with("lux"));
-        assert!(
-            manifest
-                .generated_root
-                .expect("generated")
-                .ends_with("generated")
+        assert!(manifest.output_root.ends_with("generated"));
+        assert_eq!(
+            manifest.runtime_base.as_deref(),
+            Some(Path::new("lux/docs"))
         );
+        assert_eq!(manifest.autorun, Some(false));
         assert_eq!(manifest.package_roots.len(), 2);
         assert!(manifest.package_roots[0].ends_with("packages"));
         assert!(manifest.package_roots[1].ends_with("vendor/project-packages"));
@@ -304,8 +317,9 @@ mod tests {
         let error = ProjectManifest::parse(
             Path::new("lux.toml"),
             r#"
+            [target.gmod]
             source_root = "src"
-            addon_root = "addon"
+            out = "generated"
             nope = "x"
             "#,
         )
@@ -319,8 +333,9 @@ mod tests {
         let manifest = ProjectManifest::parse(
             Path::new("lux.toml"),
             r#"
+            [target.gmod]
             source_root = "src"
-            addon_root = "addon"
+            out = "generated"
 
             [target.gmod.realm]
             unknown_external = "error"

@@ -52,18 +52,21 @@ Recommended generated Lua layout:
 ```text
 generated/
   lua/
-    lux/
-      shared/...
-      client/...
-      server/...
     autorun/
-      lux_<package>_init.lua
-      client/lux_<package>_cl_init.lua
-      server/lux_<package>_sv_init.lua
+      my_addon.lua
+    lux/
+      my-addon/
+        loader_shared.lua
+        loader_client.lua
+        loader_server.lua
+        shared/...
+        client/...
+        server/...
 ```
 
-The exact root can be configured, but generated files should stay separate from
-source files.
+The physical output root is configured with `out`. The generated runtime paths
+inside loader code are configured with `runtime_base`. Generated files should
+stay separate from source files.
 
 ## 4. Loader Rules
 
@@ -77,27 +80,35 @@ The backend should generate loader files from the module graph.
 
 ### Shared loader
 
-`lua/autorun/lux_<package>_init.lua` should generally:
+`<runtime_base>/loader_shared.lua` should generally:
 
+- call `AddCSLuaFile` for shared and client loaders
 - call `AddCSLuaFile` for shared modules
 - call `AddCSLuaFile` for client modules
 - include shared modules server-side
 
 ### Client loader
 
-`lua/autorun/client/lux_<package>_cl_init.lua` should:
+`<runtime_base>/loader_client.lua` should:
 
 - include shared modules client-side
 - include client modules client-side
 
 ### Server loader
 
-`lua/autorun/server/lux_<package>_sv_init.lua` should:
+`<runtime_base>/loader_server.lua` should:
 
 - include shared modules server-side when not already included by shared loader
 - include server modules server-side
 
 The exact duplication-avoidance strategy should be deterministic and tested.
+
+### Autorun forwarder
+
+When `autorun = true`, the backend additionally emits `autorun/<bundle>.lua`.
+That file is only a thin GMod addon entry point that includes the generated
+loaders. Setting `autorun = false` must not disable the Lux loader tree; it only
+means the project provides its own entry point.
 
 ## 5. Import Resolution
 
@@ -254,13 +265,13 @@ not an accidental side effect of compilation.
 Current implementation only builds a command plan equivalent to:
 
 ```text
-gmad.exe create -folder <addon-root> -out <output.gma>
+gmad.exe create -folder <package-root> -out <output.gma>
 ```
 
 The explicit package command is:
 
 ```powershell
-cargo run -- gmod package --manifest path\to\lux.toml --gmad path\to\gmad.exe --out dist\addon.gma
+cargo run -- gmod package --manifest path\to\lux.toml --root path\to\generated --gmad path\to\gmad.exe --out dist\addon.gma
 ```
 
 By default it prints the command after writing generated Lua. It only invokes
@@ -291,8 +302,8 @@ luxc compile examples\smoke.lux --map examples\smoke.lua.map.json
 luxc compile examples\smoke.lux --source-comments readable
 luxc compile examples\smoke.lux --source-comments dense
 luxc map-error examples\smoke.lua.map.json 42
-luxc gmod build src path\to\addon
-luxc gmod build src path\to\addon --dry-run
+luxc gmod build src --out path\to\generated\lua
+luxc gmod build src --out path\to\generated\lua --dry-run
 luxc gmod build --manifest path\to\lux.toml
 luxc gmod api update --out path\to\gmod_api.json --coverage-out path\to\coverage_manifest.json
 ```
@@ -300,10 +311,11 @@ luxc gmod api update --out path\to\gmod_api.json --coverage-out path\to\coverage
 Minimal manifest:
 
 ```toml
-[gmod]
+[target.gmod]
 source_root = "src"
-addon_root = "."
-generated_root = "generated"
+out = "generated/lua"
+runtime_base = "lux/my-addon"
+autorun = true
 source_comments = "readable"
 
 [target.gmod.realm]
