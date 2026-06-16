@@ -1818,7 +1818,7 @@ mod tests {
             output.diagnostics.iter().any(|diagnostic| {
                 diagnostic.code.as_deref() == Some("MACRO001")
                     && diagnostic.help.as_deref().is_some_and(|help| {
-                        help.contains("luxc install @lux/macros --from github:TimeWatcher/lux-std")
+                        help.contains("luxc install @lux/macros --from github:TimeWatcher/lux-packages")
                     })
             }),
             "{:#?}",

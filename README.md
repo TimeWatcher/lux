@@ -5,7 +5,6 @@
 **A compiler-first language for building Garry's Mod addons without loader
 spaghetti.**
 
-[![Release](https://img.shields.io/github/v/release/TimeWatcher/lux?label=release)](https://github.com/TimeWatcher/lux/releases)
 [![Docs](https://img.shields.io/badge/docs-online-2f6feb)](https://timewatcher.github.io/lux-docs-site/)
 [![Rust](https://img.shields.io/badge/compiler-Rust-f46623)](compiler/)
 [![Garry's Mod](https://img.shields.io/badge/target-Garry's%20Mod-1f6feb)](https://gmod.facepunch.com/)
@@ -13,10 +12,9 @@ spaghetti.**
 
 [Documentation](https://timewatcher.github.io/lux-docs-site/) ·
 [Quick Start](#quick-start) ·
-[Std Packages](https://github.com/TimeWatcher/lux-std) ·
+[Std Packages](https://github.com/TimeWatcher/lux-packages) ·
 [LSP](https://github.com/TimeWatcher/lux-lsp) ·
-[MGFX](https://github.com/TimeWatcher/lux-mgfx) ·
-[Releases](https://github.com/TimeWatcher/lux/releases)
+[MGFX](https://github.com/TimeWatcher/lux-mgfx)
 
 English · [简体中文](README.zh-CN.md)
 
@@ -102,33 +100,27 @@ optional access, nil coalescing, and exports that describe the real public API.
 
 ## Quick Start
 
-Download the latest Windows build from
-[Releases](https://github.com/TimeWatcher/lux/releases), unzip it, and run
-`luxc` directly:
-
-```text
-luxc-v0.1.0-x86_64-pc-windows-msvc/
-  luxc.exe
-```
-
-Run:
+No public binary release is currently active. Build `luxc` from source and run
+it directly while the alpha package and LSP layout is settling:
 
 ```powershell
-.\luxc.exe --help
-.\luxc.exe compile .\src\module.lux
+git clone https://github.com/TimeWatcher/lux.git
+cd lux\compiler
+cargo build --release
+.\target\release\luxc.exe --help
 ```
 
 Initialize a project without network access:
 
 ```powershell
-.\luxc.exe init .\my_addon
+.\target\release\luxc.exe init .\my_addon
 ```
 
 Install the official standard package set only when you need it:
 
 ```powershell
-.\luxc.exe init .\my_addon --std
-.\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
+.\target\release\luxc.exe init .\my_addon --std
+.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages --project .\my_addon
 ```
 
 Lux has no package registry. A dependency's source and version are selected by
@@ -140,7 +132,7 @@ a direct dependency.
 Build a GMod addon project:
 
 ```powershell
-.\luxc.exe gmod build --manifest .\lux.toml
+.\target\release\luxc.exe gmod build --manifest .\lux.toml
 ```
 
 A small GMod manifest:
@@ -185,7 +177,7 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 
 ```text
 compiler/        Rust implementation of luxc
-lsp/             Lux LSP, VS Code support, and GMod API intelligence standards
+lsp/             VS Code support and GMod API intelligence standards/data
 docs-site/       Public Lux documentation site, tracked as a submodule
 docs/            Design notes and implementation references
 examples/        Small Lux and GMod project examples
@@ -211,6 +203,7 @@ luxc remove <package-id> [--project <project-root>]
 luxc lock [project-root]
 luxc list [project-root]
 luxc doctor [project-root]
+luxc lsp
 luxc compile <path> [--map <path>] [--source-comments [none|readable|boundary|dense]]
 luxc map-error <map.json> <generated-line>
 luxc gmod build <source-root> --out <path> [--runtime-base <path>] [--no-autorun] [--dry-run]
@@ -234,9 +227,10 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 
 ## Status
 
-Lux is currently an early `0.1.0` compiler release. The language, package
-layout, and GMod backend are usable for experimentation and migration work, but
-the project should still be treated as pre-1.0.
+Lux is currently alpha software without an active public binary release. The
+language, package layout, LSP integration, and GMod backend are usable for
+experimentation and migration work, but the project should still be treated as
+pre-1.0.
 
 ## Contributing
 
@@ -260,13 +254,13 @@ MGFX lives in its own repository. Use the MGFX repo and docs links above when
 working on it.
 
 Official standard packages live in the separate
-[`lux-std`](https://github.com/TimeWatcher/lux-std) repository. Edit that
+[`lux-packages`](https://github.com/TimeWatcher/lux-packages) repository. Edit that
 repository directly and validate with compiler tests or a GMod project build
 that imports the changed package.
 
-Language server and VS Code support standards live in the `lsp` submodule. Edit
-that repository directly when working on editor integration, GMod API
-intelligence, hover, completion, diagnostics, or quick fixes.
+VS Code support standards and GMod API intelligence data live in the `lsp`
+submodule. The language server itself is provided by `luxc lsp`; edit the
+compiler when changing hover, completion, diagnostics, or quick fixes.
 
 ## License
 

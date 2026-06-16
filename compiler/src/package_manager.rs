@@ -12,7 +12,7 @@ use zip::ZipArchive;
 const PROJECT_MANIFEST: &str = "lux.toml";
 const PACKAGE_SET_MANIFEST: &str = "lux.package.toml";
 const LOCKFILE: &str = "lux.lock";
-pub const LUX_STD_REPO: &str = "TimeWatcher/lux-std";
+pub const LUX_STD_REPO: &str = "TimeWatcher/lux-packages";
 pub const LUX_STD_PACKAGE: &str = "@lux/std";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1457,7 +1457,7 @@ depends = ["@vendor/core >=0.1 <0.2"]
     #[test]
     fn std_dependency_source_targets_lux_std_repo() {
         let source = lux_std_source();
-        assert_eq!(source.stable_key(), "github:TimeWatcher/lux-std");
+        assert_eq!(source.stable_key(), "github:TimeWatcher/lux-packages");
 
         let mut manifest = ProjectDependencyManifest::default();
         manifest.set_dependency(LUX_STD_PACKAGE, &source);
@@ -1466,7 +1466,7 @@ depends = ["@vendor/core >=0.1 <0.2"]
         manifest.write(&path).expect("write manifest");
         let text = fs::read_to_string(&path).expect("manifest text");
         assert!(
-            text.contains("\"@lux/std\" = { github = \"TimeWatcher/lux-std\" }"),
+            text.contains("\"@lux/std\" = { github = \"TimeWatcher/lux-packages\" }"),
             "{text}"
         );
         let _ = fs::remove_dir_all(path.parent().expect("parent"));
