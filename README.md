@@ -212,7 +212,7 @@ sources can be pinned with `tag`, `branch`, or `commit`, and `lux.lock` records
 the resolved package graph.
 
 Official standard packages live in
-[`TimeWatcher/lux-std`](https://github.com/TimeWatcher/lux-std).
+[`TimeWatcher/lux-packages`](https://github.com/TimeWatcher/lux-packages).
 
 ## Quick Start
 
@@ -241,7 +241,9 @@ Create a project with the standard package setup:
 Install the official GMod package:
 
 ```powershell
-.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project ..\my_addon
+Push-Location ..\my_addon
+..\lux\compiler\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages
+Pop-Location
 ```
 
 Build for Garry's Mod:
@@ -315,7 +317,7 @@ What works today:
 - [Packages](https://timewatcher.github.io/lux-docs-site/packages/)
 - [GMod backend](https://timewatcher.github.io/lux-docs-site/gmod/)
 - [VS Code and LSP](https://timewatcher.github.io/lux-docs-site/reference/vscode)
-- [Standard packages](https://github.com/TimeWatcher/lux-std)
+- [Standard packages](https://github.com/TimeWatcher/lux-packages)
 - [LSP and VS Code](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX](https://github.com/TimeWatcher/lux-mgfx)
 

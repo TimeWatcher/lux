@@ -422,24 +422,12 @@ pub fn analyze_file_map(
         finalize_analyzed_module(&config, module, &mut diagnostics);
     }
 
-    let module_vec = modules.into_values().collect::<Vec<_>>();
-    let external_exports = runtime_external_exports(&config, &mut diagnostics);
-    let graph = match build_analysis_graph(&module_vec, external_exports.clone()) {
-        Ok(graph) => Some(graph),
-        Err(graph_diagnostics) => {
-            diagnostics.extend(graph_diagnostics);
-            None
-        }
-    };
-
-    let mut analysis = ProjectAnalysis {
+    let mut analysis = assemble_analysis(
         config,
-        files: source_files,
-        modules: module_vec,
-        graph,
-        external_exports,
+        source_files,
+        modules.into_values().collect(),
         diagnostics,
-    };
+    );
     add_call_signature_diagnostics(&mut analysis);
     Ok(analysis)
 }
@@ -561,10 +549,16 @@ impl AnalysisWorkspace {
         &mut self,
         affected_modules: &BTreeSet<ModuleId>,
     ) -> Result<(), AnalysisError> {
+        let project_module_ids = self
+            .files
+            .values()
+            .map(|file| file.module_id.clone())
+            .collect::<BTreeSet<_>>();
         let mut existing_modules = self
             .analysis
             .modules
             .iter()
+            .filter(|module| project_module_ids.contains(&module.id))
             .cloned()
             .map(|module| (module.id.clone(), module))
             .collect::<BTreeMap<_, _>>();
@@ -594,23 +588,12 @@ impl AnalysisWorkspace {
             }
         }
 
-        let module_vec = existing_modules.into_values().collect::<Vec<_>>();
-        let external_exports = runtime_external_exports(&self.config, &mut unaffected_diagnostics);
-        let graph = match build_analysis_graph(&module_vec, external_exports.clone()) {
-            Ok(graph) => Some(graph),
-            Err(graph_diagnostics) => {
-                unaffected_diagnostics.extend(graph_diagnostics);
-                None
-            }
-        };
-        let mut analysis = ProjectAnalysis {
-            config: self.config.clone(),
-            files: source_files_from_cache(&self.files),
-            modules: module_vec,
-            graph,
-            external_exports,
-            diagnostics: unaffected_diagnostics,
-        };
+        let mut analysis = assemble_analysis(
+            self.config.clone(),
+            source_files_from_cache(&self.files),
+            existing_modules.into_values().collect(),
+            unaffected_diagnostics,
+        );
         add_call_signature_diagnostics(&mut analysis);
         self.analysis = analysis;
         Ok(())
@@ -973,7 +956,7 @@ impl ProjectAnalysis {
         self.modules
             .iter()
             .map(|module| CompletionCandidate {
-                label: module.module_path.clone(),
+                label: import_source_label_for_module(module),
                 kind: CompletionCandidateKind::Module,
                 detail: Some(module.id.as_str().to_string()),
                 documentation: Some(format!("Lux module `{}`", module.id)),
@@ -1094,24 +1077,26 @@ impl ProjectAnalysis {
             return Vec::new();
         };
         let source_label = raw_source.to_string();
-        if let Some(exports) = self.external_exports.get(&target_id) {
-            return exports
-                .iter()
-                .filter(|export| export.realms.contains_all(active_realms))
-                .map(|export| CompletionCandidate {
-                    label: export.name.clone(),
-                    kind: CompletionCandidateKind::Reference,
-                    detail: Some(format!(
-                        "{} from `{}`",
-                        export.realms.display_name(),
-                        source_label
-                    )),
-                    documentation: Some(format!("Exported by runtime package `{source_label}`")),
-                    source: Some(source_label.clone()),
-                })
-                .collect();
-        }
         let Some(target_module) = self.modules.iter().find(|module| module.id == target_id) else {
+            if let Some(exports) = self.external_exports.get(&target_id) {
+                return exports
+                    .iter()
+                    .filter(|export| export.realms.contains_all(active_realms))
+                    .map(|export| CompletionCandidate {
+                        label: export.name.clone(),
+                        kind: CompletionCandidateKind::Reference,
+                        detail: Some(format!(
+                            "{} from `{}`",
+                            export.realms.display_name(),
+                            source_label
+                        )),
+                        documentation: Some(format!(
+                            "Exported by runtime package `{source_label}`"
+                        )),
+                        source: Some(source_label.clone()),
+                    })
+                    .collect();
+            }
             return Vec::new();
         };
         importable_exports_from_module(target_module, &source_label, active_realms)
@@ -1389,6 +1374,111 @@ fn collect_file_map(
         map.insert(file.path, file.text);
     }
     Ok(map)
+}
+
+fn assemble_analysis(
+    config: AnalysisConfig,
+    mut source_files: Vec<SourceFile>,
+    mut modules: Vec<AnalyzedModule>,
+    mut diagnostics: Vec<Diagnostic>,
+) -> ProjectAnalysis {
+    let external_exports =
+        match RuntimePackageRegistry::load_default_with_package_roots(&config.package_roots) {
+            Ok(runtime_registry) => {
+                let mut exports = BTreeMap::new();
+                for (id, package) in runtime_registry.packages() {
+                    exports.insert(id.clone(), package.exports.clone());
+                    source_files.extend(package.source_files());
+                    modules.push(analyzed_runtime_package(id.clone(), package));
+                }
+                exports
+            }
+            Err(err) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "failed to load Lux runtime package metadata: {err}"
+                )));
+                BTreeMap::new()
+            }
+        };
+    let graph = match build_analysis_graph(&modules, external_exports.clone()) {
+        Ok(graph) => Some(graph),
+        Err(graph_diagnostics) => {
+            diagnostics.extend(graph_diagnostics);
+            None
+        }
+    };
+    ProjectAnalysis {
+        config,
+        files: source_files,
+        modules,
+        graph,
+        external_exports,
+        diagnostics,
+    }
+}
+
+fn analyzed_runtime_package(
+    id: ModuleId,
+    package: &crate::runtime::RuntimePackage,
+) -> AnalyzedModule {
+    let package_id = PackageId::new(id.as_str());
+    AnalyzedModule {
+        id,
+        package_id,
+        module_path: String::new(),
+        parts: package
+            .source_parts()
+            .map(|part| AnalyzedPart {
+                path: part.path.to_path_buf(),
+                default_realm: part.default_realm,
+                module: part.module.clone(),
+                source_file: part.source_file.clone(),
+            })
+            .collect(),
+        resolved: package.resolved.clone(),
+        exports: package.exports.clone(),
+        imports: module_imports_for_runtime_package(package),
+    }
+}
+
+fn module_imports_for_runtime_package(
+    package: &crate::runtime::RuntimePackage,
+) -> Vec<ModuleImport> {
+    package
+        .resolved
+        .module_edges
+        .iter()
+        .filter_map(|edge| {
+            let target = if let Some(external) = edge.source.strip_prefix('@') {
+                ModuleId::new(external)
+            } else {
+                return None;
+            };
+            let active_realms = if edge.side_effect_only {
+                RealmSet::SHARED
+            } else {
+                RealmSet::NONE
+            };
+            Some(ModuleImport {
+                raw_source: edge.source.clone(),
+                target,
+                specifiers: edge
+                    .specifiers
+                    .iter()
+                    .map(|specifier| ModuleImportSpecifier {
+                        imported: specifier.imported.clone(),
+                        local: specifier.local.clone(),
+                        namespace: specifier.namespace,
+                        active_realms: specifier.active_realms,
+                        span: specifier.span,
+                    })
+                    .collect(),
+                side_effect_only: edge.side_effect_only,
+                active_realms,
+                span: edge.span,
+            })
+        })
+        .collect()
 }
 
 fn load_source_root_files(
@@ -2782,21 +2872,6 @@ fn build_analysis_graph(
     )
 }
 
-fn runtime_external_exports(
-    config: &AnalysisConfig,
-    diagnostics: &mut Vec<Diagnostic>,
-) -> BTreeMap<ModuleId, Vec<ModuleExport>> {
-    match RuntimePackageRegistry::load_default_with_package_roots(&config.package_roots) {
-        Ok(runtime_registry) => runtime_registry.export_metadata(),
-        Err(err) => {
-            diagnostics.push(Diagnostic::error(format!(
-                "failed to load Lux runtime package metadata: {err}"
-            )));
-            BTreeMap::new()
-        }
-    }
-}
-
 fn import_source_for_module(
     current_module: &AnalyzedModule,
     target_module: &AnalyzedModule,
@@ -2805,6 +2880,14 @@ fn import_source_for_module(
         target_module.module_path.clone()
     } else {
         format!("@{}", target_module.id.as_str())
+    }
+}
+
+fn import_source_label_for_module(module: &AnalyzedModule) -> String {
+    if module.module_path.is_empty() {
+        format!("@{}", module.id.as_str())
+    } else {
+        module.module_path.clone()
     }
 }
 
@@ -3114,6 +3197,69 @@ mod tests {
                 .diagnostics
                 .iter()
                 .any(|diagnostic| diagnostic.code.as_deref() == Some("MODULE001")),
+            "{:#?}",
+            output.diagnostics
+        );
+        let _ = std::fs::remove_dir_all(std_root);
+    }
+
+    #[test]
+    fn function_metadata_crosses_installed_runtime_packages() {
+        let std_root = crate::test_support::test_std_package_root();
+        let root = std::path::PathBuf::from("src");
+        let hud_path = root.join("client/ui.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![std_root.clone()]),
+            [AnalysisFile {
+                path: hud_path.clone(),
+                text: "import { signal } from \"@lux/reactive\"\nfn mount() = signal(0, 1)".into(),
+            }],
+        )
+        .expect("analysis");
+
+        let offset = output
+            .offset_for_position(&hud_path, 1, "fn mount() = signal".len())
+            .expect("offset");
+        let symbol = output
+            .symbol_at_path_offset(&hud_path, offset)
+            .expect("symbol");
+        let signature = symbol.signature.as_ref().expect("signature");
+        assert_eq!(signature.label, "signal(value)");
+        assert_eq!(signature.module_id.as_str(), "lux/reactive");
+        assert!(
+            symbol
+                .definition_path
+                .as_ref()
+                .is_some_and(|path| path.ends_with("lux/reactive/src/module.lux")),
+            "{:?}",
+            symbol.definition_path
+        );
+        let definition_span = symbol.definition_span.expect("definition span");
+        let definition_file = output.file_by_id(definition_span.file_id).expect("file");
+        assert_eq!(definition_file.slice(definition_span), "signal");
+
+        let hover = output
+            .hover_markdown_at_path_offset(&hud_path, offset)
+            .expect("hover");
+        assert!(hover.contains("**Signature:** `signal(value)`"), "{hover}");
+        assert!(hover.contains("**Defined in:** `lux/reactive`"), "{hover}");
+
+        let help_offset = output
+            .offset_for_position(&hud_path, 1, "fn mount() = signal(".len())
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&hud_path, help_offset)
+            .expect("signature help");
+        assert_eq!(help.signature.label, "signal(value)");
+        assert_eq!(help.active_parameter, 0);
+
+        assert!(
+            output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("CALL001")
+                    && diagnostic.message == "`signal` expects 1 argument, got 2"
+            }),
             "{:#?}",
             output.diagnostics
         );

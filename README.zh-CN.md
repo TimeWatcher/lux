@@ -205,7 +205,7 @@ path。GitHub 来源可以用 `tag`、`branch` 或 `commit` 固定，`lux.lock` 
 package graph。
 
 官方标准包位于
-[`TimeWatcher/lux-std`](https://github.com/TimeWatcher/lux-std)。
+[`TimeWatcher/lux-packages`](https://github.com/TimeWatcher/lux-packages)。
 
 ## 快速开始
 
@@ -233,7 +233,9 @@ cargo build --release
 安装官方 GMod package：
 
 ```powershell
-.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project ..\my_addon
+Push-Location ..\my_addon
+..\lux\compiler\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages
+Pop-Location
 ```
 
 构建 Garry's Mod 输出：
@@ -305,7 +307,7 @@ Lux 是 alpha 软件。语言、package 布局、LSP 集成和 GMod 后端已经
 - [包管理](https://timewatcher.github.io/lux-docs-site/zh/packages/)
 - [GMod 后端](https://timewatcher.github.io/lux-docs-site/zh/gmod/)
 - [VS Code 和 LSP](https://timewatcher.github.io/lux-docs-site/zh/reference/vscode)
-- [标准包](https://github.com/TimeWatcher/lux-std)
+- [标准包](https://github.com/TimeWatcher/lux-packages)
 - [LSP 和 VS Code](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX](https://github.com/TimeWatcher/lux-mgfx)
 

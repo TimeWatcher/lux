@@ -1226,7 +1226,7 @@ fn package_init(options: InitOptions) -> Result<ExitCode, String> {
     init_project(&options).map_err(|err| err.to_string())?;
     println!("initialized Lux project at {}", options.root.display());
     if options.install_std {
-        println!("installed @lux/std from github:TimeWatcher/lux-std");
+        println!("installed @lux/std from github:TimeWatcher/lux-packages");
     }
     Ok(ExitCode::SUCCESS)
 }

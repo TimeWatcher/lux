@@ -3950,6 +3950,31 @@ mod tests {
         assert!(all_exports.iter().any(|candidate| {
             candidate.label == "mount" && candidate.source.as_deref() == Some("@vendor/ui")
         }));
+        let offset = analysis
+            .offset_for_position(&source, 1, "mount".len())
+            .expect("offset");
+        let symbol = analysis
+            .symbol_at_path_offset(&source, offset)
+            .expect("symbol");
+        assert!(
+            symbol
+                .definition_path
+                .as_ref()
+                .is_some_and(|path| path.ends_with("package-set/packages/vendor_ui/src/module.lux")),
+            "{:?}",
+            symbol.definition_path
+        );
+        let hover = analysis
+            .hover_markdown_at_path_offset(&source, offset)
+            .expect("hover");
+        assert!(hover.contains("**Signature:** `mount()`"), "{hover}");
+        let signature_help = analysis
+            .signature_help_at_path_offset(
+                &source,
+                "import { mount } from \"@vendor/ui\"\nmount(".len(),
+            )
+            .expect("signature help");
+        assert_eq!(signature_help.signature.label, "mount()");
 
         let _ = std::fs::remove_dir_all(root);
     }

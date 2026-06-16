@@ -18,7 +18,7 @@ pub fn test_std_package_root() -> PathBuf {
     fs::write(
         root.join("lux.package.toml"),
         r#"
-name = "lux-std-test"
+name = "lux-packages-test"
 
 [[package]]
 id = "@lux/std"

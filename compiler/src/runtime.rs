@@ -125,6 +125,10 @@ impl RuntimePackageRegistry {
         self.packages.get(id)
     }
 
+    pub fn packages(&self) -> impl Iterator<Item = (&ModuleId, &RuntimePackage)> {
+        self.packages.iter()
+    }
+
     pub fn dependency_closure(
         &self,
         roots: impl IntoIterator<Item = ModuleId>,
@@ -180,7 +184,7 @@ pub struct RuntimePackage {
     pub path: PathBuf,
     pub source_dir: PathBuf,
     parts: Vec<RuntimeSourcePart>,
-    resolved: ResolveOutput,
+    pub resolved: ResolveOutput,
     pub exports: Vec<ModuleExport>,
     pub imports: Vec<ModuleId>,
 }
@@ -232,6 +236,23 @@ impl RuntimePackage {
             .map(|part| part.source_file.clone())
             .collect()
     }
+
+    pub fn source_parts(&self) -> impl Iterator<Item = RuntimePackageSourcePart<'_>> {
+        self.parts.iter().map(|part| RuntimePackageSourcePart {
+            path: &part.path,
+            source_file: &part.source_file,
+            module: &part.module,
+            default_realm: part.default_realm,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RuntimePackageSourcePart<'a> {
+    pub path: &'a Path,
+    pub source_file: &'a SourceFile,
+    pub module: &'a Module,
+    pub default_realm: Realm,
 }
 
 #[derive(Debug)]
