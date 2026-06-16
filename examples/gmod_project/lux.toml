@@ -4,3 +4,7 @@ out = "generated/lua"
 runtime_base = "lux/gmod_project"
 autorun = true
 source_comments = "boundary"
+
+[dependencies]
+"@lux/gmod" = { github = "TimeWatcher/lux-packages" }
+"@lux/std" = { github = "TimeWatcher/lux-packages" }

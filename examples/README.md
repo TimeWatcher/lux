@@ -65,6 +65,10 @@ Regenerate the GMod output snapshot:
 
 ```powershell
 cd C:\development\gmod\lux\compiler
+Push-Location ..\examples\gmod_project
+cargo run --manifest-path ..\..\compiler\Cargo.toml -- install @lux/std --from github:TimeWatcher/lux-packages
+cargo run --manifest-path ..\..\compiler\Cargo.toml -- install @lux/gmod --from github:TimeWatcher/lux-packages
+Pop-Location
 cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml
 ```
 
