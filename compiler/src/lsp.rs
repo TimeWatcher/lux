@@ -50,8 +50,12 @@ pub fn run() -> Result<(), String> {
     let initialize_params: InitializeParams = serde_json::from_value(initialize_params)
         .map_err(|err| format!("invalid initialize params: {err}"))?;
 
-    let mut server = Server::new(connection, initialize_params);
-    server.event_loop()?;
+    // Drop the connection before joining stdio threads; otherwise the writer
+    // side stays alive after shutdown/exit and the process can hang.
+    {
+        let mut server = Server::new(connection, initialize_params);
+        server.event_loop()?;
+    }
     io_threads
         .join()
         .map_err(|err| format!("stdio thread failed: {err:?}"))?;
@@ -3538,7 +3542,7 @@ mod tests {
         path_to_url, resolve_typed_method_path, server_capabilities, signature_help_at,
     };
     use super::{
-        CompletionContext, active_manifest, analysis_config, completion_context,
+        CompletionContext, Server, active_manifest, analysis_config, completion_context,
         encode_semantic_tokens, url_to_path,
     };
     use crate::analysis::{
@@ -3551,11 +3555,12 @@ mod tests {
     use crate::source::{SourceFile, SourceSpan};
     use gmod_api_db::ApiIndex;
     use lsp_types::{
-        CompletionItemKind, Documentation, InsertTextFormat, SemanticToken,
+        CompletionItemKind, Documentation, InitializeParams, InsertTextFormat, SemanticToken,
         TextDocumentContentChangeEvent,
     };
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use std::time::Duration;
 
     fn temp_root(name: &str) -> PathBuf {
         std::env::temp_dir().join(format!(
@@ -3593,6 +3598,48 @@ mod tests {
         assert!(value.get("semanticTokensProvider").is_some());
         assert!(value.get("executeCommandProvider").is_none());
         assert!(value.get("capabilities").is_none());
+    }
+
+    #[test]
+    fn event_loop_exits_after_shutdown_exit_sequence() {
+        let root = temp_root("shutdown_exit");
+        std::fs::create_dir_all(&root).expect("root");
+        let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+            "processId": null,
+            "rootUri": path_to_url(&root).expect("root uri"),
+            "capabilities": {}
+        }))
+        .expect("initialize params");
+        let (server_connection, client_connection) = lsp_server::Connection::memory();
+        client_connection
+            .sender
+            .send(lsp_server::Message::Request(lsp_server::Request::new(
+                lsp_server::RequestId::from(1),
+                "shutdown".to_string(),
+                (),
+            )))
+            .expect("send shutdown");
+        client_connection
+            .sender
+            .send(lsp_server::Message::Notification(
+                lsp_server::Notification::new("exit".to_string(), ()),
+            ))
+            .expect("send exit");
+
+        let mut server = Server::new(server_connection, initialize);
+        server.event_loop().expect("event loop");
+
+        let response = client_connection
+            .receiver
+            .recv_timeout(Duration::from_secs(1))
+            .expect("shutdown response");
+        let lsp_server::Message::Response(response) = response else {
+            panic!("expected shutdown response");
+        };
+        assert_eq!(response.id, lsp_server::RequestId::from(1));
+        assert!(response.error.is_none());
+
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]
