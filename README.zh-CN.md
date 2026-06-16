@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="images/hero.png" alt="Lux - 面向 Garry's Mod addon 开发的现代语言和 GLua 工具链" width="100%">
+  <img src="images/hero.png" alt="Lux - 面向 Garry's Mod 的 compiler-first 语言和 GLua 工具链" width="100%">
 </p>
 
 <h1 align="center">Lux</h1>
 
 <p align="center">
-  <strong>面向 Garry's Mod addon 开发的现代语言和 compiler-first 工具链。</strong>
+  <strong>一个文件时提供更好的 GLua 语法；项目变大后，由编译器接管 Garry's Mod 工程结构。</strong>
 </p>
 
 <p align="center">
-  用更有表达力的 Lux 写源码，编译成可读 GLua，把模块、realm、loader、source map、diagnostics、package 和编辑器智能交给编译器处理。
+  Lux 是面向 Garry's Mod 的开源语言层和工具链。它离线编译成普通、可读的 GLua / Lua 5.1，同时提供 nil-safe 表达式、真实模块、client/server/shared 归属、生成式 GMod loader、source map、无 registry 包系统和编译器驱动的编辑器诊断。
 </p>
 
 <p align="center">
@@ -17,9 +17,11 @@
   ·
   <a href="#快速开始">快速开始</a>
   ·
-  <a href="#语法预览">语法预览</a>
+  <a href="#一个文件">一个文件</a>
   ·
-  <a href="#gmod-工具链">GMod 工具链</a>
+  <a href="#gmod-项目">GMod 项目</a>
+  ·
+  <a href="#包系统">包系统</a>
   ·
   <a href="README.md">English</a>
 </p>
@@ -33,26 +35,116 @@
 
 ---
 
-## 为什么用 Lux?
+## Lux 是什么
 
-GLua 很强，但真实 Garry's Mod 项目很快会遇到同一批结构问题：全局变量泄漏成意外
-API，`include` 顺序变成经验规则，客户端/服务端/shared 边界逐渐漂移，生成 Lua 的
-报错很难定位回源意图，编辑器也只能靠纯文本猜测。
+Lux 不是 runtime framework。它不替代 Garry's Mod、GLua 或你已经在用的 API。
 
-Lux 保留 Lua / GLua 的手感，但把项目结构交给编译器。
+它是 compiler-first 的源码层：
 
-你写 Lux。Lux 输出普通、可检查的 GLua。
+```text
+Lux source
+  -> luxc
+  -> readable GLua / Lua 5.1
+  -> normal Garry's Mod files
+```
 
-| GLua 项目里的痛点 | Lux 的处理方式 |
+Lux 可以以两种规模使用：
+
+```text
+one Lux file
+  -> 更安全、更有表达力的 GLua 形状语法
+  -> 输出普通 Lua
+
+GMod project
+  -> module、import、export、realm、package
+  -> 生成 loader tree 和 source map
+  -> 编译器驱动的 LSP diagnostics
+```
+
+输出仍然是可检查的 Lua。已有 GLua、Facepunch API、第三方库、gamemode 和手写入口仍然可以负责运行时行为。
+
+## Lux 解决什么
+
+真实 GMod 代码通常会遇到同一批结构问题。Lux 把这些规则放进语言和编译器，而不是留在项目经验里。
+
+| GLua 项目里的问题 | Lux 的处理方式 |
 | --- | --- |
-| helper 泄漏成全局变量 | 模块默认私有，公开 API 必须显式 `export` |
-| `AddCSLuaFile` 和 `include` 顺序变成项目传说 | realm 是语言模型的一部分，GMod loader 由编译器生成 |
-| client/server/shared 代码容易混错 | `client`、`server`、`shared` 声明会被检查 |
-| 大 addon 需要更强表达力 | `fn`、guard、enum、`match`、可选访问、`??`、箭头函数、导入导出 |
-| 生成代码或运行时报错难追踪 | source map 把输出位置映射回 Lux 源码 |
-| 编辑器只能猜 Lua 文本 | `luxc lsp` 使用和构建相同的 parser、resolver、package graph 和 realm checker |
+| helper 悄悄变成全局变量 | 模块默认私有，公开 API 必须显式声明 |
+| `include` 顺序和 `AddCSLuaFile` 调用变脆 | 编译器生成 loader tree |
+| client、server、shared 归属随时间漂移 | `client`、`server`、`shared` 是会被检查的源码声明 |
+| player/entity/UI 等可选状态容易造成 nil 崩溃 | `?:` 和 `??` 直接表达可选数据 |
+| `condition and a or b` 在 `a` 为 `false` 时出错 | `then ... else ...` 是真正的条件表达式 |
+| 生成 Lua 的错误很难追回源码 | source map 和 source comment 保留源码意图 |
+| 编辑器只能猜纯文本 | `luxc lsp` 使用编译器 parser、resolver、package graph 和 realm model |
 
-## 语法预览
+## 值得存在的语法
+
+Lux 保持接近 Lua，但补上 GLua 常见模式真正需要的表达能力。
+
+### 真正的条件表达式
+
+Lua 的伪三元写法在中间值可能为 `false` 时并不安全：
+
+```lua
+local enabled = shouldEnable() and false or true
+-- enabled becomes true
+```
+
+Lux 明确写出分支：
+
+```lux
+local enabled = shouldEnable() then false else true
+```
+
+### 只对 nil fallback
+
+只有 `nil` 应该 fallback 时使用 `??`。`false` 仍然是有效值。
+
+```lux
+local title = panelTitle ?? "Untitled"
+local visible = config.visible ?? true
+```
+
+### Nil-Safe 访问
+
+可选数据访问保持可见，不需要把每一行都写成嵌套检查。
+
+```lux
+local name = player?:Nick() ?? "unknown"
+local owner = weapon?:GetOwner()?:Nick() ?? "no owner"
+```
+
+这不替代 `IsValid` 检查。它解决的是数据本来就可能缺失时的 nil-indexing 问题。
+
+### Guard 和 Callback
+
+```lux
+stopifn valid.is(player)
+stopifn data.items
+
+arr.map(players, (player, index) => playerLine(player, index))
+```
+
+早退出和小 callback 不再需要比实际逻辑更重的语法噪音。
+
+### Enum 和 Match
+
+```lux
+enum HudMode repr string {
+  Compact = "compact",
+  Detailed = "detailed"
+}
+
+fn title(mode) =
+  match mode {
+    HudMode.Compact => "HUD"
+    HudMode.Detailed => "Detailed HUD"
+  }
+```
+
+HUD、武器、实体、UI route、网络消息和 parser 这类状态重的代码，可以把状态名称和状态行为放在一起。
+
+## 写起来是什么样
 
 ```lux
 extern client drawHud
@@ -95,76 +187,64 @@ client fn paintHud(players, mode = HudMode.Compact) {
 export client { paintHud }
 ```
 
-Lux 仍然接近 Lua，但编译器理解更多 addon 结构：
+编译器理解 function、guard、enum、match expression、optional access、nil fallback、callback、import、export 和 client/server/shared 归属。
 
-- `fn` 声明，支持 block 或 expression body
-- `stopif` / `stopifn` 风格的 guard exit
-- `enum` 和 `match` 描述显式状态
-- `?:` 可选访问和 `??` nil fallback
-- 箭头函数用于 callback
-- 显式 import / export
-- `client fn` 这样的 realm-aware 声明
+## 一个文件
 
-## GMod 工具链
-
-Lux 不是 runtime framework。它不替代 Garry's Mod、GLua 或你已经在用的 API。
-
-它是离线 compiler 和项目工具链。
-
-```text
-Lux source
-   |
-   v
-luxc gmod build
-   |
-   +- 解析模块和 package
-   +- 检查 client/server/shared realm
-   +- 生成 GMod loader tree
-   +- 输出可读 GLua
-   +- 写出 source map
-   |
-   v
-generated/lua/
-   +- autorun/          可选 addon forwarder
-   +- lux/<bundle>/     生成 loader 和 module artifact
-   +- *.lua.map.json    source map
-```
-
-输出是普通 GLua/Lua 5.1，可以检查、调试并随 addon 发布。如果已有 gamemode、框架或
-手写 Lua 入口负责启动，设置 `autorun = false` 或传 `--no-autorun`；Lux 仍然会生成
-loader tree。
-
-## 核心能力
-
-### 现代语法，Lua 形状
-
-- `fn` function
-- block 和 expression body
-- guard statement
-- arrow callback
-- optional access
-- nil coalescing
-- template string
-- destructuring
-- table spread
-- pipeline
-- enum
-- checked `match`
-
-### 显式模块
-
-Lux 模块默认私有。公开 API 要主动声明。
+Lux 可以作为单文件语法升级使用。你不需要 package graph、生成式 addon 布局或 autorun 入口，才能获得语言改进。
 
 ```lux
-fn normalizeHealth(hp) =
-  hp < 0 then 0 else hp > 100 then 100 else hp
+client {
+  hook.Add("HUDPaint", "ExampleHud", () => drawHud())
+}
 
-export { normalizeHealth }
+server {
+  print("server-side setup")
+}
 ```
 
-### Realm-Aware 代码
+单文件编译会输出普通 Lua：
 
-client、server 和 shared 归属是源码模型的一部分。
+```powershell
+.\target\release\luxc.exe compile .\hud.lux
+```
+
+这个模式适合小脚本、实验、生成片段，或者在已有 GLua 旁边渐进迁移。
+
+## GMod 项目
+
+当源码树变大时，Lux 可以接管那些通常散落在目录约定和手写 loader glue 里的项目结构。
+
+项目模式提供：
+
+- 显式 import 和 export
+- 默认私有模块
+- 多 part module scope
+- `client`、`server`、`shared` 声明
+- realm-aware 校验
+- 生成 GMod loader tree
+- 可选 addon 风格 `autorun` forwarder
+- source map 和 source comment
+- package 解析
+- 编译器驱动的 LSP diagnostics
+
+你不再需要手写维护 loader 顺序：
+
+```lua
+if SERVER then
+  AddCSLuaFile("cl_hud.lua")
+  AddCSLuaFile("shared/state.lua")
+  include("shared/state.lua")
+  include("sv_data.lua")
+end
+
+if CLIENT then
+  include("shared/state.lua")
+  include("cl_hud.lua")
+end
+```
+
+而是在源码里写清归属：
 
 ```lux
 shared fn formatName(player) =
@@ -179,70 +259,33 @@ server fn logJoin(player) {
 }
 ```
 
-Lux 能推断声明属于哪个运行域，并生成 Garry's Mod 需要的 loader 结构。
+然后由 Lux 生成 GMod 侧需要的输出。
 
-### 编译器驱动的编辑器支持
+## GMod 输出模型
 
-`luxc lsp` 使用和构建相同的编译器模型提供编辑器能力：
+默认项目形态是 addon-oriented：`luxc init` 会写入 `autorun = true`。这意味着 Lux 会生成一个很薄的 `autorun` forwarder，用来 include 生成的 loader。
 
-- diagnostics
-- hover
-- completion
-- go to definition
-- signature help
-- formatting
-- semantic tokens
-- code actions
-- GMod API documentation
-
-VS Code 扩展刻意保持很薄：它只启动选中的 compiler 执行 `luxc lsp`，让编辑器行为和
-项目实际构建使用的 Lux 版本保持一致。
-
-### 无 Registry 包系统
-
-Lux 没有 package registry、镜像源或全局 latest 查询。依赖显式指向 GitHub、URL 或本地
-path。GitHub 来源可以用 `tag`、`branch` 或 `commit` 固定，`lux.lock` 记录解析后的
-package graph。
-
-官方标准包位于
-[`TimeWatcher/lux-packages`](https://github.com/TimeWatcher/lux-packages)。
-
-## 快速开始
-
-Lux 当前是 alpha 软件，没有有效的公开二进制 release；请先从源码构建 `luxc`。
-
-```powershell
-git clone https://github.com/TimeWatcher/lux.git
-cd lux\compiler
-cargo build --release
-.\target\release\luxc.exe --help
+```text
+generated/lua/
+  autorun/
+    my_addon.lua
+  lux/
+    my_addon/
+      loader_shared.lua
+      loader_client.lua
+      loader_server.lua
+      ...
+      *.lua.map.json
 ```
 
-创建不访问网络的项目：
+`--no-autorun` 或 `autorun = false` 只禁用这个薄 forwarder。它不代表“gamemode 模式”，也不会禁用生成的 loader tree。已有 gamemode、框架或手写 Lua 入口要自己 include Lux loader 时，才使用这个开关。
 
-```powershell
-.\target\release\luxc.exe init ..\my_addon
-```
+两个关键路径是：
 
-创建带标准包配置的项目：
+- `out`：磁盘上的物理输出根，通常是 `generated/lua`
+- `runtime_base`：生成 `include` 和 `AddCSLuaFile` 时使用的 GMod 相对基础路径
 
-```powershell
-.\target\release\luxc.exe init ..\my_addon --std
-```
-
-安装官方 GMod package：
-
-```powershell
-Push-Location ..\my_addon
-..\lux\compiler\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages
-Pop-Location
-```
-
-构建 Garry's Mod 输出：
-
-```powershell
-.\target\release\luxc.exe gmod build --manifest ..\my_addon\lux.toml
-```
+这样生成的 include 路径是相对且显式的，不假设所有项目都有同一种目录布局。
 
 最小 manifest：
 
@@ -253,40 +296,123 @@ bundle_id = "my_addon"
 [target.gmod]
 source_root = "src"
 out = "generated/lua"
-runtime_base = "lux/my-addon"
+runtime_base = "lux/my_addon"
 autorun = true
 source_comments = "boundary"
 
 [dependencies]
 ```
 
-`out` 是物理输出根。`runtime_base` 是生成 `include` 和 `AddCSLuaFile` 时使用的 GMod
-相对路径。`autorun` 只控制 `out/autorun` 下的 addon 风格 forwarder。
+## 包系统
+
+Lux 没有 package registry、镜像源或全局 latest 查询。依赖显式指向：
+
+- GitHub repository
+- URL
+- 本地 path
+
+GitHub 来源可以用 `tag`、`branch` 或 `commit` 固定，`lux.lock` 记录解析后的 package graph。
+
+普通 `luxc init` 刻意保持离线、无依赖。需要官方标准包时使用 `--std`：
+
+```powershell
+.\target\release\luxc.exe init ..\my_addon --std
+```
+
+官方包位于
+[`TimeWatcher/lux-packages`](https://github.com/TimeWatcher/lux-packages)。
+
+显式安装另一个官方 package：
+
+```powershell
+.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages --project ..\my_addon
+```
+
+## 编辑器工具
+
+`luxc lsp` 是 Lux language server。它建立在和 build 相同的编译器模型上，所以编辑器行为跟随项目实际使用的 Lux 版本。
+
+当前编辑器能力包括：
+
+- diagnostics
+- hover
+- completion
+- go to definition
+- signature help
+- formatting
+- semantic tokens
+- code actions
+- GMod API intelligence
+- 来自 `lux.lock` 的 package source analysis
+
+VS Code 扩展刻意保持很薄：它启动配置的 compiler 执行 `luxc lsp`，并处理编辑器 UI。不存在需要和 compiler 单独同步的 LSP 二进制。
+
+## 快速开始
+
+Lux 当前是 alpha 软件，没有有效的公开二进制 release；请先从源码构建 `luxc`：
+
+```powershell
+git clone https://github.com/TimeWatcher/lux.git
+cd lux\compiler
+cargo build --release
+
+$Luxc = Resolve-Path .\target\release\luxc.exe
+& $Luxc --help
+```
+
+创建离线、无依赖项目：
+
+```powershell
+& $Luxc init ..\my_addon
+```
+
+或创建已经安装并 lock `@lux/std` 的项目：
+
+```powershell
+& $Luxc init ..\my_addon --std
+```
+
+添加官方 GMod package：
+
+```powershell
+& $Luxc install @lux/gmod --from github:TimeWatcher/lux-packages --project ..\my_addon
+```
+
+构建 GMod 输出：
+
+```powershell
+& $Luxc gmod build --manifest ..\my_addon\lux.toml
+```
+
+如果你 clone 了一个有依赖但没有 `lux.lock` 的 example 或项目，构建前先执行 install 或 lock：
+
+```powershell
+& $Luxc lock ..\my_addon
+```
 
 ## 什么时候适合用 Lux
 
-Lux 适合：
+适合在这些情况下使用 Lux：
 
-- 新 Garry's Mod addon
-- client/server/shared 结构逐渐变复杂的 gamemode
-- 需要私有模块和显式公开 API 的 addon
-- 想要更好编辑器诊断的项目
-- 在已有 GLua 旁边渐进迁移
-- loader 顺序已经难以维护的代码库
+- 想要更好的 GLua 形状语法，即使只有一个文件
+- player、entity、weapon、UI、config、hook-time state 需要 nil-safe optional access
+- 希望用显式 module API 替代意外全局变量
+- 需要检查 client/server/shared 归属
+- 想生成 loader 结构，但仍保留可读 Lua 输出
+- 需要 source map 追踪生成代码
+- 需要编译器驱动的编辑器诊断和跳转
+- 希望在已有 GLua 旁边渐进迁移
 
-Lux 未必适合：
-
-- 很小的单文件脚本
-- 一次性测试片段
-- 普通 GLua 已经足够的 addon
+对于一次性小片段，或者不能接受 build step 的项目，普通 GLua 仍然可能足够。
 
 ## 状态
 
-Lux 是 alpha 软件。语言、package 布局、LSP 集成和 GMod 后端已经可以用于实验和迁移，
-但在工具链稳定前仍然会有 breaking changes。
+Lux 是 alpha 软件。语言、package 布局、LSP 集成和 GMod 后端已经可以用于实验和迁移，但在工具链稳定前仍然会有 breaking changes。
 
 当前可用：
 
+- 单文件编译
+- 现代 Lua 形状语法
 - 目录模块和多 part 共享词法作用域
 - `client`、`server`、`shared` 声明和代码块
 - 显式 `import` / `export`，并带 realm-aware 校验
@@ -337,8 +463,7 @@ Lux 使用拆分授权：
 - 文档中的代码示例使用 `MIT OR Apache-2.0`。
 - Lux 名称、logo、icon 和其他品牌资产不通过这些开源协议授权复用。
 
-使用 `luxc` 编译你的源码，不会改变你的 addon 或生成项目的授权。如果生成 Lua 嵌入了
-Lux runtime 或 package 代码，嵌入的 package 代码保留原授权。
+使用 `luxc` 编译你的源码，不会改变你的 addon 或生成项目的授权。如果生成 Lua 嵌入了 Lux runtime 或 package 代码，嵌入的 package 代码保留原授权。
 
 详见 [LICENSE](LICENSE)、[LICENSE-MIT](LICENSE-MIT)、
 [LICENSE-APACHE](LICENSE-APACHE)、[LICENSE-DOCS](LICENSE-DOCS) 和

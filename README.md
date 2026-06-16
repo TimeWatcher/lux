@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="images/hero.png" alt="Lux - modern language and GLua toolchain for Garry's Mod addon development" width="100%">
+  <img src="images/hero.png" alt="Lux - compiler-first language and GLua toolchain for Garry's Mod" width="100%">
 </p>
 
 <h1 align="center">Lux</h1>
 
 <p align="center">
-  <strong>A modern language and compiler-first toolchain for Garry's Mod addon development.</strong>
+  <strong>Better GLua syntax when you only need one file. Compiler-owned structure when your Garry's Mod project grows.</strong>
 </p>
 
 <p align="center">
-  Write expressive Lux source, compile to readable GLua, and let the compiler handle modules, realms, loaders, source maps, diagnostics, packages, and editor intelligence.
+  Lux is an open-source language layer and toolchain for Garry's Mod. It compiles offline to ordinary readable GLua / Lua 5.1 while adding nil-safe expressions, real modules, client/server/shared ownership, generated GMod loaders, source maps, registryless packages, and compiler-backed editor diagnostics.
 </p>
 
 <p align="center">
@@ -17,9 +17,11 @@
   ·
   <a href="#quick-start">Quick Start</a>
   ·
-  <a href="#syntax-preview">Syntax Preview</a>
+  <a href="#one-file">One File</a>
   ·
-  <a href="#gmod-toolchain">GMod Toolchain</a>
+  <a href="#gmod-projects">GMod Projects</a>
+  ·
+  <a href="#packages">Packages</a>
   ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
@@ -33,27 +35,123 @@
 
 ---
 
-## Why Lux?
+## What Lux Is
 
-GLua is powerful, but real Garry's Mod projects tend to grow the same sharp
-edges: globals become accidental API, `include` order becomes folklore, realm
-boundaries drift, generated Lua stack traces hide the original source, and
-editor tooling has to guess from plain text.
+Lux is not a runtime framework and it does not replace Garry's Mod, GLua, or the
+APIs you already use.
 
-Lux keeps the Lua/GLua feel, but moves project structure into a compiler.
+It is a compiler-first source layer:
 
-You write Lux. Lux emits ordinary, inspectable GLua.
+```text
+Lux source
+  -> luxc
+  -> readable GLua / Lua 5.1
+  -> normal Garry's Mod files
+```
 
-| GLua pain | Lux answer |
+You can use Lux in two sizes:
+
+```text
+one Lux file
+  -> safer, more expressive GLua-shaped syntax
+  -> printed as ordinary Lua
+
+GMod project
+  -> modules, imports, exports, realms, packages
+  -> generated loader tree and source maps
+  -> compiler-backed LSP diagnostics
+```
+
+The output remains inspectable Lua. Existing GLua, Facepunch APIs, third-party
+libraries, gamemodes, and hand-written entry points can still own runtime
+behavior.
+
+## What Lux Fixes
+
+Real GMod code tends to grow the same structural problems. Lux moves those
+rules into the language and compiler instead of leaving them as project lore.
+
+| In GLua projects | With Lux |
 | --- | --- |
-| Helpers leak into globals | Modules are private by default; exports are explicit |
-| `AddCSLuaFile` and `include` order becomes project lore | Realms are part of the language; GMod loaders are generated |
-| Client, server, and shared code are easy to mix incorrectly | `client`, `server`, and `shared` declarations are checked |
-| Large addons need more expressive syntax | `fn`, guards, enums, `match`, optional access, `??`, arrows, imports, exports |
-| Generated/runtime errors are hard to trace | Source maps map output locations back to Lux source |
-| Editor support guesses from loose Lua | `luxc lsp` uses the same parser, resolver, package graph, and realm checker as builds |
+| Helpers quietly become globals | Modules are private by default; public API is explicit |
+| `include` order and `AddCSLuaFile` calls become fragile | The compiler builds the loader tree |
+| Client, server, and shared ownership drifts over time | `client`, `server`, and `shared` are checked source declarations |
+| Optional player/entity/UI state creates nil crashes | `?:` and `??` express optional data directly |
+| `condition and a or b` breaks when `a` is `false` | `then ... else ...` is a real conditional expression |
+| Generated Lua errors are hard to map back | Source maps and source comments preserve source intent |
+| Editor support guesses from loose text | `luxc lsp` uses the compiler parser, resolver, package graph, and realm model |
 
-## Syntax Preview
+## Syntax That Pays Rent
+
+Lux stays close to Lua, but adds constructs that match common GLua patterns.
+
+### Real Conditional Expressions
+
+Lua's pseudo-ternary pattern is not safe when the middle value can be `false`:
+
+```lua
+local enabled = shouldEnable() and false or true
+-- enabled becomes true
+```
+
+Lux makes the branch explicit:
+
+```lux
+local enabled = shouldEnable() then false else true
+```
+
+### Nil-Only Fallback
+
+Use `??` when only `nil` should fall back. `false` remains a real value.
+
+```lux
+local title = panelTitle ?? "Untitled"
+local visible = config.visible ?? true
+```
+
+### Nil-Safe Access
+
+Optional data access stays visible without turning every line into nested
+checks.
+
+```lux
+local name = player?:Nick() ?? "unknown"
+local owner = weapon?:GetOwner()?:Nick() ?? "no owner"
+```
+
+This does not replace `IsValid` checks. It prevents ordinary nil-indexing bugs
+when data is genuinely optional.
+
+### Guards And Callbacks
+
+```lux
+stopifn valid.is(player)
+stopifn data.items
+
+arr.map(players, (player, index) => playerLine(player, index))
+```
+
+Early exits and small callbacks stay proportional to the work they do.
+
+### Enum And Match
+
+```lux
+enum HudMode repr string {
+  Compact = "compact",
+  Detailed = "detailed"
+}
+
+fn title(mode) =
+  match mode {
+    HudMode.Compact => "HUD"
+    HudMode.Detailed => "Detailed HUD"
+  }
+```
+
+State-heavy HUDs, weapons, entities, UI routes, network messages, and parsers
+can keep state names and state behavior together.
+
+## What It Looks Like
 
 ```lux
 extern client drawHud
@@ -96,78 +194,70 @@ client fn paintHud(players, mode = HudMode.Compact) {
 export client { paintHud }
 ```
 
-Lux stays close to Lua, but the compiler understands more of your addon:
+The compiler understands functions, guards, enums, match expressions, optional
+access, nil fallback, callbacks, imports, exports, and client/server/shared
+ownership.
 
-- `fn` declarations with block or expression bodies
-- guard-style exits with `stopif` and `stopifn`
-- `enum` and `match` for explicit state
-- optional access with `?:` and nil fallback with `??`
-- arrow functions for callbacks
-- explicit imports and exports
-- realm-aware declarations such as `client fn`
+## One File
 
-## GMod Toolchain
-
-Lux is not a runtime framework. It does not replace Garry's Mod, GLua, or the
-APIs you already use.
-
-It is an offline compiler and project toolchain.
-
-```text
-Lux source
-   |
-   v
-luxc gmod build
-   |
-   +- resolves modules and packages
-   +- checks client/server/shared realms
-   +- generates GMod loader trees
-   +- emits readable GLua
-   +- writes source maps
-   |
-   v
-generated/lua/
-   +- autorun/          optional addon forwarder
-   +- lux/<bundle>/     generated loaders and module artifacts
-   +- *.lua.map.json    source maps
-```
-
-The output is ordinary GLua/Lua 5.1 that can be inspected, debugged, and shipped
-with your addon. If an existing gamemode, framework, or hand-written Lua entry
-point owns startup, set `autorun = false` or pass `--no-autorun`; Lux still
-emits the loader tree.
-
-## Core Features
-
-### Modern Syntax, Lua-Shaped
-
-- functions with `fn`
-- block and expression bodies
-- guard statements
-- arrow callbacks
-- optional access
-- nil coalescing
-- template strings
-- destructuring
-- table spread
-- pipelines
-- enums
-- checked `match`
-
-### Explicit Modules
-
-Lux modules are private by default. Public API is declared intentionally.
+Lux can be used as a single-file syntax upgrade. You do not need a package
+graph, a generated addon layout, or an autorun entry point just to get the
+language improvements.
 
 ```lux
-fn normalizeHealth(hp) =
-  hp < 0 then 0 else hp > 100 then 100 else hp
+client {
+  hook.Add("HUDPaint", "ExampleHud", () => drawHud())
+}
 
-export { normalizeHealth }
+server {
+  print("server-side setup")
+}
 ```
 
-### Realm-Aware Code
+Single-file compilation prints ordinary Lua:
 
-Client, server, and shared ownership is part of the source model.
+```powershell
+.\target\release\luxc.exe compile .\hud.lux
+```
+
+Use this mode for small scripts, experiments, generated snippets, or gradual
+migration beside existing GLua.
+
+## GMod Projects
+
+When the source tree grows, Lux can own the project structure that is usually
+spread across folder conventions and handwritten loader glue.
+
+Project mode adds:
+
+- explicit imports and exports
+- private modules by default
+- multi-part module scope
+- `client`, `server`, and `shared` declarations
+- realm-aware validation
+- generated GMod loader trees
+- optional addon-style `autorun` forwarders
+- source maps and source comments
+- package resolution
+- compiler-backed LSP diagnostics
+
+Instead of maintaining loader order by hand:
+
+```lua
+if SERVER then
+  AddCSLuaFile("cl_hud.lua")
+  AddCSLuaFile("shared/state.lua")
+  include("shared/state.lua")
+  include("sv_data.lua")
+end
+
+if CLIENT then
+  include("shared/state.lua")
+  include("cl_hud.lua")
+end
+```
+
+you write ownership in source:
 
 ```lux
 shared fn formatName(player) =
@@ -182,75 +272,39 @@ server fn logJoin(player) {
 }
 ```
 
-Lux can reason about where declarations belong and generate the loader
-structure Garry's Mod expects.
+and Lux generates the GMod-facing output.
 
-### Compiler-Backed Editor Support
+## GMod Output Model
 
-`luxc lsp` provides editor support built on the same compiler model used by
-builds:
+The default project shape is addon-oriented: `luxc init` writes `autorun = true`.
+That means Lux emits a thin `autorun` forwarder that includes the generated
+loaders.
 
-- diagnostics
-- hover
-- completion
-- go to definition
-- signature help
-- formatting
-- semantic tokens
-- code actions
-- GMod API documentation
-
-The VS Code extension is intentionally thin: it launches the selected compiler
-as `luxc lsp`, so editor behavior stays aligned with the Lux version your
-project builds with.
-
-### Registryless Packages
-
-Lux has no package registry, mirror source, or global "latest" lookup.
-Dependencies point at explicit GitHub, URL, or local path sources. GitHub
-sources can be pinned with `tag`, `branch`, or `commit`, and `lux.lock` records
-the resolved package graph.
-
-Official standard packages live in
-[`TimeWatcher/lux-packages`](https://github.com/TimeWatcher/lux-packages).
-
-## Quick Start
-
-Lux is currently in alpha. No public binary release is active; build `luxc`
-from source.
-
-```powershell
-git clone https://github.com/TimeWatcher/lux.git
-cd lux\compiler
-cargo build --release
-.\target\release\luxc.exe --help
+```text
+generated/lua/
+  autorun/
+    my_addon.lua
+  lux/
+    my_addon/
+      loader_shared.lua
+      loader_client.lua
+      loader_server.lua
+      ...
+      *.lua.map.json
 ```
 
-Create a project without network access:
+`--no-autorun` or `autorun = false` only disables that thin forwarder. It does
+not mean "gamemode mode", and it does not disable the generated loader tree.
+Use it when an existing gamemode, framework, or hand-written Lua entry point
+will include the Lux loaders itself.
 
-```powershell
-.\target\release\luxc.exe init ..\my_addon
-```
+The two important paths are:
 
-Create a project with the standard package setup:
+- `out`: physical output root on disk, usually `generated/lua`
+- `runtime_base`: GMod-relative base path used in generated `include` and `AddCSLuaFile` calls
 
-```powershell
-.\target\release\luxc.exe init ..\my_addon --std
-```
-
-Install the official GMod package:
-
-```powershell
-Push-Location ..\my_addon
-..\lux\compiler\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages
-Pop-Location
-```
-
-Build for Garry's Mod:
-
-```powershell
-.\target\release\luxc.exe gmod build --manifest ..\my_addon\lux.toml
-```
+This keeps generated includes relative and explicit instead of assuming every
+project is laid out the same way.
 
 Minimal manifest:
 
@@ -261,33 +315,124 @@ bundle_id = "my_addon"
 [target.gmod]
 source_root = "src"
 out = "generated/lua"
-runtime_base = "lux/my-addon"
+runtime_base = "lux/my_addon"
 autorun = true
 source_comments = "boundary"
 
 [dependencies]
 ```
 
-`out` is the physical output root. `runtime_base` is the GMod-relative path used
-inside generated `include` and `AddCSLuaFile` calls. `autorun` controls only the
-thin addon-style forwarder under `out/autorun`.
+## Packages
+
+Lux has no package registry, mirror source, or global "latest" lookup.
+Dependencies point at explicit sources:
+
+- GitHub repository
+- URL
+- local path
+
+GitHub sources can be pinned with `tag`, `branch`, or `commit`, and `lux.lock`
+records the resolved package graph.
+
+Plain `luxc init` is intentionally offline and dependency-free. Use `--std`
+when you want the official standard package set:
+
+```powershell
+.\target\release\luxc.exe init ..\my_addon --std
+```
+
+Official packages live in
+[`TimeWatcher/lux-packages`](https://github.com/TimeWatcher/lux-packages).
+
+Install another official package explicitly:
+
+```powershell
+.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages --project ..\my_addon
+```
+
+## Editor Tooling
+
+`luxc lsp` is the Lux language server. It is built on the same compiler model
+used by builds, so editor behavior follows the Lux version your project
+actually uses.
+
+Current editor support includes:
+
+- diagnostics
+- hover
+- completion
+- go to definition
+- signature help
+- formatting
+- semantic tokens
+- code actions
+- GMod API intelligence
+- package source analysis from `lux.lock`
+
+The VS Code extension is intentionally thin: it launches the configured
+compiler as `luxc lsp` and handles editor UI. There is no separate LSP binary to
+keep in sync with the compiler.
+
+## Quick Start
+
+Lux is currently in alpha. No public binary release is active, so build `luxc`
+from source:
+
+```powershell
+git clone https://github.com/TimeWatcher/lux.git
+cd lux\compiler
+cargo build --release
+
+$Luxc = Resolve-Path .\target\release\luxc.exe
+& $Luxc --help
+```
+
+Create an offline, dependency-free project:
+
+```powershell
+& $Luxc init ..\my_addon
+```
+
+Or create one with `@lux/std` already installed and locked:
+
+```powershell
+& $Luxc init ..\my_addon --std
+```
+
+Add the official GMod package:
+
+```powershell
+& $Luxc install @lux/gmod --from github:TimeWatcher/lux-packages --project ..\my_addon
+```
+
+Build the GMod output:
+
+```powershell
+& $Luxc gmod build --manifest ..\my_addon\lux.toml
+```
+
+If you clone an example or project that has dependencies but no `lux.lock`, run
+the install or lock step before building:
+
+```powershell
+& $Luxc lock ..\my_addon
+```
 
 ## When To Use Lux
 
-Lux is a good fit for:
+Use Lux when you want:
 
-- new Garry's Mod addons
-- gamemodes with growing client/server/shared structure
-- addons that need private modules and explicit public APIs
-- projects that want better editor diagnostics
-- gradual migrations beside existing GLua
-- codebases where loader order has become hard to reason about
+- better GLua-shaped syntax, even in one file
+- nil-safe optional data access for player, entity, weapon, UI, config, and hook-time state
+- explicit module APIs instead of accidental globals
+- checked client/server/shared ownership
+- generated loader structure without giving up readable Lua output
+- source maps for generated code
+- compiler-backed editor diagnostics and navigation
+- gradual migration beside existing GLua
 
-Lux is probably not necessary for:
-
-- tiny one-file scripts
-- throwaway test snippets
-- addons where plain GLua is already sufficient
+Plain GLua may still be enough for tiny throwaway snippets or projects where a
+build step is not acceptable.
 
 ## Status
 
@@ -297,6 +442,8 @@ expected while the toolchain stabilizes.
 
 What works today:
 
+- single-file compilation
+- modern Lua-shaped syntax
 - module directories with multi-part lexical scope
 - `client`, `server`, and `shared` declarations and blocks
 - explicit `import` / `export` APIs with realm-aware validation
