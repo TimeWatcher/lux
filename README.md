@@ -23,6 +23,8 @@
   ·
   <a href="#packages">Packages</a>
   ·
+  <a href="#mgfx">MGFX</a>
+  ·
   <a href="README.zh-CN.md">简体中文</a>
 </p>
 
@@ -349,6 +351,19 @@ Install another official package explicitly:
 ```powershell
 .\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages --project ..\my_addon
 ```
+
+## MGFX
+
+MGFX is the official Lux-adjacent rendering package for Garry's Mod UI:
+shader-backed rounded boxes, gradients, rings, arcs, masks, glow, backdrop
+effects, image clipping, and text effects while keeping the immediate GLua
+drawing model.
+
+Lux projects install it as `@lux/mgfx`. Plain GLua projects can use the
+precompiled loader from [`TimeWatcher/lux-mgfx`](https://github.com/TimeWatcher/lux-mgfx);
+it installs `_G.MGFX` by default, so existing panels can call
+`MGFX.RoundedBox`, `MGFX.TextEx`, and the rest of the facade without adopting
+Lux first.
 
 ## Editor Tooling
 
