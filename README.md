@@ -2,8 +2,8 @@
 
 # Lux
 
-**A compiler-first language for building Garry's Mod addons without loader
-spaghetti.**
+**A compiler-first language for Garry's Mod addons that need structure without
+giving up readable GLua.**
 
 [![Docs](https://img.shields.io/badge/docs-online-2f6feb)](https://timewatcher.github.io/lux-docs-site/)
 [![Rust](https://img.shields.io/badge/compiler-Rust-f46623)](compiler/)
@@ -12,8 +12,8 @@ spaghetti.**
 
 [Documentation](https://timewatcher.github.io/lux-docs-site/) ·
 [Quick Start](#quick-start) ·
-[Std Packages](https://github.com/TimeWatcher/lux-std) ·
-[LSP](https://github.com/TimeWatcher/lux-lsp) ·
+[Standard Packages](https://github.com/TimeWatcher/lux-std) ·
+[VS Code](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://github.com/TimeWatcher/lux-mgfx)
 
 English · [简体中文](README.zh-CN.md)
@@ -21,24 +21,35 @@ English · [简体中文](README.zh-CN.md)
 </div>
 
 Lux is a Lua-oriented language and toolchain for Garry's Mod. It compiles
-offline to ordinary GLua/Lua 5.1, keeps the generated output inspectable, and
-lets the compiler own the parts that are usually fragile in real addons:
-module boundaries, realm loading, package discovery, exports, source maps, and
-diagnostics.
+offline to ordinary GLua/Lua 5.1, keeps generated output inspectable, and moves
+the fragile parts of real addon development into compiler-owned checks:
+modules, realm loading, imports, exports, source maps, package resolution, and
+editor diagnostics.
 
-Lux is not a runtime framework that takes over your addon. It is a compiler
-that helps you write clearer GLua projects and emits the loader code Garry's Mod
-expects.
+Lux is not a framework that takes over your addon. It is a compiler you can use
+for a new addon, a gamemode, or a gradual migration beside existing GLua.
 
-## Why Lux
+## Why Use It
 
-GMod addon code tends to grow around three pain points:
-
-| Problem in GLua projects | Lux answer |
+| GLua pain | Lux answer |
 | --- | --- |
-| Private helpers become accidental global API. | Directory modules are private by default and export only explicit names. |
-| Realm loading turns into `AddCSLuaFile` boilerplate and fragile include order. | `client`, `server`, `shared`, realm blocks, and generated GMod loaders are first-class. |
-| Large addons need structure without losing GLua interoperability. | Lux compiles to readable Lua and still allows normal GMod and third-party API calls. |
+| Private helpers leak into globals. | Directory modules are private by default and export only explicit names. |
+| `AddCSLuaFile` and `include` order become project lore. | Realms are part of the language, and GMod loaders are generated from the module graph. |
+| Large addons need structure but still need the GMod API. | Lux emits readable Lua and lets ordinary GMod/third-party calls pass through. |
+| Editor tooling guesses from text. | `luxc lsp` uses the same parser, resolver, package graph, and realm checker as builds. |
+| Standard code should not be pinned to compiler releases. | Official packages live in `lux-std` and are locked by the project. |
+
+## What Works Today
+
+- module directories with multi-part lexical scope
+- `client`, `server`, and `shared` declarations and blocks
+- explicit `import` / `export` APIs with realm-aware validation
+- generated GMod loader trees with optional `autorun` forwarders
+- source maps and source comments for generated Lua
+- no registry package model: dependencies point at explicit GitHub, URL, or path sources
+- `luxc install`, `luxc lock`, `luxc remove`, `luxc doctor`, and `lux.lock`
+- `luxc lsp` for VS Code hover, completion, definition, signature help, diagnostics, formatting, and GMod API docs
+- official GMod API database shared by compiler checks and editor intelligence
 
 ## What It Feels Like
 
@@ -78,30 +89,14 @@ client fn paintHud(players, mode = HudMode.Compact) {
 export client { paintHud }
 ```
 
-This is still close to Lua, but with module-private declarations, explicit
-realm ownership, enums and `match`, expression returns, arrow callbacks,
-optional access, nil coalescing, and exports that describe the real public API.
-
-## Highlights
-
-- **Module directories, not manifest noise**: a module is a directory of part
-  files with one logical module-private scope.
-- **Explicit public interfaces**: `export { public_name = local_binding }`
-  maps internal names to API names without exposing everything else.
-- **Realm-aware by construction**: `client fn`, `server fn`, `shared` code, and
-  `client { ... }` / `server { ... }` blocks model GMod execution directly.
-- **Smart GMod output**: generated loaders batch client files, avoid global
-  filename collisions, and keep source-map/debug information available.
-- **Practical syntax**: `match`, `then/else`, arrow functions, optional calls,
-  destructuring, table spread, pipeline helpers, and implicit expression
-  returns.
-- **Packages by convention**: runtime, compile-time, macro, and host code are
-  discovered from directory layout instead of handwritten package manifests.
+The syntax stays close to Lua, but modules are private, public API is explicit,
+realm ownership is checked, nil-heavy GMod calls are easier to write, and the
+same compiler model powers the editor.
 
 ## Quick Start
 
-No public binary release is currently active. Build `luxc` from source and run
-it directly while the alpha package and LSP layout is settling:
+No public binary release is currently active. Build `luxc` from source during
+the alpha:
 
 ```powershell
 git clone https://github.com/TimeWatcher/lux.git
@@ -116,7 +111,7 @@ Initialize a project without network access:
 .\target\release\luxc.exe init .\my_addon
 ```
 
-Install the official standard package set only when you need it:
+Install official packages only when you ask for them:
 
 ```powershell
 .\target\release\luxc.exe init .\my_addon --std
@@ -125,9 +120,10 @@ Install the official standard package set only when you need it:
 
 Lux has no package registry. A dependency's source and version are selected by
 the explicit `github`, `url`, or `path` entry in `lux.toml`, plus optional
-`tag`, `branch`, or `commit` refs. `lux.lock` records the resolved package set;
-`luxc lock` regenerates it from the current manifest, and `luxc remove` removes
-a direct dependency.
+`tag`, `branch`, or `commit` refs. `lux.lock` records the resolved package set.
+`luxc lock` regenerates the lockfile from the manifest; it does not search for
+newer versions. `luxc remove` removes a direct dependency and prunes unused
+transitive packages.
 
 Build a GMod addon project:
 
@@ -135,7 +131,11 @@ Build a GMod addon project:
 .\target\release\luxc.exe gmod build --manifest .\lux.toml
 ```
 
-A small GMod manifest:
+Use `--no-autorun` or `autorun = false` when an existing gamemode, framework,
+or hand-written Lua entry point will include the generated Lux loaders itself.
+The loader tree is still emitted.
+
+## Minimal Manifest
 
 ```toml
 package_id = "my_addon"
@@ -146,10 +146,15 @@ source_root = "src"
 out = "generated/lua"
 runtime_base = "lux/my-addon"
 autorun = true
+source_comments = "boundary"
 
-[target.gmod.realm]
-unknown_external = "warn"
+[dependencies]
 ```
+
+`out` is the physical output root. `runtime_base` is the GMod-relative path used
+inside generated `include` and `AddCSLuaFile` calls. `autorun` controls only the
+thin addon-style forwarder under `out/autorun`; it does not disable the Lux
+loader tree.
 
 ## Build From Source
 
@@ -160,7 +165,7 @@ cargo test
 cargo build --release
 ```
 
-The compiler binary will be written to:
+The compiler binary is written to:
 
 ```text
 compiler/target/release/luxc.exe
@@ -176,15 +181,14 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 ## Repository Map
 
 ```text
-compiler/        Rust implementation of luxc
-lsp/             VS Code support and GMod API intelligence standards/data
+compiler/        Rust implementation of luxc, including luxc lsp
+lsp/             VS Code shell and shared GMod API intelligence data
 docs-site/       Public Lux documentation site, tracked as a submodule
 docs/            Design notes and implementation references
-examples/        Small Lux and GMod project examples
+examples/        Lux and GMod example projects
 ```
 
-Initialize the remaining submodules when working on LSP or the documentation
-site:
+Initialize optional submodules when working on LSP or the documentation site:
 
 ```powershell
 git submodule update --init lsp docs-site
@@ -209,7 +213,7 @@ luxc map-error <map.json> <generated-line>
 luxc gmod build <source-root> --out <path> [--runtime-base <path>] [--no-autorun] [--dry-run]
 luxc gmod build --manifest <lux.toml> [--out <path>] [--runtime-base <path>] [--no-autorun] [--dry-run]
 luxc gmod package --manifest <lux.toml> --root <path> --gmad <path> --out <path> [--run] [--build-out <path>] [--runtime-base <path>] [--no-autorun]
-luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--override <json>]
+luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--offline] [--allow-failures]
 ```
 
 ## Documentation
@@ -219,18 +223,17 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 - [Modules and parts](https://timewatcher.github.io/lux-docs-site/language/modules)
 - [Imports and exports](https://timewatcher.github.io/lux-docs-site/language/imports-exports)
 - [Realms](https://timewatcher.github.io/lux-docs-site/language/realms)
+- [Packages](https://timewatcher.github.io/lux-docs-site/packages/)
 - [GMod backend](https://timewatcher.github.io/lux-docs-site/gmod/)
 - [VS Code and LSP](https://timewatcher.github.io/lux-docs-site/reference/vscode)
 - [LSP repository](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX repository](https://github.com/TimeWatcher/lux-mgfx)
-- [MGFX documentation](https://timewatcher.github.io/mgfx-docs-site/)
 
 ## Status
 
-Lux is currently alpha software without an active public binary release. The
-language, package layout, LSP integration, and GMod backend are usable for
-experimentation and migration work, but the project should still be treated as
-pre-1.0.
+Lux is alpha software without an active public binary release. The language,
+package layout, LSP integration, and GMod backend are usable for experiments and
+migration work, but the project should still be treated as pre-1.0.
 
 ## Contributing
 
@@ -250,19 +253,16 @@ npm run dev -- --host 127.0.0.1 --port 4173
 npm run build
 ```
 
-MGFX lives in its own repository. Use the MGFX repo and docs links above when
-working on it.
-
 Official standard packages live in the separate
 [`lux-std`](https://github.com/TimeWatcher/lux-std) repository. Edit that
 repository directly and validate with compiler tests or a GMod project build
 that imports the changed package.
 
-VS Code support standards and GMod API intelligence data live in the `lsp`
-submodule. The language server itself is provided by `luxc lsp`; edit the
-compiler when changing hover, completion, signature help, diagnostics, or quick
-fixes. The LSP uses the compiler's package resolution and module analysis, so
-cross-part and imported definitions stay aligned with the selected `luxc`.
+VS Code support and GMod API intelligence data live in the `lsp` submodule. The
+language server itself is provided by `luxc lsp`; edit the compiler when
+changing hover, completion, signature help, diagnostics, or quick fixes. The
+LSP uses the compiler's package resolution and module analysis, so cross-part
+and imported definitions stay aligned with the selected `luxc`.
 
 ## License
 

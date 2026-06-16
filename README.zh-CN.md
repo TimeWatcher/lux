@@ -2,8 +2,8 @@
 
 # Lux
 
-**面向 Garry's Mod addon 的编译型语言和工具链，目标是摆脱手写 loader、全局表和脆弱的
-realm 顺序。**
+**面向 Garry's Mod addon 的编译器优先语言：给项目结构、模块和 realm 检查，但不牺牲
+可读 GLua 输出。**
 
 [![Docs](https://img.shields.io/badge/docs-online-2f6feb)](https://timewatcher.github.io/lux-docs-site/zh/)
 [![Rust](https://img.shields.io/badge/compiler-Rust-f46623)](compiler/)
@@ -12,30 +12,42 @@ realm 顺序。**
 
 [中文文档](https://timewatcher.github.io/lux-docs-site/zh/) ·
 [快速开始](#快速开始) ·
-[标准包](https://github.com/TimeWatcher/lux-packages) ·
-[LSP](https://github.com/TimeWatcher/lux-lsp) ·
+[标准包](https://github.com/TimeWatcher/lux-std) ·
+[VS Code](https://github.com/TimeWatcher/lux-lsp) ·
 [MGFX](https://github.com/TimeWatcher/lux-mgfx)
 
 [English](README.md) · 简体中文
 
 </div>
 
-Lux 是一门贴近 Lua 的 Garry's Mod 开发语言。它离线编译到普通 GLua/Lua 5.1，生成结果
-仍然可读，同时把真实项目里最容易出错的部分交给编译器处理：模块边界、运行域加载、
-包发现、显式导出、source map 和诊断。
+Lux 是面向 Lua / GLua 的 Garry's Mod 开发语言和工具链。它在游戏外离线编译到普通
+GLua/Lua 5.1，生成结果保持可读，并把真实 addon 开发里最容易出错的部分交给编译器：
+模块、realm 加载、导入导出、source map、包解析和编辑器诊断。
 
-Lux 不是接管 addon 的运行时框架。它是一个编译器：你写更清晰的 GLua 项目，它输出
-Garry's Mod 能直接加载的 Lua 和 loader。
+Lux 不是接管 addon 的运行时框架。它是一个编译器，可以用于新 addon、gamemode，也
+可以逐步接入已有 GLua 项目。
 
-## 为什么需要 Lux
+## 为什么用 Lux
 
-GMod addon 通常会同时遇到这些问题：
-
-| GLua 项目里的问题 | Lux 的处理方式 |
+| GLua 项目里的痛点 | Lux 的处理方式 |
 | --- | --- |
-| 私有 helper 很容易变成意外公开 API。 | 目录模块默认私有，只暴露显式导出的名字。 |
-| realm 加载充满 `AddCSLuaFile`、`include` 顺序和文件名约定。 | `client`、`server`、`shared`、realm block 和生成 loader 是语言模型的一部分。 |
-| 大型 addon 需要结构，但不能牺牲 GLua 生态兼容。 | Lux 编译到可读 Lua，并允许正常调用 GMod API 和第三方库。 |
+| 私有 helper 很容易漏成全局变量。 | 目录模块默认私有，只暴露显式 `export` 的名字。 |
+| `AddCSLuaFile` 和 `include` 顺序变成项目传说。 | realm 是语言模型的一部分，GMod loader 从模块图生成。 |
+| 大 addon 需要结构，但仍然离不开 GMod API。 | Lux 输出可读 Lua，并允许普通 GMod / 第三方调用穿透。 |
+| 编辑器只能靠文本猜测。 | `luxc lsp` 使用和构建相同的 parser、resolver、包图和 realm checker。 |
+| 标准库不应该跟编译器 release 绑定。 | 官方包在独立 `lux-std` 仓库，项目用 `lux.lock` 固定。 |
+
+## 当前可用
+
+- 目录模块和多 part 共享词法作用域
+- `client`、`server`、`shared` 声明和代码块
+- 显式 `import` / `export`，并带 realm-aware 校验
+- 生成 GMod loader tree，可选 addon 风格 `autorun` forwarder
+- 生成 Lua source map 和 source comments
+- 无 registry 包模型：依赖显式指向 GitHub、URL 或本地 path
+- `luxc install`、`luxc lock`、`luxc remove`、`luxc doctor` 和 `lux.lock`
+- `luxc lsp` 支持 VS Code hover、completion、definition、signature help、diagnostics、formatting 和 GMod API 文档
+- compiler 和 editor 共用官方 GMod API 数据库
 
 ## 代码观感
 
@@ -75,28 +87,12 @@ client fn paintHud(players, mode = HudMode.Compact) {
 export client { paintHud }
 ```
 
-它仍然接近 Lua，但有模块私有声明、明确的运行域、enum 和 `match`、表达式返回、箭头
-函数、可选访问、nil 合并，以及能描述真实公开 API 的导出语义。
-
-## 核心特性
-
-- **目录就是模块**：一个模块是多个 part 文件共享的逻辑 module scope，不需要给每个
-  package 写繁琐 manifest。
-- **公开 API 显式声明**：`export { public_name = local_binding }` 把内部名字映射到
-  外部 API 名字，未导出的内容保持私有。
-- **运行域是一等概念**：`client fn`、`server fn`、`shared` 代码，以及
-  `client { ... }` / `server { ... }` block 直接表达 GMod 执行环境。
-- **GMod loader 由编译器生成**：批量处理客户端文件，避免 addon 全局 `lua/` 目录重名，
-  并保留 source map 和调试信息。
-- **更有表达力的语法**：`match`、`then/else`、箭头函数、可选调用、解构、table spread、
-  pipeline helper 和隐式表达式返回。
-- **按目录约定发现包**：运行时、编译期、macro 和 host 代码按目录布局发现，而不是靠
-  手写 package manifest。
+语法仍然接近 Lua，但模块默认私有，公开 API 必须显式声明，realm 所属会被检查，GMod
+里常见的 nil 调用更容易写，编辑器看到的是同一套编译器语义。
 
 ## 快速开始
 
-当前没有有效的公开二进制 release。alpha 阶段 package 和 LSP 布局还在调整，先从源码构建
-并直接运行 `luxc`：
+当前没有有效的公开二进制 release。alpha 阶段请从源码构建 `luxc`：
 
 ```powershell
 git clone https://github.com/TimeWatcher/lux.git
@@ -105,31 +101,34 @@ cargo build --release
 .\target\release\luxc.exe --help
 ```
 
-默认初始化不访问网络：
+初始化项目默认离线执行：
 
 ```powershell
 .\target\release\luxc.exe init .\my_addon
 ```
 
-需要官方标准 package set 时显式安装：
+只有需要官方包时才显式安装：
 
 ```powershell
 .\target\release\luxc.exe init .\my_addon --std
-.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-packages --project .\my_addon
+.\target\release\luxc.exe install @lux/gmod --from github:TimeWatcher/lux-std --project .\my_addon
 ```
 
-Lux 没有 package registry。依赖的来源和版本由 `lux.toml` 里的显式 `github`、`url`
-或 `path` 指定，再通过可选的 `tag`、`branch` 或 `commit` 固定引用。`lux.lock`
-记录已解析的 package set；`luxc lock` 只按当前 manifest 重新生成 lockfile，
-`luxc remove` 删除直接依赖。
+Lux 没有 package registry。依赖来源和版本由 `lux.toml` 里的显式 `github`、`url` 或
+`path` 条目决定，并可用 `tag`、`branch` 或 `commit` 固定。`lux.lock` 记录已解析的
+package set。`luxc lock` 只按 manifest 重新生成 lockfile，不查找新版本；`luxc remove`
+删除直接依赖并剪掉不再使用的传递包。
 
-构建一个 GMod addon 项目：
+构建 GMod 项目：
 
 ```powershell
 .\target\release\luxc.exe gmod build --manifest .\lux.toml
 ```
 
-一个最小 GMod manifest：
+当已有 gamemode、框架或手写 Lua 入口负责启动时，使用 `--no-autorun` 或
+`autorun = false`。这只关闭 `out/autorun` 下的薄 forwarder，Lux loader tree 仍然会生成。
+
+## 最小 Manifest
 
 ```toml
 package_id = "my_addon"
@@ -140,10 +139,14 @@ source_root = "src"
 out = "generated/lua"
 runtime_base = "lux/my-addon"
 autorun = true
+source_comments = "boundary"
 
-[target.gmod.realm]
-unknown_external = "warn"
+[dependencies]
 ```
+
+`out` 是物理输出根。`runtime_base` 是生成 `include` 和 `AddCSLuaFile` 时使用的 GMod
+相对路径。`autorun` 只控制 `out/autorun` 下的 addon 风格 forwarder，不会关闭 Lux
+loader tree。
 
 ## 从源码构建
 
@@ -154,7 +157,7 @@ cargo test
 cargo build --release
 ```
 
-编译器会生成在：
+编译器二进制输出到：
 
 ```text
 compiler/target/release/luxc.exe
@@ -170,9 +173,9 @@ cargo run -- gmod build --manifest ..\examples\gmod_project\lux.toml --dry-run
 ## 仓库结构
 
 ```text
-compiler/        luxc 的 Rust 实现
-lsp/             VS Code 支持和 GMod API 智能标准/数据
-docs-site/       Lux 文档站源码，以 submodule 管理
+compiler/        luxc 的 Rust 实现，包括 luxc lsp
+lsp/             VS Code 壳和共享 GMod API 智能数据
+docs-site/       公开 Lux 文档站，以 submodule 管理
 docs/            设计说明和实现参考
 examples/        Lux 和 GMod 示例项目
 ```
@@ -202,7 +205,7 @@ luxc map-error <map.json> <generated-line>
 luxc gmod build <source-root> --out <path> [--runtime-base <path>] [--no-autorun] [--dry-run]
 luxc gmod build --manifest <lux.toml> [--out <path>] [--runtime-base <path>] [--no-autorun] [--dry-run]
 luxc gmod package --manifest <lux.toml> --root <path> --gmad <path> --out <path> [--run] [--build-out <path>] [--runtime-base <path>] [--no-autorun]
-luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--override <json>]
+luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>] [--offline] [--allow-failures]
 ```
 
 ## 文档
@@ -212,11 +215,11 @@ luxc gmod api update [--out <path>] [--coverage-out <path>] [--cache-dir <path>]
 - [模块和 part](https://timewatcher.github.io/lux-docs-site/zh/language/modules)
 - [导入和导出](https://timewatcher.github.io/lux-docs-site/zh/language/imports-exports)
 - [运行域](https://timewatcher.github.io/lux-docs-site/zh/language/realms)
+- [包管理](https://timewatcher.github.io/lux-docs-site/zh/packages/)
 - [GMod 后端](https://timewatcher.github.io/lux-docs-site/zh/gmod/)
 - [VS Code 和 LSP](https://timewatcher.github.io/lux-docs-site/zh/reference/vscode)
 - [LSP 仓库](https://github.com/TimeWatcher/lux-lsp)
 - [MGFX 仓库](https://github.com/TimeWatcher/lux-mgfx)
-- [MGFX 文档](https://timewatcher.github.io/mgfx-docs-site/zh/)
 
 ## 状态
 
@@ -241,13 +244,14 @@ npm run dev -- --host 127.0.0.1 --port 4173
 npm run build
 ```
 
-MGFX 位于独立仓库。开发 MGFX 时应进入上面的 MGFX 仓库和文档。
+官方标准 package 位于独立的 [`lux-std`](https://github.com/TimeWatcher/lux-std)
+仓库。修改 package 时应直接进入该仓库，并通过编译器测试或导入该 package 的 GMod
+项目构建验证。
 
-官方标准 package 位于独立的 [`lux-packages`](https://github.com/TimeWatcher/lux-packages) 仓库。
-修改 package 时应直接进入该仓库，并通过编译器测试或导入该 package 的 GMod 项目构建验证。
-
-VS Code 支持标准和 GMod API 智能数据位于 `lsp` submodule。语言服务由 `luxc lsp`
-提供；修改 hover、completion、diagnostics 或 quick fix 时，应修改 compiler。
+VS Code 支持和 GMod API 智能数据位于 `lsp` submodule。语言服务本身由 `luxc lsp`
+提供；修改 hover、completion、signature help、diagnostics 或 quick fix 时，应修改
+compiler。LSP 使用 compiler 的 package resolution 和 module analysis，因此跨 part 和
+imported definition 会与当前选中的 `luxc` 保持一致。
 
 ## 授权
 
