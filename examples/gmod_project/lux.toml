@@ -7,4 +7,6 @@ source_comments = "boundary"
 
 [dependencies]
 "@lux/gmod" = { github = "TimeWatcher/lux-packages" }
+"@lux/gmod/macros" = { github = "TimeWatcher/lux-packages" }
 "@lux/std" = { github = "TimeWatcher/lux-packages" }
+"@lux/ui" = { github = "TimeWatcher/lux-packages" }

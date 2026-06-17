@@ -207,12 +207,19 @@ graph, a generated addon layout, or an autorun entry point just to get the
 language improvements.
 
 ```lux
-client {
-  hook.Add("HUDPaint", "ExampleHud", () => drawHud())
+fn linesFor(players) {
+  local lines = {}
+
+  for i = 1, #players {
+    local player = players[i]
+    lines[#lines + 1] = `#${i}: ${player?:Nick() ?? "unknown"}`
+  }
+
+  lines
 }
 
-server {
-  print("server-side setup")
+fn paintHud(players) {
+  hook.Add("HUDPaint", "ExampleHud", () => drawHud(linesFor(players)))
 }
 ```
 

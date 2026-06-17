@@ -1,5 +1,5 @@
 import { arr } from "@lux/std"
-import { add, values } from "math"
+import { add, labelPrefix, values } from "math"
 
 enum HudMode repr string {
   Compact = "compact",
@@ -7,7 +7,7 @@ enum HudMode repr string {
 }
 
 fn formatCount(count) =
-  `Count: ${count}`
+  `${labelPrefix()}: ${count}`
 
 fn normalizeMode(mode) =
   match mode {
@@ -31,14 +31,14 @@ fn formatPlayer(player, index, detailed) {
   }
 }
 
-export fn buildHud(count, players, mode = nil, ...) {
+export shared fn buildHud(count, players, mode = nil, ...) {
   local normalizedMode = normalizeMode(mode)
   local detailed = normalizedMode == HudMode.Detailed
   local total = add(count, #players)
   local labels = arr.map(players, (player, index) =>
     formatPlayer(player, index, detailed)
   )
-  local first, second = values(...);
+  local first, second = values(...)
 
   {
     total = total,

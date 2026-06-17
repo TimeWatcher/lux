@@ -196,12 +196,19 @@ export client { paintHud }
 Lux 可以作为单文件语法升级使用。你不需要 package graph、生成式 addon 布局或 autorun 入口，才能获得语言改进。
 
 ```lux
-client {
-  hook.Add("HUDPaint", "ExampleHud", () => drawHud())
+fn linesFor(players) {
+  local lines = {}
+
+  for i = 1, #players {
+    local player = players[i]
+    lines[#lines + 1] = `#${i}: ${player?:Nick() ?? "unknown"}`
+  }
+
+  lines
 }
 
-server {
-  print("server-side setup")
+fn paintHud(players) {
+  hook.Add("HUDPaint", "ExampleHud", () => drawHud(linesFor(players)))
 }
 ```
 
@@ -362,7 +369,7 @@ VS Code 扩展刻意保持很薄：它启动配置的 compiler 执行 `luxc lsp`
 
 ## 快速开始
 
-Lux 当前是 alpha 软件，没有有效的公开二进制 release；请先从源码构建 `luxc`：
+Lux 当前是 alpha 软件，没有有效的公开二进制 release；请先从源码构建一次 `luxc`，然后让 Lux 安装稳定的用户入口：
 
 ```powershell
 git clone https://github.com/TimeWatcher/lux.git
@@ -370,8 +377,20 @@ cd lux\compiler
 cargo build --release
 
 $Luxc = Resolve-Path .\target\release\luxc.exe
-& $Luxc --help
+& $Luxc self install --default
+$Luxc = Join-Path $env:USERPROFILE ".lux\bin\luxc.exe"
 ```
+
+这会安装：
+
+```text
+~/.lux/bin/luxc                         稳定入口
+~/.lux/toolchains/<version>/luxc        已安装的 compiler 版本
+~/.lux/default-toolchain                全局默认版本
+```
+
+Windows 下对应 `%USERPROFILE%\.lux\bin\luxc.exe` 和
+`%USERPROFILE%\.lux\toolchains\<version>\luxc.exe`。如果希望每个终端都能直接运行 `luxc`，把 `~/.lux/bin` 加进 `PATH`。VS Code 扩展也会直接检测 `~/.lux/bin/luxc`，所以编辑器支持不强制要求手动配置 `lux.compiler.path` 或 PATH。
 
 创建离线、无依赖项目：
 
@@ -397,10 +416,32 @@ $Luxc = Resolve-Path .\target\release\luxc.exe
 & $Luxc gmod build --manifest ..\my_addon\lux.toml
 ```
 
+如果只是渐进式集成，不需要生成 GMod loader，可以递归编译一个目录里的
+`.lux` 文件，并保留相对目录结构输出 `.lua`：
+
+```powershell
+& $Luxc build ..\my_addon\src --out ..\my_addon\generated\lua
+```
+
 如果你 clone 了一个有依赖但没有 `lux.lock` 的 example 或项目，构建前先执行 install 或 lock：
 
 ```powershell
 & $Luxc lock ..\my_addon
+```
+
+Compiler 更新是显式操作。等二进制 release 重新发布后，可以使用：
+
+```powershell
+& $Luxc self update
+& $Luxc self install 0.1.0-alpha.4 --default
+& $Luxc self list
+& $Luxc self which
+```
+
+大多数项目不需要 pin compiler。单文件和普通项目使用全局默认版本；团队和 CI 可以按项目固定：
+
+```powershell
+& $Luxc self pin 0.1.0-alpha.4 --project .\my_addon
 ```
 
 ## 什么时候适合用 Lux
@@ -433,6 +474,7 @@ Lux 是 alpha 软件。语言、package 布局、LSP 集成和 GMod 后端已经
 - 生成 Lua source map 和 source comments
 - 依赖来源支持 GitHub、URL 或本地 path
 - `luxc install`、`luxc lock`、`luxc remove`、`luxc doctor` 和 `lux.lock`
+- `luxc self install`、`luxc self update` 和可选项目 toolchain pin
 - `luxc lsp` 编辑器支持
 - compiler checks 和 editor intelligence 共用官方 GMod API 数据
 

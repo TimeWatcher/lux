@@ -9,22 +9,32 @@ local state = {
   label = signal("Clicks")
 }
 
-export fn mount(panel, players, mode = "compact") {
+client {
+  print("Lux client UI module loaded")
+}
+
+fn renderPanel(panel, players, mode) {
+  local hud = buildHud(state.count(), players, mode)
+  drawHud(panel, hud.text)
+  hud
+}
+
+export client fn mount(panel, players, mode = "compact") {
   panel.Paint = (w, h) -> {
-    local hud = buildHud(state.count(), players, mode)
-    drawHud(self, w, h, hud.text);
+    renderPanel(self, players, mode)
   }
 
   panel.OnMousePressed = () => {
     state.count(state.count() + 1)
-    state.label(state.label() .. "!");
+    state.label(state.label() .. "!")
   }
 }
 
-export fn view(players, mode = "detailed", ...) {
+export client fn view(players, mode = "detailed", ...) {
   local hud = buildHud(state.count(), players, mode, ...)
 
   Column { gap = 8 } {
+    Label { text = hud.title },
     Label { text = hud.text },
     Button {
       text = `${state.label()}: ${state.count()}`,

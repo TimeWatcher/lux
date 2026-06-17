@@ -2,14 +2,18 @@ import { buildHud } from "hud"
 import { netx } from "@lux/gmod"
 import macro { defineNetReceiver } from "@lux/gmod/macros"
 
-netx.register("lux:announce_hud")
+server {
+  netx.register("lux:announce_hud")
+}
 
-defineNetReceiver("lux:request_hud", (len, ply) => {
-    local hud = buildHud(0, { ply })
-    print(hud.text)
-})
+fn handleHudRequest(len, ply) {
+  local hud = buildHud(0, { ply })
+  print(hud.text)
+}
 
-export fn announce(players, ...) {
+defineNetReceiver("lux:request_hud", handleHudRequest)
+
+export server fn announce(players, ...) {
   local hud = buildHud(0, players, ...)
   print(hud.text)
 
