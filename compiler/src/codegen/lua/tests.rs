@@ -125,7 +125,9 @@ fn expression_statement_non_call_is_discarded_safely() {
 fn safe_comparison_guards_nil() {
     let output = compile("fn ok(player) = player?:GetExp() > 5");
     assert!(output.lua.contains("local __lux_cmp_"));
-    assert!(output.lua.contains("~= nil and"));
+    assert!(output.lua.contains("if __lux_val_GetExp_"));
+    assert!(output.lua.contains(" ~= nil then"));
+    assert!(!output.lua.contains("5 ~= nil"));
 }
 
 #[test]
@@ -142,6 +144,63 @@ fn logical_and_delays_rhs_setup_until_guard_passes() {
         .find("drawStyle.shadow.color.a")
         .expect("guarded access");
     assert!(guard_pos < guarded_access_pos, "{}", output.lua);
+}
+
+#[test]
+fn condition_context_keeps_simple_short_circuit_inline() {
+    let output = compile(
+        "fn point(value) { if typeOf(value) == \"table\" and (value.x ~= nil or value[1] ~= nil) and (value.y ~= nil or value[2] ~= nil) { return true } return false }",
+    );
+    let lua = output.lua;
+    assert!(
+        lua.contains(
+            "if typeOf(value) == \"table\" and (value.x ~= nil or value[1] ~= nil) and (value.y ~= nil or value[2] ~= nil) then"
+        ),
+        "{lua}"
+    );
+    assert!(!lua.contains("local __lux_tmp_"), "{lua}");
+}
+
+#[test]
+fn condition_context_preserves_rhs_setup_short_circuit() {
+    let output = compile(
+        "fn demo(player) { if player ~= nil and player?:GetName() ~= nil { return true } return false }",
+    );
+    let lua = output.lua;
+    let guard_pos = lua.find("if __lux_tmp_").expect("fallback guard");
+    let access_pos = lua.find("GetName").expect("safe call");
+    assert!(guard_pos < access_pos, "{lua}");
+}
+
+#[test]
+fn condition_context_parenthesizes_mixed_short_circuit() {
+    let output = compile("fn demo(a, b, c) { if a and (b or c) { return true } return false }");
+    let lua = output.lua;
+    assert!(lua.contains("if a and (b or c) then"), "{lua}");
+}
+
+#[test]
+fn setup_free_short_circuit_return_stays_inline() {
+    let output = compile(
+        "fn point(value) = typeOf(value) == \"table\" and (value.x ~= nil or value[1] ~= nil) and (value.y ~= nil or value[2] ~= nil)",
+    );
+    let lua = output.lua;
+    assert!(
+        lua.contains(
+            "return typeOf(value) == \"table\" and (value.x ~= nil or value[1] ~= nil) and (value.y ~= nil or value[2] ~= nil)"
+        ),
+        "{lua}"
+    );
+    assert!(!lua.contains("local __lux_tmp_"), "{lua}");
+}
+
+#[test]
+fn short_circuit_value_preserves_rhs_setup_guard() {
+    let output = compile("fn demo(player) = player ~= nil and player?:GetName()");
+    let lua = output.lua;
+    let guard_pos = lua.find("if __lux_tmp_").expect("short-circuit guard");
+    let access_pos = lua.find("GetName").expect("safe call");
+    assert!(guard_pos < access_pos, "{lua}");
 }
 
 #[test]
@@ -313,9 +372,67 @@ fn setup_temps_are_scoped_for_local_initializers_when_safe() {
     assert!(
         output
             .lua
-            .contains("  local name\n  do\n    local __lux_obj_")
+            .contains("  local name\n  do\n    local __lux_obj_player_")
     );
-    assert!(output.lua.contains("    name = __lux_tmp_"));
+    assert!(output.lua.contains("    name = __lux_val_GetName_"));
+    assert!(output.lua.contains("    if name == nil then"));
+    assert!(output.lua.contains("      name = \"unknown\""));
+}
+
+#[test]
+fn coalesce_local_initializer_uses_target_as_guard_when_safe() {
+    let output = compile("fn demo(drawStyle) { local resolved = drawStyle ?? {} }");
+    let lua = output.lua;
+    assert!(lua.contains("  local resolved = drawStyle"), "{lua}");
+    assert!(lua.contains("  if resolved == nil then"), "{lua}");
+    assert!(lua.contains("    resolved = {}"), "{lua}");
+    assert!(!lua.contains("local __lux_tmp_drawStyle_"), "{lua}");
+}
+
+#[test]
+fn coalesce_self_assignment_uses_target_as_guard() {
+    let output = compile("fn demo(drawStyle) { drawStyle = drawStyle ?? {} }");
+    let lua = output.lua;
+    assert!(lua.contains("  if drawStyle == nil then"), "{lua}");
+    assert!(lua.contains("    drawStyle = {}"), "{lua}");
+    assert!(!lua.contains("local __lux_tmp_drawStyle_"), "{lua}");
+}
+
+#[test]
+fn coalesce_self_assignment_keeps_rhs_setup_under_guard() {
+    let output = compile("fn demo(value, player) { value = value ?? player?:GetName() }");
+    let lua = output.lua;
+    let guard_pos = lua.find("if value == nil then").expect("nil guard");
+    let safe_call_pos = lua.find("GetName").expect("safe call");
+    assert!(guard_pos < safe_call_pos, "{lua}");
+}
+
+#[test]
+fn optional_member_coalesce_uses_single_result_temp() {
+    let output = compile("fn demo(atlas) = atlas?.w ?? 0");
+    let lua = output.lua;
+    assert!(lua.contains("local __lux_tmp_w_"), "{lua}");
+    assert!(lua.contains("if __lux_tmp_w_"), "{lua}");
+    assert!(!lua.contains("local __lux_val_w_"), "{lua}");
+}
+
+#[test]
+fn coalesce_chain_uses_single_accumulator() {
+    let output = compile("fn demo(a, b, c) = a ?? b ?? c");
+    let lua = output.lua;
+    assert!(lua.contains("local __lux_tmp_a_"), "{lua}");
+    assert_eq!(lua.matches("local __lux_tmp_").count(), 1, "{lua}");
+    assert!(lua.contains(" = b"), "{lua}");
+    assert!(lua.contains(" = c"), "{lua}");
+}
+
+#[test]
+fn coalesce_chain_keeps_rhs_setup_under_nil_guard() {
+    let output = compile("fn demo(a, player) = a ?? player?:GetName() ?? \"unknown\"");
+    let lua = output.lua;
+    let first_guard = lua.find("if __lux_tmp_a_").expect("nil guard");
+    let safe_call = lua.find("GetName").expect("safe call");
+    assert!(first_guard < safe_call, "{lua}");
 }
 
 #[test]
@@ -479,7 +596,7 @@ fn lifts_large_module_import_cache_slots() {
     assert!(
         output
             .lua
-            .contains("__lux_module_1.__lux_import_2 = __lux_import(\"pkg/0\")"),
+            .contains("__lux_module_1.mod0 = __lux_import(\"pkg/0\")"),
         "{}",
         output.lua
     );

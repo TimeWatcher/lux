@@ -60,6 +60,13 @@ impl Gensym {
             }
         }
     }
+
+    fn next_hinted(&mut self, role: &str, hint: Option<&str>) -> String {
+        let Some(hint) = hint.and_then(sanitize_temp_hint) else {
+            return self.next(role);
+        };
+        self.next(&format!("{role}_{hint}"))
+    }
 }
 
 pub struct LuaCodegen<'a> {
@@ -221,13 +228,19 @@ impl<'a> LuaCodegen<'a> {
                 }
 
                 let lhs = names.join(", ");
+                let references_declared_names = exprs_reference_any_names(values, names);
                 if values.is_empty() {
                     self.line(format!("local {lhs}"), &stmt.origin);
                     self.declare_names(names.iter().cloned());
                 } else if names.len() == 1
                     && values.len() == 1
+                    && !references_declared_names
+                    && self.emit_direct_local_decl(&names[0], &values[0], &stmt.origin)?
+                {
+                } else if names.len() == 1
+                    && values.len() == 1
                     && prefers_direct_assignment_expr(&values[0])
-                    && !exprs_reference_any_names(values, names)
+                    && !references_declared_names
                 {
                     self.line(format!("local {lhs}"), &stmt.origin);
                     self.declare_names(names.iter().cloned());
@@ -237,7 +250,7 @@ impl<'a> LuaCodegen<'a> {
                     if emitted.setup.is_empty() {
                         self.line(format!("local {lhs} = {}", emitted.values), &stmt.origin);
                         self.declare_names(names.iter().cloned());
-                    } else if !exprs_reference_any_names(values, names) {
+                    } else if !references_declared_names {
                         self.line(format!("local {lhs}"), &stmt.origin);
                         self.declare_names(names.iter().cloned());
                         self.emit_scoped_setup(emitted.setup, &stmt.origin, |this| {
@@ -257,6 +270,9 @@ impl<'a> LuaCodegen<'a> {
                 self.emit_local_destructure(patterns, values, &stmt.origin)?;
             }
             IrStmtKind::Assign { targets, values } => {
+                if self.emit_direct_coalesce_assign(targets, values, &stmt.origin)? {
+                    return Ok(());
+                }
                 let places = targets
                     .iter()
                     .map(|target| self.emit_place_ref(target, PlaceMode::Direct))
@@ -312,7 +328,7 @@ impl<'a> LuaCodegen<'a> {
                 else_block,
             } => self.emit_if_stmt(condition, then_block, else_block.as_ref(), &stmt.origin)?,
             IrStmtKind::While { condition, body } => {
-                let condition = self.emit_expr_setup(condition)?;
+                let condition = self.emit_condition_setup(condition)?;
                 if condition.setup.is_empty() {
                     self.line(format!("while {} do", condition.value), &stmt.origin);
                     self.indented(|this| this.emit_loop_body(body, &stmt.origin))?;
@@ -387,7 +403,7 @@ impl<'a> LuaCodegen<'a> {
             IrStmtKind::RepeatUntil { body, condition } => {
                 self.line("repeat", &stmt.origin);
                 self.indented(|this| this.emit_loop_body(body, &stmt.origin))?;
-                let condition = self.emit_expr_setup(condition)?;
+                let condition = self.emit_condition_setup(condition)?;
                 self.emit_setup(condition.setup);
                 self.line(format!("until {}", condition.value), &stmt.origin);
             }
@@ -406,6 +422,76 @@ impl<'a> LuaCodegen<'a> {
         Ok(())
     }
 
+    fn emit_direct_coalesce_assign(
+        &mut self,
+        targets: &[IrPlace],
+        values: &[IrExpr],
+        origin: &Origin,
+    ) -> Result<bool, CodegenError> {
+        let [IrPlace::Identifier(target_name)] = targets else {
+            return Ok(false);
+        };
+        let [value] = values else {
+            return Ok(false);
+        };
+        let IrExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            left,
+            right,
+        } = &value.kind
+        else {
+            return Ok(false);
+        };
+        let IrExprKind::Identifier(left_name) = &left.kind else {
+            return Ok(false);
+        };
+        if left_name != target_name {
+            return Ok(false);
+        }
+
+        let target = self.emit_identifier(target_name);
+        self.line(format!("if {target} == nil then"), origin);
+        self.indented(|this| this.emit_expr_into(right, &target))?;
+        self.line("end", origin);
+        Ok(true)
+    }
+
+    fn emit_direct_local_decl(
+        &mut self,
+        name: &str,
+        expr: &IrExpr,
+        origin: &Origin,
+    ) -> Result<bool, CodegenError> {
+        let IrExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            left,
+            right,
+        } = &expr.kind
+        else {
+            return Ok(false);
+        };
+
+        let left = self.emit_expr_setup(left)?;
+        if left.setup.is_empty() {
+            self.line(format!("local {name} = {}", left.value), origin);
+            self.declare_name(name.to_string());
+            self.line(format!("if {name} == nil then"), origin);
+            self.indented(|this| this.emit_expr_into(right, name))?;
+            self.line("end", origin);
+        } else {
+            self.line(format!("local {name}"), origin);
+            self.declare_name(name.to_string());
+            self.emit_scoped_setup(left.setup, origin, |this| {
+                this.line(format!("{name} = {}", left.value), origin);
+                this.line(format!("if {name} == nil then"), origin);
+                this.indented(|this| this.emit_expr_into(right, name))?;
+                this.line("end", origin);
+                Ok(())
+            })?;
+        }
+        Ok(true)
+    }
+
     fn emit_import(
         &mut self,
         source: &str,
@@ -413,6 +499,32 @@ impl<'a> LuaCodegen<'a> {
         side_effect_only: bool,
         origin: &Origin,
     ) {
+        if let Some(namespace) = single_namespace_import(specifiers)
+            && !side_effect_only
+            && self.lookup_import_tmp(source).is_none()
+        {
+            let lifted = self.is_module_scope() && self.is_module_lifted(&namespace.local);
+            let target = if lifted {
+                self.emit_identifier(&namespace.local)
+            } else {
+                namespace.local.clone()
+            };
+            if lifted {
+                self.line(
+                    format!("{target} = __lux_import({})", lua_string(source)),
+                    origin,
+                );
+            } else {
+                self.line(
+                    format!("local {target} = __lux_import({})", lua_string(source)),
+                    origin,
+                );
+                self.declare_name(namespace.local.clone());
+            }
+            self.bind_import_tmp(source, &target);
+            return;
+        }
+
         let module_tmp = if let Some(module_tmp) = self.lookup_import_tmp(source) {
             module_tmp
         } else {
@@ -918,7 +1030,7 @@ impl<'a> LuaCodegen<'a> {
         else_block: Option<&IrBlock>,
         origin: &Origin,
     ) -> Result<(), CodegenError> {
-        let condition = self.emit_expr_setup(condition)?;
+        let condition = self.emit_condition_setup(condition)?;
         self.emit_setup(condition.setup);
         self.line(format!("if {} then", condition.value), origin);
         self.indented(|this| this.emit_block_as_statements(then_block))?;
@@ -928,6 +1040,77 @@ impl<'a> LuaCodegen<'a> {
         }
         self.line("end", origin);
         Ok(())
+    }
+
+    fn emit_condition_setup(&mut self, expr: &IrExpr) -> Result<ConditionSetup, CodegenError> {
+        let Some(condition) = self.try_emit_inline_condition(expr)? else {
+            let setup = self.emit_expr_setup(expr)?;
+            return Ok(ConditionSetup {
+                setup: setup.setup,
+                value: setup.value,
+                precedence: setup.precedence,
+            });
+        };
+        Ok(condition)
+    }
+
+    fn try_emit_inline_condition(
+        &mut self,
+        expr: &IrExpr,
+    ) -> Result<Option<ConditionSetup>, CodegenError> {
+        match &expr.kind {
+            IrExprKind::Unary {
+                op: UnaryOp::Not,
+                argument,
+            } => {
+                let Some(argument) = self.try_emit_inline_condition(argument)? else {
+                    return Ok(None);
+                };
+                Ok(Some(ConditionSetup {
+                    setup: argument.setup,
+                    value: format!(
+                        "not {}",
+                        parenthesize_unary_operand(
+                            UnaryOp::Not,
+                            argument.value,
+                            argument.precedence
+                        )
+                    ),
+                    precedence: LuaPrecedence::Unary,
+                }))
+            }
+            IrExprKind::Binary { op, left, right }
+                if matches!(op, BinaryOp::And | BinaryOp::Or) =>
+            {
+                let Some(left) = self.try_emit_inline_condition(left)? else {
+                    return Ok(None);
+                };
+                let Some(right) = self.try_emit_inline_condition(right)? else {
+                    return Ok(None);
+                };
+                if !right.setup.is_empty() {
+                    return Ok(None);
+                }
+
+                let precedence = condition_precedence(*op);
+                let setup = left.setup;
+                let left = parenthesize_condition_operand(left.value, left.precedence, *op);
+                let right = parenthesize_condition_operand(right.value, right.precedence, *op);
+                Ok(Some(ConditionSetup {
+                    setup,
+                    value: format_lua_binary(*op, &left, &right),
+                    precedence,
+                }))
+            }
+            _ => {
+                let setup = self.emit_expr_setup(expr)?;
+                Ok(Some(ConditionSetup {
+                    setup: setup.setup,
+                    value: setup.value,
+                    precedence: setup.precedence,
+                }))
+            }
+        }
     }
 
     fn emit_expr_as_stmt(&mut self, expr: &IrExpr) -> Result<(), CodegenError> {
@@ -997,6 +1180,9 @@ impl<'a> LuaCodegen<'a> {
     }
 
     fn emit_expr_into(&mut self, expr: &IrExpr, target: &str) -> Result<(), CodegenError> {
+        if self.emit_coalesce_into(expr, target)? {
+            return Ok(());
+        }
         if self.emit_conditional_with_mode(expr, ExprEmitMode::AssignInto(target))? {
             return Ok(());
         }
@@ -1017,6 +1203,35 @@ impl<'a> LuaCodegen<'a> {
         })
     }
 
+    fn emit_coalesce_into(&mut self, expr: &IrExpr, target: &str) -> Result<bool, CodegenError> {
+        let IrExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            left,
+            right,
+        } = &expr.kind
+        else {
+            return Ok(false);
+        };
+        let Some(target_name) = simple_lua_identifier(target) else {
+            return Ok(false);
+        };
+        let mut target_names = BTreeSet::new();
+        target_names.insert(target_name);
+        if expr_references_any_name(right, &target_names) {
+            return Ok(false);
+        }
+
+        let left = self.emit_expr_setup(left)?;
+        self.emit_scoped_setup(left.setup, &expr.origin, |this| {
+            this.line(format!("{target} = {}", left.value), &expr.origin);
+            this.line(format!("if {target} == nil then"), &expr.origin);
+            this.indented(|this| this.emit_expr_into(right, target))?;
+            this.line("end", &expr.origin);
+            Ok(())
+        })?;
+        Ok(true)
+    }
+
     fn emit_conditional_with_mode(
         &mut self,
         expr: &IrExpr,
@@ -1028,7 +1243,7 @@ impl<'a> LuaCodegen<'a> {
             else_branch,
         } = &expr.kind
         {
-            let condition = self.emit_expr_setup(condition)?;
+            let condition = self.emit_condition_setup(condition)?;
             self.emit_scoped_setup(condition.setup, &expr.origin, |this| {
                 this.line(format!("if {} then", condition.value), &expr.origin);
                 this.indented(|this| this.emit_branch_with_mode(then_branch, mode))?;
@@ -1382,10 +1597,15 @@ impl<'a> LuaCodegen<'a> {
             IrExprKind::Identifier(name) => Ok(ExprSetup::value(self.emit_identifier(name))),
             IrExprKind::Nil => Ok(ExprSetup::value("nil").with_may_be_nil(true)),
             IrExprKind::Boolean(value) => {
-                Ok(ExprSetup::value(if *value { "true" } else { "false" }))
+                Ok(ExprSetup::value(if *value { "true" } else { "false" })
+                    .with_statically_non_nil())
             }
-            IrExprKind::Number(value) => Ok(ExprSetup::value(value.clone())),
-            IrExprKind::String(value) => Ok(ExprSetup::value(lua_string(value))),
+            IrExprKind::Number(value) => {
+                Ok(ExprSetup::value(value.clone()).with_statically_non_nil())
+            }
+            IrExprKind::String(value) => {
+                Ok(ExprSetup::value(lua_string(value)).with_statically_non_nil())
+            }
             IrExprKind::Vararg => Ok(ExprSetup::value("...").with_may_be_nil(true)),
             IrExprKind::PipelinePlaceholder => {
                 let Some(value) = self.pipeline_placeholders.last() else {
@@ -1413,6 +1633,7 @@ impl<'a> LuaCodegen<'a> {
                     ),
                     precedence: LuaPrecedence::Unary,
                     may_be_nil: false,
+                    statically_non_nil: false,
                 })
             }
             IrExprKind::Binary { op, left, right } => {
@@ -1430,6 +1651,7 @@ impl<'a> LuaCodegen<'a> {
                     value: target,
                     precedence: LuaPrecedence::Primary,
                     may_be_nil: true,
+                    statically_non_nil: false,
                 })
             }
             IrExprKind::Match(_) => {
@@ -1444,6 +1666,7 @@ impl<'a> LuaCodegen<'a> {
                     value: target,
                     precedence: LuaPrecedence::Primary,
                     may_be_nil: true,
+                    statically_non_nil: false,
                 })
             }
             IrExprKind::Do(block) => {
@@ -1458,6 +1681,7 @@ impl<'a> LuaCodegen<'a> {
                     value: target,
                     precedence: LuaPrecedence::Primary,
                     may_be_nil: true,
+                    statically_non_nil: false,
                 })
             }
             IrExprKind::Function(function) => self.emit_function_expr(function, &expr.origin),
@@ -1485,24 +1709,30 @@ impl<'a> LuaCodegen<'a> {
         let left = self.emit_expr_setup(left)?;
         let right = self.emit_expr_setup(right)?;
         let precedence = binary_precedence(op);
-        let left_value =
-            parenthesize_binary_operand(left.value, left.precedence, op, BinaryOperandSide::Left);
+        let left_value = parenthesize_binary_operand(
+            left.value.clone(),
+            left.precedence,
+            op,
+            BinaryOperandSide::Left,
+        );
         let right_value = parenthesize_binary_operand(
-            right.value,
+            right.value.clone(),
             right.precedence,
             op,
             BinaryOperandSide::Right,
         );
+        let needs_ordering_nil_guard =
+            is_ordering_comparison(op) && (left.needs_nil_guard() || right.needs_nil_guard());
+        let ordering_nil_guard_condition = needs_ordering_nil_guard
+            .then(|| comparison_nil_guard_condition(&left, &left_value, &right, &right_value));
         let mut setup = left.setup;
         setup.extend(right.setup);
 
-        if is_ordering_comparison(op) && (left.may_be_nil || right.may_be_nil) {
+        if needs_ordering_nil_guard {
             let result = self.gensym.next("cmp");
             setup.push(PendingLine::new(format!("local {result} = false"), origin));
-            setup.push(PendingLine::new(
-                format!("if {left_value} ~= nil and {right_value} ~= nil then"),
-                origin,
-            ));
+            let condition = ordering_nil_guard_condition.expect("guard condition");
+            setup.push(PendingLine::new(format!("if {condition} then"), origin));
             setup.push(PendingLine::new(
                 format!(
                     "  {result} = {} {} {}",
@@ -1518,6 +1748,7 @@ impl<'a> LuaCodegen<'a> {
                 value: result,
                 precedence: LuaPrecedence::Primary,
                 may_be_nil: false,
+                statically_non_nil: false,
             });
         }
 
@@ -1526,6 +1757,7 @@ impl<'a> LuaCodegen<'a> {
             value: format_lua_binary(op, &left_value, &right_value),
             precedence,
             may_be_nil: false,
+            statically_non_nil: false,
         })
     }
 
@@ -1552,6 +1784,7 @@ impl<'a> LuaCodegen<'a> {
             value: format_lua_concat_parts(&emitted),
             precedence: LuaPrecedence::Concat,
             may_be_nil: false,
+            statically_non_nil: true,
         })
     }
 
@@ -1569,6 +1802,7 @@ impl<'a> LuaCodegen<'a> {
                 value: "{}".into(),
                 precedence: LuaPrecedence::Primary,
                 may_be_nil: false,
+                statically_non_nil: true,
             });
         }
 
@@ -1616,6 +1850,7 @@ impl<'a> LuaCodegen<'a> {
             value: format_lua_table(&emitted),
             precedence: LuaPrecedence::Primary,
             may_be_nil: false,
+            statically_non_nil: true,
         })
     }
 
@@ -1693,6 +1928,7 @@ impl<'a> LuaCodegen<'a> {
             value: result,
             precedence: LuaPrecedence::Primary,
             may_be_nil: false,
+            statically_non_nil: false,
         })
     }
 
@@ -1702,14 +1938,106 @@ impl<'a> LuaCodegen<'a> {
         right: &IrExpr,
         origin: &Origin,
     ) -> Result<ExprSetup, CodegenError> {
-        let left = self.emit_expr_setup(left)?;
-        let result = self.gensym.next("tmp");
-        let mut setup = left.setup;
+        let mut terms = Vec::new();
+        collect_coalesce_terms(left, &mut terms);
+        collect_coalesce_terms(right, &mut terms);
+
+        if terms.len() == 2
+            && let Some(emitted) = self.emit_optional_member_coalesce(terms[0], terms[1], origin)?
+        {
+            return Ok(emitted);
+        }
+
+        let result_hint = terms.first().and_then(|term| expr_temp_hint(term));
+        let Some((first, rest)) = terms.split_first() else {
+            unreachable!("coalesce expression always has at least two terms")
+        };
+        let first = self.emit_expr_setup(first)?;
+        let result = self.gensym.next_hinted("tmp", result_hint.as_deref());
+        let mut setup = first.setup;
+        let mut may_be_nil = first.may_be_nil;
+        let mut statically_non_nil = first.statically_non_nil;
 
         setup.push(PendingLine::new(
-            format!("local {result} = {}", left.value),
+            format!("local {result} = {}", first.value),
             origin,
         ));
+
+        for term in rest {
+            let term = self.emit_expr_setup(term)?;
+            setup.push(PendingLine::new(format!("if {result} == nil then"), origin));
+            setup.extend(indent_pending(term.setup, 1));
+            setup.push(PendingLine::new(
+                format!("  {result} = {}", term.value),
+                origin,
+            ));
+            setup.push(PendingLine::new("end", origin));
+            may_be_nil = if statically_non_nil {
+                false
+            } else {
+                term.may_be_nil
+            };
+            statically_non_nil |= term.statically_non_nil;
+        }
+
+        Ok(ExprSetup {
+            setup,
+            value: result,
+            precedence: LuaPrecedence::Primary,
+            may_be_nil,
+            statically_non_nil,
+        })
+    }
+
+    fn emit_optional_member_coalesce(
+        &mut self,
+        left: &IrExpr,
+        right: &IrExpr,
+        origin: &Origin,
+    ) -> Result<Option<ExprSetup>, CodegenError> {
+        let IrExprKind::Chain(chain) = &left.kind else {
+            return Ok(None);
+        };
+        let Some((last, receiver_segments)) = chain.segments.split_last() else {
+            return Ok(None);
+        };
+        let IrChainSegmentKind::Member {
+            name,
+            optional: true,
+        } = &last.kind
+        else {
+            return Ok(None);
+        };
+
+        let receiver = IrExpr {
+            kind: IrExprKind::Chain(IrChain {
+                base: chain.base.clone(),
+                segments: receiver_segments.to_vec(),
+            }),
+            origin: chain.base.origin.clone(),
+            value_mode: ValueMode::Single,
+            symbol: None,
+        };
+        let receiver = self.emit_expr_setup(&receiver)?;
+        let obj = self
+            .gensym
+            .next_hinted("obj", expr_temp_hint(&chain.base).as_deref());
+        let result = self.gensym.next_hinted("tmp", Some(name));
+        let mut setup = receiver.setup;
+        setup.push(PendingLine::new(
+            format!("local {obj} = {}", receiver.value),
+            &last.origin,
+        ));
+        setup.push(PendingLine::new(format!("local {result} = nil"), origin));
+        setup.push(PendingLine::new(
+            format!("if {obj} ~= nil then"),
+            &last.origin,
+        ));
+        setup.push(PendingLine::new(
+            format!("  {result} = {obj}.{name}"),
+            &last.origin,
+        ));
+        setup.push(PendingLine::new("end", &last.origin));
         setup.push(PendingLine::new(format!("if {result} == nil then"), origin));
 
         let right = self.emit_expr_setup(right)?;
@@ -1720,12 +2048,13 @@ impl<'a> LuaCodegen<'a> {
         ));
         setup.push(PendingLine::new("end", origin));
 
-        Ok(ExprSetup {
+        Ok(Some(ExprSetup {
             setup,
             value: result,
             precedence: LuaPrecedence::Primary,
             may_be_nil: right.may_be_nil,
-        })
+            statically_non_nil: right.statically_non_nil,
+        }))
     }
 
     fn emit_short_circuit(
@@ -1736,6 +2065,44 @@ impl<'a> LuaCodegen<'a> {
         origin: &Origin,
     ) -> Result<ExprSetup, CodegenError> {
         let left = self.emit_expr_setup(left)?;
+        if left.setup.is_empty() {
+            let right = self.emit_expr_setup(right)?;
+            if right.setup.is_empty() {
+                let precedence = binary_precedence(op);
+                let left_value = parenthesize_binary_operand(
+                    left.value,
+                    left.precedence,
+                    op,
+                    BinaryOperandSide::Left,
+                );
+                let right_value = parenthesize_binary_operand(
+                    right.value,
+                    right.precedence,
+                    op,
+                    BinaryOperandSide::Right,
+                );
+                return Ok(ExprSetup {
+                    setup: Vec::new(),
+                    value: format_lua_binary(op, &left_value, &right_value),
+                    precedence,
+                    may_be_nil: left.may_be_nil || right.may_be_nil,
+                    statically_non_nil: false,
+                });
+            }
+            return self.emit_guarded_short_circuit(op, left, right, origin);
+        }
+
+        let right = self.emit_expr_setup(right)?;
+        self.emit_guarded_short_circuit(op, left, right, origin)
+    }
+
+    fn emit_guarded_short_circuit(
+        &mut self,
+        op: BinaryOp,
+        left: ExprSetup,
+        right: ExprSetup,
+        origin: &Origin,
+    ) -> Result<ExprSetup, CodegenError> {
         let result = self.gensym.next("tmp");
         let mut setup = left.setup;
 
@@ -1750,7 +2117,6 @@ impl<'a> LuaCodegen<'a> {
         };
         setup.push(PendingLine::new(format!("if {condition} then"), origin));
 
-        let right = self.emit_expr_setup(right)?;
         setup.extend(indent_pending(right.setup, 1));
         setup.push(PendingLine::new(
             format!("  {result} = {}", right.value),
@@ -1763,6 +2129,7 @@ impl<'a> LuaCodegen<'a> {
             value: result,
             precedence: LuaPrecedence::Primary,
             may_be_nil: left.may_be_nil || right.may_be_nil,
+            statically_non_nil: false,
         })
     }
 
@@ -1802,6 +2169,7 @@ impl<'a> LuaCodegen<'a> {
             value: nested.into_lines_text(),
             precedence: LuaPrecedence::Primary,
             may_be_nil: false,
+            statically_non_nil: true,
         })
     }
 
@@ -1811,13 +2179,14 @@ impl<'a> LuaCodegen<'a> {
         }
 
         let mut current = self.emit_expr_setup(&chain.base)?;
+        let mut current_hint = expr_temp_hint(&chain.base);
 
         for segment in &chain.segments {
             match &segment.kind {
                 IrChainSegmentKind::Member { name, optional } => {
                     if *optional {
-                        let obj = self.gensym.next("obj");
-                        let result = self.gensym.next("val");
+                        let obj = self.gensym.next_hinted("obj", current_hint.as_deref());
+                        let result = self.gensym.next_hinted("val", Some(name));
                         current.setup.push(PendingLine::new(
                             format!("local {obj} = {}", current.value),
                             &segment.origin,
@@ -1838,6 +2207,7 @@ impl<'a> LuaCodegen<'a> {
                         current.value = result;
                         current.precedence = LuaPrecedence::Primary;
                         current.may_be_nil = true;
+                        current_hint = Some(name.clone());
                     } else {
                         current.value = format!(
                             "{}.{}",
@@ -1846,13 +2216,16 @@ impl<'a> LuaCodegen<'a> {
                         );
                         current.precedence = LuaPrecedence::Primary;
                         current.may_be_nil = false;
+                        current_hint = Some(name.clone());
                     }
                 }
                 IrChainSegmentKind::Index { index, optional } => {
                     if *optional {
-                        let obj = self.gensym.next("obj");
-                        let key = self.gensym.next("key");
-                        let result = self.gensym.next("val");
+                        let obj = self.gensym.next_hinted("obj", current_hint.as_deref());
+                        let key = self
+                            .gensym
+                            .next_hinted("key", expr_temp_hint(index).as_deref());
+                        let result = self.gensym.next_hinted("val", current_hint.as_deref());
                         current.setup.push(PendingLine::new(
                             format!("local {obj} = {}", current.value),
                             &segment.origin,
@@ -1879,6 +2252,7 @@ impl<'a> LuaCodegen<'a> {
                         current.value = result;
                         current.precedence = LuaPrecedence::Primary;
                         current.may_be_nil = true;
+                        current_hint = None;
                     } else {
                         let index = self.emit_expr_setup(index)?;
                         current.setup.extend(index.setup);
@@ -1889,6 +2263,7 @@ impl<'a> LuaCodegen<'a> {
                         );
                         current.precedence = LuaPrecedence::Primary;
                         current.may_be_nil = false;
+                        current_hint = None;
                     }
                 }
                 IrChainSegmentKind::Call { args, .. } => {
@@ -1900,11 +2275,12 @@ impl<'a> LuaCodegen<'a> {
                     );
                     current.precedence = LuaPrecedence::Primary;
                     current.may_be_nil = true;
+                    current_hint = None;
                 }
                 IrChainSegmentKind::SafeDotCall { name, args, .. } => {
-                    let obj = self.gensym.next("obj");
-                    let func = self.gensym.next("fn");
-                    let result = self.gensym.next("val");
+                    let obj = self.gensym.next_hinted("obj", current_hint.as_deref());
+                    let func = self.gensym.next_hinted("fn", Some(name));
+                    let result = self.gensym.next_hinted("val", Some(name));
 
                     current.setup.push(PendingLine::new(
                         format!("local {obj} = {}", current.value),
@@ -1939,6 +2315,7 @@ impl<'a> LuaCodegen<'a> {
                     current.value = result;
                     current.precedence = LuaPrecedence::Primary;
                     current.may_be_nil = true;
+                    current_hint = Some(name.clone());
                 }
                 IrChainSegmentKind::MethodCall {
                     name,
@@ -1947,9 +2324,9 @@ impl<'a> LuaCodegen<'a> {
                     ..
                 } => {
                     if *optional {
-                        let obj = self.gensym.next("obj");
-                        let method = self.gensym.next("method");
-                        let result = self.gensym.next("val");
+                        let obj = self.gensym.next_hinted("obj", current_hint.as_deref());
+                        let method = self.gensym.next_hinted("method", Some(name));
+                        let result = self.gensym.next_hinted("val", Some(name));
                         current.setup.push(PendingLine::new(
                             format!("local {obj} = {}", current.value),
                             &segment.origin,
@@ -1985,6 +2362,7 @@ impl<'a> LuaCodegen<'a> {
                         current.value = result;
                         current.precedence = LuaPrecedence::Primary;
                         current.may_be_nil = true;
+                        current_hint = Some(name.clone());
                     } else {
                         let args = self.emit_expr_list(args)?;
                         current.setup.extend(args.setup);
@@ -1997,6 +2375,7 @@ impl<'a> LuaCodegen<'a> {
                         );
                         current.precedence = LuaPrecedence::Primary;
                         current.may_be_nil = true;
+                        current_hint = Some(name.clone());
                     }
                 }
             }
@@ -2027,6 +2406,7 @@ impl<'a> LuaCodegen<'a> {
             value,
             precedence: LuaPrecedence::Primary,
             may_be_nil: false,
+            statically_non_nil: true,
         }))
     }
 
@@ -2149,6 +2529,7 @@ impl<'a> LuaCodegen<'a> {
             value: right_setup.value,
             precedence: right_setup.precedence,
             may_be_nil: right_setup.may_be_nil,
+            statically_non_nil: right_setup.statically_non_nil,
         })
     }
 
@@ -2260,6 +2641,7 @@ struct ExprSetup {
     value: String,
     precedence: LuaPrecedence,
     may_be_nil: bool,
+    statically_non_nil: bool,
 }
 
 impl ExprSetup {
@@ -2269,12 +2651,22 @@ impl ExprSetup {
             value: value.into(),
             precedence: LuaPrecedence::Primary,
             may_be_nil: false,
+            statically_non_nil: false,
         }
     }
 
     fn with_may_be_nil(mut self, may_be_nil: bool) -> Self {
         self.may_be_nil = may_be_nil;
         self
+    }
+
+    fn with_statically_non_nil(mut self) -> Self {
+        self.statically_non_nil = true;
+        self
+    }
+
+    fn needs_nil_guard(&self) -> bool {
+        self.may_be_nil && !self.statically_non_nil
     }
 }
 
@@ -2283,6 +2675,13 @@ struct ExprListSetup {
     setup: Vec<PendingLine>,
     items: Vec<String>,
     values: String,
+}
+
+#[derive(Debug)]
+struct ConditionSetup {
+    setup: Vec<PendingLine>,
+    value: String,
+    precedence: LuaPrecedence,
 }
 
 #[derive(Debug, Clone)]
@@ -2438,7 +2837,202 @@ fn prefers_direct_assignment_expr(expr: &IrExpr) -> bool {
     matches!(
         expr.kind,
         IrExprKind::Conditional { .. } | IrExprKind::Do(_) | IrExprKind::Match(_)
+    ) || matches!(
+        expr.kind,
+        IrExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            ..
+        }
     )
+}
+
+fn single_namespace_import(specifiers: &[IrImportSpecifier]) -> Option<&IrImportSpecifier> {
+    let [specifier] = specifiers else {
+        return None;
+    };
+    specifier.namespace.then_some(specifier)
+}
+
+fn comparison_nil_guard_condition(
+    left: &ExprSetup,
+    left_value: &str,
+    right: &ExprSetup,
+    right_value: &str,
+) -> String {
+    let mut checks = Vec::new();
+    if left.needs_nil_guard() {
+        checks.push(format!("{left_value} ~= nil"));
+    }
+    if right.needs_nil_guard() {
+        checks.push(format!("{right_value} ~= nil"));
+    }
+    if checks.is_empty() {
+        "true".into()
+    } else {
+        checks.join(" and ")
+    }
+}
+
+fn condition_precedence(op: BinaryOp) -> LuaPrecedence {
+    match op {
+        BinaryOp::And => LuaPrecedence::And,
+        BinaryOp::Or => LuaPrecedence::Or,
+        _ => unreachable!("only logical operators have condition precedence"),
+    }
+}
+
+fn parenthesize_condition_operand(
+    value: String,
+    operand_precedence: LuaPrecedence,
+    parent_op: BinaryOp,
+) -> String {
+    let parent_precedence = condition_precedence(parent_op);
+    if operand_precedence < parent_precedence {
+        format!("({value})")
+    } else {
+        value
+    }
+}
+
+fn collect_coalesce_terms<'a>(expr: &'a IrExpr, out: &mut Vec<&'a IrExpr>) {
+    if let IrExprKind::Binary {
+        op: BinaryOp::Coalesce,
+        left,
+        right,
+    } = &expr.kind
+    {
+        collect_coalesce_terms(left, out);
+        collect_coalesce_terms(right, out);
+    } else {
+        out.push(expr);
+    }
+}
+
+fn simple_lua_identifier(value: &str) -> Option<&str> {
+    let mut chars = value.chars();
+    let first = chars.next()?;
+    if !(first == '_' || first.is_ascii_alphabetic()) {
+        return None;
+    }
+    if !chars.all(|ch| ch == '_' || ch.is_ascii_alphanumeric()) {
+        return None;
+    }
+    if is_lua_keyword(value) {
+        return None;
+    }
+    Some(value)
+}
+
+fn sanitize_temp_hint(hint: &str) -> Option<String> {
+    let mut out = String::new();
+    let mut prev_underscore = false;
+    for ch in hint.chars() {
+        let next = if ch == '_' || ch.is_ascii_alphanumeric() {
+            ch
+        } else {
+            '_'
+        };
+        if next == '_' {
+            if prev_underscore || out.is_empty() {
+                prev_underscore = true;
+                continue;
+            }
+            prev_underscore = true;
+        } else {
+            prev_underscore = false;
+        }
+        out.push(next);
+    }
+    while out.ends_with('_') {
+        out.pop();
+    }
+    if out.is_empty() {
+        return None;
+    }
+    if out.chars().next().is_some_and(|ch| ch.is_ascii_digit()) {
+        out.insert(0, '_');
+    }
+    if is_lua_keyword(&out) {
+        out.push_str("_value");
+    }
+    Some(out)
+}
+
+fn is_lua_keyword(value: &str) -> bool {
+    matches!(
+        value,
+        "and"
+            | "break"
+            | "do"
+            | "else"
+            | "elseif"
+            | "end"
+            | "false"
+            | "for"
+            | "function"
+            | "if"
+            | "in"
+            | "local"
+            | "nil"
+            | "not"
+            | "or"
+            | "repeat"
+            | "return"
+            | "then"
+            | "true"
+            | "until"
+            | "while"
+    )
+}
+
+fn expr_temp_hint(expr: &IrExpr) -> Option<String> {
+    match &expr.kind {
+        IrExprKind::Identifier(name) => Some(name.clone()),
+        IrExprKind::Unary { argument, .. } => expr_temp_hint(argument),
+        IrExprKind::Binary {
+            op: BinaryOp::Coalesce,
+            left,
+            ..
+        } => expr_temp_hint(left),
+        IrExprKind::Chain(chain) => chain_temp_hint(chain),
+        IrExprKind::Nil
+        | IrExprKind::Boolean(_)
+        | IrExprKind::Number(_)
+        | IrExprKind::String(_)
+        | IrExprKind::Vararg
+        | IrExprKind::PipelinePlaceholder
+        | IrExprKind::Template(_)
+        | IrExprKind::Table(_)
+        | IrExprKind::Binary { .. }
+        | IrExprKind::Conditional { .. }
+        | IrExprKind::Match(_)
+        | IrExprKind::Do(_)
+        | IrExprKind::Function(_) => None,
+    }
+}
+
+fn chain_temp_hint(chain: &IrChain) -> Option<String> {
+    let mut hint = expr_temp_hint(&chain.base);
+    for segment in &chain.segments {
+        match &segment.kind {
+            IrChainSegmentKind::Member { name, .. } => {
+                hint = Some(name.clone());
+            }
+            IrChainSegmentKind::Index { index, .. } => {
+                hint = expr_temp_hint(index).or(hint);
+            }
+            IrChainSegmentKind::Call { args, .. } => {
+                if args.len() == 1 {
+                    hint = expr_temp_hint(&args[0]).or(hint);
+                }
+            }
+            IrChainSegmentKind::SafeDotCall { name, .. }
+            | IrChainSegmentKind::MethodCall { name, .. } => {
+                hint = Some(name.clone());
+            }
+        }
+    }
+    hint
 }
 
 #[cfg(test)]
