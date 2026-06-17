@@ -418,28 +418,30 @@ fn latest_release_version() -> Result<String, ToolchainError> {
     #[derive(Deserialize)]
     struct Release {
         tag_name: String,
+        draft: bool,
     }
 
     let client = reqwest::blocking::Client::new();
-    let release = client
+    let releases = client
         .get(format!(
-            "https://api.github.com/repos/{LUX_REPO}/releases/latest"
+            "https://api.github.com/repos/{LUX_REPO}/releases?per_page=30"
         ))
         .header(reqwest::header::USER_AGENT, "luxc")
         .send()
-        .map_err(|err| ToolchainError::Http(format!("failed to query latest Lux release: {err}")))?
+        .map_err(|err| ToolchainError::Http(format!("failed to query Lux releases: {err}")))?
         .error_for_status()
-        .map_err(|err| ToolchainError::Http(format!("HTTP error for latest Lux release: {err}")))?
-        .json::<Release>()
-        .map_err(|err| {
-            ToolchainError::Http(format!("failed to parse latest Lux release: {err}"))
-        })?;
-    if release.tag_name.trim().is_empty() {
+        .map_err(|err| ToolchainError::Http(format!("HTTP error for Lux releases: {err}")))?
+        .json::<Vec<Release>>()
+        .map_err(|err| ToolchainError::Http(format!("failed to parse Lux releases: {err}")))?;
+    let release = releases
+        .iter()
+        .find(|release| !release.draft && !release.tag_name.trim().is_empty());
+    let Some(release) = release else {
         return Err(ToolchainError::Invalid(
-            "latest Lux release did not include a tag name".into(),
+            "no published Lux release includes a tag name".into(),
         ));
-    }
-    Ok(release.tag_name)
+    };
+    Ok(release.tag_name.clone())
 }
 
 fn download_url(url: &str) -> Result<Vec<u8>, ToolchainError> {

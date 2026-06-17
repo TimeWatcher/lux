@@ -29,12 +29,13 @@ use luxc::sourcemap::{
 };
 use luxc::toolchain::{
     InstallToolchainRequest, ToolchainCommand, ToolchainLayout, ToolchainSelectionSource,
-    dispatch_from_shim_if_needed, install_toolchain, list_toolchains, pin_toolchain,
-    select_toolchain, set_default_toolchain, unpin_toolchain, update_toolchain,
+    current_version, dispatch_from_shim_if_needed, install_toolchain, list_toolchains,
+    pin_toolchain, select_toolchain, set_default_toolchain, unpin_toolchain, update_toolchain,
 };
 
 fn usage() {
     eprintln!("usage:");
+    eprintln!("  luxc --version");
     eprintln!("  luxc lex <path>");
     eprintln!("  luxc parse <path>");
     eprintln!("  luxc lint <path>");
@@ -475,6 +476,10 @@ fn main() -> ExitCode {
     }
 
     match parse_command(rest) {
+        Command::Version => {
+            println!("luxc {}", current_version());
+            ExitCode::SUCCESS
+        }
         Command::Lex(path) => match lex_file(path) {
             Ok(code) => code,
             Err(message) => {
@@ -648,6 +653,7 @@ fn main() -> ExitCode {
 }
 
 enum Command {
+    Version,
     Lex(PathBuf),
     Parse(PathBuf),
     Lint(PathBuf),
@@ -706,6 +712,9 @@ enum Command {
 
 fn parse_command(args: Vec<OsString>) -> Command {
     match args.as_slice() {
+        [command] if command == "--version" || command == "-V" || command == "version" => {
+            Command::Version
+        }
         [command, path] if command == "lex" => Command::Lex(path.into()),
         [command, path] if command == "parse" => Command::Parse(path.into()),
         [command, path] if command == "lint" => Command::Lint(path.into()),
@@ -1943,6 +1952,18 @@ mod tests {
     }
 
     #[test]
+    fn version_command_is_available() {
+        assert!(matches!(
+            parse_command(args(&["--version"])),
+            Command::Version
+        ));
+        assert!(matches!(
+            parse_command(args(&["version"])),
+            Command::Version
+        ));
+    }
+
+    #[test]
     fn build_directory_compiles_lux_files_preserving_relative_paths() {
         let root = temp_root("build_directory");
         let source_root = root.join("src");
@@ -1987,7 +2008,7 @@ mod tests {
         }) = parse_command(args(&[
             "self",
             "install",
-            "0.1.0-alpha.4",
+            "0.1.0-alpha.1",
             "--from",
             "C:\\tools\\luxc.exe",
             "--default",
@@ -1996,7 +2017,7 @@ mod tests {
             panic!("expected self install command");
         };
 
-        assert_eq!(version.as_deref(), Some("0.1.0-alpha.4"));
+        assert_eq!(version.as_deref(), Some("0.1.0-alpha.1"));
         assert_eq!(source.as_deref(), Some("C:\\tools\\luxc.exe"));
         assert!(make_default);
     }
@@ -2006,12 +2027,12 @@ mod tests {
         let Command::SelfCommand(ToolchainCommand::Pin {
             version,
             project_root,
-        }) = parse_command(args(&["self", "pin", "0.1.0-alpha.4", "--project", "demo"]))
+        }) = parse_command(args(&["self", "pin", "0.1.0-alpha.1", "--project", "demo"]))
         else {
             panic!("expected self pin command");
         };
 
-        assert_eq!(version, "0.1.0-alpha.4");
+        assert_eq!(version, "0.1.0-alpha.1");
         assert_eq!(project_root, PathBuf::from("demo"));
     }
 

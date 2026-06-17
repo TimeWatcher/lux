@@ -38,7 +38,8 @@ cargo run -- gmod build path\to\src --out path\to\generated\lua --no-autorun
 cargo run -- gmod build --manifest path\to\lux.toml
 cargo run -- self install --default
 cargo run -- self list
-cargo run -- self pin 0.1.0-alpha.4 --project path\to\project
+cargo run -- self pin 0.1.0-alpha.1 --project path\to\project
+cargo run -- --version
 cargo run -- lsp
 ```
 

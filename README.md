@@ -405,8 +405,8 @@ keep in sync with the compiler.
 
 ## Quick Start
 
-Lux is currently in alpha. No public binary release is active, so build `luxc`
-from source once, then let Lux install its stable user entrypoint:
+Lux is currently in alpha. A prerelease binary is available, but building from
+source remains the fastest way to get the current tree:
 
 ```powershell
 git clone https://github.com/TimeWatcher/lux.git
@@ -416,6 +416,7 @@ cargo build --release
 $Luxc = Resolve-Path .\target\release\luxc.exe
 & $Luxc self install --default
 $Luxc = Join-Path $env:USERPROFILE ".lux\bin\luxc.exe"
+& ..\scripts\install-lux-path.ps1
 ```
 
 This installs:
@@ -427,10 +428,10 @@ This installs:
 ```
 
 On Windows this is `%USERPROFILE%\.lux\bin\luxc.exe` and
-`%USERPROFILE%\.lux\toolchains\<version>\luxc.exe`. Add `~/.lux/bin` to `PATH`
-if you want plain `luxc` in every terminal. The VS Code extension also detects
-`~/.lux/bin/luxc` directly, so editor support does not require a manual
-`lux.compiler.path` setting or PATH setup.
+`%USERPROFILE%\.lux\toolchains\<version>\luxc.exe`. The repo includes
+`scripts/install-lux-path.ps1`, which adds `~/.lux/bin` to the current user's
+`PATH`. The VS Code extension also detects `~/.lux/bin/luxc` directly, so editor
+support does not require a manual `lux.compiler.path` setting.
 
 Create an offline, dependency-free project:
 
@@ -474,7 +475,7 @@ Compiler updates are explicit. Once binary releases are published, use:
 
 ```powershell
 & $Luxc self update
-& $Luxc self install 0.1.0-alpha.4 --default
+& $Luxc self install 0.1.0-alpha.1 --default
 & $Luxc self list
 & $Luxc self which
 ```
@@ -483,7 +484,7 @@ Most projects do not need to pin a compiler. Single files and ordinary projects
 use the global default. Teams and CI can opt into a project-local pin:
 
 ```powershell
-& $Luxc self pin 0.1.0-alpha.4 --project .\my_addon
+& $Luxc self pin 0.1.0-alpha.1 --project .\my_addon
 ```
 
 ## When To Use Lux
