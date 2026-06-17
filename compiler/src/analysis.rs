@@ -16,12 +16,12 @@ use crate::module::{
     ModuleExport, ModuleGraph, ModuleId, ModuleImport, ModuleImportSpecifier, PackageId,
     RealmAvailability, RealmSet,
 };
-use crate::parse::Parser;
-use crate::part_order::{PartOrderInput, is_module_entry_path, sort_module_parts};
 use crate::packages::{
     PackageLoadError, PackagePhase, PackagePhaseKind, discover_compile_time_phases,
     discover_runtime_phases,
 };
+use crate::parse::Parser;
+use crate::part_order::{PartOrderInput, is_module_entry_path, sort_module_parts};
 use crate::project::{
     ProjectManifest, discover_lux_sources, infer_module_path, infer_part_realm,
     resolve_import_target,
@@ -46,6 +46,7 @@ pub struct AnalysisConfig {
 pub enum AnalysisMode {
     Project,
     PackageSet,
+    Standalone,
 }
 
 impl PartialEq for AnalysisConfig {
@@ -101,6 +102,17 @@ impl AnalysisConfig {
         }
     }
 
+    pub fn standalone(root: impl Into<PathBuf>) -> Self {
+        Self {
+            source_root: root.into(),
+            package_id: None,
+            package_roots: Vec::new(),
+            resolver_options: ResolverOptions::gmod_default()
+                .with_unknown_external(UnknownExternalPolicy::Allow),
+            mode: AnalysisMode::Standalone,
+        }
+    }
+
     pub fn with_package_id(mut self, package_id: impl Into<String>) -> Self {
         self.package_id = Some(PackageId::new(package_id.into()));
         self
@@ -118,6 +130,10 @@ impl AnalysisConfig {
 
     pub fn is_package_set(&self) -> bool {
         self.mode == AnalysisMode::PackageSet
+    }
+
+    pub fn is_standalone(&self) -> bool {
+        self.mode == AnalysisMode::Standalone
     }
 
     fn effective_package_id(&self) -> PackageId {
@@ -379,6 +395,9 @@ pub fn analyze_source_root(
     if config.is_package_set() {
         return analyze_package_set(config, overlays);
     }
+    if config.is_standalone() {
+        return analyze_file_map(config, collect_file_map(overlays)?);
+    }
     let mut files = BTreeMap::<PathBuf, String>::new();
     for path in discover_lux_sources(&config.source_root).map_err(project_error_to_analysis)? {
         let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
@@ -421,7 +440,7 @@ pub fn analyze_file_map(
 
     for (index, (path, text)) in files.into_iter().enumerate() {
         let file = SourceFile::new(index as u32, Some(path.clone()), text);
-        let module_path = infer_module_path(&config.source_root, &path);
+        let module_path = infer_analysis_module_path(&config, &path);
         let module_id = ModuleId::from_package_path(&package_id, &module_path);
         source_files.push(file.clone());
 
@@ -1790,9 +1809,9 @@ fn load_source_root_files(
     let mut files = BTreeMap::<PathBuf, String>::new();
     if config.is_package_set() {
         for root in unique_package_roots(config) {
-            for path in collect_package_set_paths(&root).map_err(|error| {
-                package_error_to_analysis(root.clone(), error)
-            })? {
+            for path in collect_package_set_paths(&root)
+                .map_err(|error| package_error_to_analysis(root.clone(), error))?
+            {
                 let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
                     path: path.clone(),
                     source,
@@ -1800,6 +1819,9 @@ fn load_source_root_files(
                 files.insert(path, text);
             }
         }
+    } else if config.is_standalone() {
+        // Standalone analysis is the no-manifest LSP fallback. It should not
+        // recursively treat the whole workspace as one Lux project.
     } else {
         for path in discover_lux_sources(&config.source_root).map_err(project_error_to_analysis)? {
             let text = fs::read_to_string(&path).map_err(|source| AnalysisError::Io {
@@ -1872,7 +1894,7 @@ fn cached_files(
                 .and_then(|analysis| analysis.module_for_path(&path))
                 .map(|module| module.id.clone())
                 .unwrap_or_else(|| {
-                    let module_path = infer_module_path(&config.source_root, &path);
+                    let module_path = infer_analysis_module_path(config, &path);
                     ModuleId::from_package_path(&package_id, &module_path)
                 });
             (
@@ -1895,6 +1917,42 @@ fn source_files_from_cache(files: &BTreeMap<PathBuf, CachedAnalysisFile>) -> Vec
             SourceFile::new(index as u32, Some(file.path.clone()), file.text.clone())
         })
         .collect()
+}
+
+fn infer_analysis_module_path(config: &AnalysisConfig, path: &Path) -> String {
+    if config.is_standalone() {
+        return infer_standalone_module_path(&config.source_root, path)
+            .unwrap_or_else(|| infer_module_path(&config.source_root, path));
+    }
+    infer_module_path(&config.source_root, path)
+}
+
+fn infer_standalone_module_path(source_root: &Path, path: &Path) -> Option<String> {
+    let relative = path.strip_prefix(source_root).ok()?;
+    let mut components = relative
+        .parent()
+        .into_iter()
+        .flat_map(Path::components)
+        .filter_map(|component| match component {
+            std::path::Component::Normal(part) => Some(part.to_string_lossy().to_string()),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    let stem = path.file_stem()?.to_string_lossy().to_string();
+    let stem = stem
+        .strip_prefix("cl_")
+        .or_else(|| stem.strip_prefix("sv_"))
+        .or_else(|| stem.strip_prefix("sh_"))
+        .unwrap_or(&stem)
+        .to_string();
+    if stem == "module" {
+        if components.is_empty() {
+            components.push(stem);
+        }
+    } else {
+        components.push(stem);
+    }
+    Some(crate::module::normalize_module_path(&components.join("/")))
 }
 
 fn file_keys_changed(
@@ -1991,7 +2049,7 @@ fn analyze_single_module(
             Some(path.clone()),
             text,
         );
-        let module_path = infer_module_path(&config.source_root, &path);
+        let module_path = infer_analysis_module_path(config, &path);
         let parsed_module_id = ModuleId::from_package_path(&package_id, &module_path);
         let default_realm = match infer_part_realm(&config.source_root, &path, source_file.id) {
             Ok(realm) => realm,
@@ -3908,6 +3966,95 @@ mod tests {
         );
 
         std::fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn standalone_analysis_does_not_fold_sibling_files_into_one_module() {
+        let root = std::path::PathBuf::from("examples");
+        let output = analyze_files(
+            AnalysisConfig::standalone(&root),
+            [
+                AnalysisFile {
+                    path: root.join("features.lux"),
+                    text: "fn feature() = 1".into(),
+                },
+                AnalysisFile {
+                    path: root.join("match_diagnostics.lux"),
+                    text: "fn demo() = 2".into(),
+                },
+            ],
+        )
+        .expect("analysis");
+
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("PART007")),
+            "{:#?}",
+            output.diagnostics
+        );
+        assert!(
+            output
+                .module_for_path(&root.join("features.lux"))
+                .is_some_and(|module| module.module_path == "features")
+        );
+        assert!(
+            output
+                .module_for_path(&root.join("match_diagnostics.lux"))
+                .is_some_and(|module| module.module_path == "match_diagnostics")
+        );
+    }
+
+    #[test]
+    fn standalone_analysis_allows_unknown_external_realm_at_top_level() {
+        let root = std::path::PathBuf::from("examples");
+        let path = root.join("features.lux");
+        let output = analyze_files(
+            AnalysisConfig::standalone(&root),
+            [AnalysisFile {
+                path: path.clone(),
+                text: "fn fill() = FILL_SOLID\nfn radius() = expensiveRadius()".into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            output
+                .diagnostics_for_path(&path)
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("REALM_UNKNOWN")),
+            "{:#?}",
+            output.diagnostics_for_path(&path)
+        );
+    }
+
+    #[test]
+    fn directory_modules_still_require_entry_part_in_analysis() {
+        let root = std::path::PathBuf::from("src");
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [
+                AnalysisFile {
+                    path: root.join("inventory/a.lux"),
+                    text: "fn a() = 1".into(),
+                },
+                AnalysisFile {
+                    path: root.join("inventory/b.lux"),
+                    text: "fn b() = a()".into(),
+                },
+            ],
+        )
+        .expect("analysis");
+
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.code.as_deref() == Some("PART007")),
+            "{:#?}",
+            output.diagnostics
+        );
     }
 
     #[test]

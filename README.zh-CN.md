@@ -191,6 +191,12 @@ export client { paintHud }
 
 编译器理解 function、guard、enum、match expression、optional access、nil fallback、callback、import、export 和 client/server/shared 归属。
 
+<p align="center">
+  <img src="images/lux-source-output.png" alt="Lux 源码与生成 Lua 输出对比" width="100%">
+</p>
+
+左侧 Lux 源码保持紧凑；右侧生成的 Lua 仍然是普通、可检查的代码，并通过 source comment 把行为映射回原始文件。
+
 ## 一个文件
 
 Lux 可以作为单文件语法升级使用。你不需要 package graph、生成式 addon 布局或 autorun 入口，才能获得语言改进。

@@ -400,7 +400,14 @@ impl Server {
         self.analysis_due = Some(Instant::now() + ANALYSIS_DEBOUNCE);
     }
 
+    fn flush_pending_analysis(&mut self) {
+        if self.analysis_due.take().is_some() {
+            self.reanalyze_and_publish();
+        }
+    }
+
     fn hover(&mut self, params: HoverParams) -> Result<serde_json::Value, String> {
+        self.flush_pending_analysis();
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let snapshot = self.document_snapshot(uri, position);
@@ -438,6 +445,7 @@ impl Server {
     }
 
     fn completion(&mut self, params: CompletionParams) -> Result<serde_json::Value, String> {
+        self.flush_pending_analysis();
         let uri = &params.text_document_position.text_document.uri;
         let snapshot = self.document_snapshot(uri, params.text_document_position.position);
         let path = snapshot.path;
@@ -551,6 +559,7 @@ impl Server {
         &mut self,
         params: lsp_types::SignatureHelpParams,
     ) -> Result<serde_json::Value, String> {
+        self.flush_pending_analysis();
         let Some((analysis, path, offset)) = self.analysis_and_offset(
             &params.text_document_position_params.text_document.uri,
             params.text_document_position_params.position,
@@ -570,6 +579,7 @@ impl Server {
     }
 
     fn definition(&mut self, params: GotoDefinitionParams) -> Result<serde_json::Value, String> {
+        self.flush_pending_analysis();
         let Some((analysis, path, offset)) = self.analysis_and_offset(
             &params.text_document_position_params.text_document.uri,
             params.text_document_position_params.position,
@@ -637,6 +647,7 @@ impl Server {
         &mut self,
         params: SemanticTokensParams,
     ) -> Result<serde_json::Value, String> {
+        self.flush_pending_analysis();
         let Some(path) = url_to_path(&params.text_document.uri) else {
             return json_result::<Option<SemanticTokensResult>>(None);
         };
@@ -654,6 +665,7 @@ impl Server {
     }
 
     fn code_actions(&mut self, params: CodeActionParams) -> Result<serde_json::Value, String> {
+        self.flush_pending_analysis();
         let Some(path) = url_to_path(&params.text_document.uri) else {
             return json_result::<Option<Vec<CodeActionOrCommand>>>(None);
         };
@@ -1291,7 +1303,7 @@ fn analysis_configs(root: &Path, documents: &HashMap<Uri, String>) -> Vec<Analys
     }
 
     if configs.is_empty() && !documents.is_empty() {
-        insert_analysis_config(&mut configs, &mut seen, AnalysisConfig::new(root));
+        insert_analysis_config(&mut configs, &mut seen, AnalysisConfig::standalone(root));
     }
 
     configs
@@ -1346,6 +1358,10 @@ fn analysis_config_contains_path(config: &AnalysisConfig, path: &Path) -> bool {
     if config.is_package_set() {
         return package_set_config_contains_path(config, path);
     }
+    if config.is_standalone() {
+        return path.extension().is_some_and(|extension| extension == "lux")
+            && path_is_under(path, &config.source_root);
+    }
     path_is_under(path, &config.source_root)
 }
 
@@ -1374,6 +1390,8 @@ fn insert_analysis_config(
 fn analysis_config_key(config: &AnalysisConfig) -> String {
     let mode = if config.is_package_set() {
         "package-set"
+    } else if config.is_standalone() {
+        "standalone"
     } else {
         "project"
     };
@@ -1454,6 +1472,8 @@ fn analysis_config_label_for_analysis(analysis: &ProjectAnalysis) -> String {
 fn analysis_config_label(config: &AnalysisConfig) -> String {
     let mode = if config.is_package_set() {
         "package-set"
+    } else if config.is_standalone() {
+        "standalone"
     } else {
         "project"
     };
@@ -2359,12 +2379,14 @@ fn encode_semantic_tokens(
         (
             token_range.start.line,
             token_range.start.character,
-            token.span.len(),
+            token_range.end.character,
+            semantic_token_priority(&token.kind),
         )
     });
     let mut encoded = Vec::new();
     let mut last_line = 0u32;
     let mut last_start = 0u32;
+    let mut last_end_by_line = std::collections::BTreeMap::<u32, u32>::new();
     for token in tokens {
         let token_range = range(file, token.span);
         if token_range.start.line != token_range.end.line {
@@ -2372,19 +2394,23 @@ fn encode_semantic_tokens(
         }
         let line = token_range.start.line;
         let start = token_range.start.character;
+        let end = token_range.end.character;
+        let length = end.saturating_sub(start);
+        if length == 0 {
+            continue;
+        }
+        if last_end_by_line
+            .get(&line)
+            .is_some_and(|last_end| start < *last_end)
+        {
+            continue;
+        }
         let delta_line = line.saturating_sub(last_line);
         let delta_start = if delta_line == 0 {
             start.saturating_sub(last_start)
         } else {
             start
         };
-        let length = token_range
-            .end
-            .character
-            .saturating_sub(token_range.start.character);
-        if length == 0 {
-            continue;
-        }
         encoded.push(SemanticToken {
             delta_line,
             delta_start,
@@ -2394,8 +2420,29 @@ fn encode_semantic_tokens(
         });
         last_line = line;
         last_start = start;
+        last_end_by_line.insert(line, end);
     }
     encoded
+}
+
+fn semantic_token_priority(kind: &SemanticTokenKind) -> u8 {
+    match kind {
+        SemanticTokenKind::Keyword
+        | SemanticTokenKind::Realm
+        | SemanticTokenKind::String
+        | SemanticTokenKind::Number
+        | SemanticTokenKind::Comment
+        | SemanticTokenKind::Operator => 0,
+        SemanticTokenKind::Function
+        | SemanticTokenKind::Parameter
+        | SemanticTokenKind::Variable
+        | SemanticTokenKind::Property
+        | SemanticTokenKind::Namespace
+        | SemanticTokenKind::Type
+        | SemanticTokenKind::Export
+        | SemanticTokenKind::Import => 1,
+        SemanticTokenKind::External | SemanticTokenKind::UnknownExternal => 2,
+    }
 }
 
 fn semantic_token_type(kind: SemanticTokenKind) -> u32 {
@@ -4630,6 +4677,62 @@ mod tests {
     }
 
     #[test]
+    fn no_manifest_workspace_uses_standalone_analysis_for_open_lux_files() {
+        let root = temp_root("standalone_workspace");
+        let examples = root.join("examples");
+        std::fs::create_dir_all(&examples).expect("examples");
+        let features = examples.join("features.lux");
+        let diagnostics = examples.join("match_diagnostics.lux");
+        std::fs::write(&features, "fn feature() = 1").expect("features");
+        std::fs::write(&diagnostics, "fn demo() = 2").expect("diagnostics");
+
+        let mut documents = HashMap::new();
+        documents.insert(
+            path_to_url(&features).expect("features uri"),
+            std::fs::read_to_string(&features).expect("features text"),
+        );
+        documents.insert(
+            path_to_url(&diagnostics).expect("diagnostics uri"),
+            std::fs::read_to_string(&diagnostics).expect("diagnostics text"),
+        );
+
+        let configs = analysis_configs(&root, &documents);
+        assert_eq!(configs.len(), 1, "{configs:#?}");
+        assert!(configs[0].is_standalone());
+
+        let overlays = documents
+            .iter()
+            .map(|(uri, text)| AnalysisFile {
+                path: url_to_path(uri).expect("overlay path"),
+                text: text.clone(),
+            })
+            .collect::<Vec<_>>();
+        let workspace = AnalysisWorkspace::load(configs[0].clone(), overlays).expect("analysis");
+        let analysis = workspace.analysis();
+
+        assert!(
+            analysis
+                .lsp_diagnostics_for_path(&features)
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("PART007")),
+            "{:#?}",
+            analysis.lsp_diagnostics_for_path(&features)
+        );
+        assert!(
+            analysis
+                .module_for_path(&features)
+                .is_some_and(|module| module.module_path == "examples/features")
+        );
+        assert!(
+            analysis
+                .module_for_path(&diagnostics)
+                .is_some_and(|module| module.module_path == "examples/match_diagnostics")
+        );
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
     fn analysis_config_loads_package_set_workspace_without_project_manifest() {
         let root = temp_root("package_set_workspace");
         std::fs::create_dir_all(&root).expect("root");
@@ -5137,6 +5240,112 @@ mod tests {
                 },
             ]
         );
+    }
+
+    #[test]
+    fn semantic_tokens_prefer_non_overlapping_tokens_on_the_same_line() {
+        let file = SourceFile::new(0, None, "local name = self?:GetName() ?? \"panel\"\n");
+        let tokens = vec![
+            AnalysisSemanticToken {
+                span: SourceSpan::new(file.id, 0, 5),
+                kind: SemanticTokenKind::Keyword,
+            },
+            AnalysisSemanticToken {
+                span: SourceSpan::new(file.id, 6, 10),
+                kind: SemanticTokenKind::Variable,
+            },
+            AnalysisSemanticToken {
+                span: SourceSpan::new(file.id, 13, 17),
+                kind: SemanticTokenKind::Variable,
+            },
+            AnalysisSemanticToken {
+                span: SourceSpan::new(file.id, 13, 28),
+                kind: SemanticTokenKind::External,
+            },
+            AnalysisSemanticToken {
+                span: SourceSpan::new(file.id, 29, 31),
+                kind: SemanticTokenKind::Operator,
+            },
+            AnalysisSemanticToken {
+                span: SourceSpan::new(file.id, 32, 39),
+                kind: SemanticTokenKind::String,
+            },
+        ];
+
+        let encoded = encode_semantic_tokens(&file, tokens);
+        assert_eq!(
+            encoded,
+            vec![
+                SemanticToken {
+                    delta_line: 0,
+                    delta_start: 0,
+                    length: 5,
+                    token_type: 0,
+                    token_modifiers_bitset: 0,
+                },
+                SemanticToken {
+                    delta_line: 0,
+                    delta_start: 6,
+                    length: 4,
+                    token_type: 4,
+                    token_modifiers_bitset: 0,
+                },
+                SemanticToken {
+                    delta_line: 0,
+                    delta_start: 7,
+                    length: 4,
+                    token_type: 4,
+                    token_modifiers_bitset: 0,
+                },
+                SemanticToken {
+                    delta_line: 0,
+                    delta_start: 16,
+                    length: 2,
+                    token_type: 11,
+                    token_modifiers_bitset: 0,
+                },
+                SemanticToken {
+                    delta_line: 0,
+                    delta_start: 3,
+                    length: 7,
+                    token_type: 8,
+                    token_modifiers_bitset: 0,
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn semantic_tokens_flush_pending_analysis_before_reading() {
+        let root = temp_root("semantic_flush");
+        std::fs::create_dir_all(&root).expect("root");
+        let source = root.join("module.lux");
+        std::fs::write(&source, "fn run() = 1\n").expect("source");
+        let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+            "processId": null,
+            "rootUri": path_to_url(&root).expect("root uri"),
+            "capabilities": {}
+        }))
+        .expect("initialize params");
+        let (server_connection, client_connection) = lsp_server::Connection::memory();
+        let mut server = Server::new(server_connection, initialize);
+        server.analysis_due = Some(std::time::Instant::now() + Duration::from_secs(60));
+        server.documents.insert(
+            path_to_url(&source).expect("source uri"),
+            std::fs::read_to_string(&source).expect("source text"),
+        );
+
+        let params = lsp_types::SemanticTokensParams {
+            text_document: lsp_types::TextDocumentIdentifier {
+                uri: path_to_url(&source).expect("source uri"),
+            },
+            work_done_progress_params: Default::default(),
+            partial_result_params: Default::default(),
+        };
+        let _ = server.semantic_tokens(params).expect("semantic tokens");
+        assert!(server.analysis_due.is_none());
+        drop(client_connection);
+        let _ = std::fs::remove_dir_all(root);
     }
 
     #[test]

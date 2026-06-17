@@ -200,6 +200,14 @@ The compiler understands functions, guards, enums, match expressions, optional
 access, nil fallback, callbacks, imports, exports, and client/server/shared
 ownership.
 
+<p align="center">
+  <img src="images/lux-source-output.png" alt="Lux source beside generated Lua output" width="100%">
+</p>
+
+Lux source stays compact on the left; the generated Lua on the right remains
+ordinary, inspectable code with source comments that map behavior back to the
+original file.
+
 ## One File
 
 Lux can be used as a single-file syntax upgrade. You do not need a package
