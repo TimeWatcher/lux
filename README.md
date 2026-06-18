@@ -475,7 +475,7 @@ Compiler updates are explicit. Once binary releases are published, use:
 
 ```powershell
 & $Luxc self update
-& $Luxc self install 0.1.0-alpha.1 --default
+& $Luxc self install 0.1.0-alpha.2 --default
 & $Luxc self list
 & $Luxc self which
 ```
@@ -484,7 +484,7 @@ Most projects do not need to pin a compiler. Single files and ordinary projects
 use the global default. Teams and CI can opt into a project-local pin:
 
 ```powershell
-& $Luxc self pin 0.1.0-alpha.1 --project .\my_addon
+& $Luxc self pin 0.1.0-alpha.2 --project .\my_addon
 ```
 
 ## When To Use Lux

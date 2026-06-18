@@ -1043,16 +1043,32 @@ impl ProjectAnalysis {
     }
 
     pub fn module_path_completions(&self) -> Vec<CompletionCandidate> {
-        self.modules
-            .iter()
-            .map(|module| CompletionCandidate {
-                label: import_source_label_for_module(module),
-                kind: CompletionCandidateKind::Module,
-                detail: Some(module.id.as_str().to_string()),
-                documentation: Some(format!("Lux module `{}`", module.id)),
-                source: None,
-            })
-            .collect()
+        let mut candidates = BTreeMap::<String, CompletionCandidate>::new();
+        for module in &self.modules {
+            let label = import_source_label_for_module(module);
+            candidates
+                .entry(label.clone())
+                .or_insert_with(|| CompletionCandidate {
+                    label,
+                    kind: CompletionCandidateKind::Module,
+                    detail: Some(module.id.as_str().to_string()),
+                    documentation: Some(format!("Lux module `{}`", module.id)),
+                    source: None,
+                });
+        }
+        for module_id in self.external_exports.keys() {
+            let label = external_import_source_label(module_id);
+            candidates
+                .entry(label.clone())
+                .or_insert_with(|| CompletionCandidate {
+                    label,
+                    kind: CompletionCandidateKind::Module,
+                    detail: Some(module_id.as_str().to_string()),
+                    documentation: Some(format!("Lux runtime package `{}`", module_id)),
+                    source: None,
+                });
+        }
+        candidates.into_values().collect()
     }
 
     pub fn exportable_bindings(&self, path: &Path) -> Vec<CompletionCandidate> {
@@ -1238,6 +1254,48 @@ impl ProjectAnalysis {
         });
         candidates.dedup_by(|left, right| left.label == right.label && left.detail == right.detail);
         candidates
+    }
+
+    pub fn namespace_member_completions(
+        &self,
+        current_path: &Path,
+        offset: usize,
+        namespace: &str,
+    ) -> Vec<CompletionCandidate> {
+        let Some(module) = self.module_for_path(current_path) else {
+            return Vec::new();
+        };
+        let active_realms = self
+            .active_realms_at_path_offset(current_path, offset)
+            .unwrap_or(RealmSet::SHARED);
+        let mut sources = BTreeSet::<String>::new();
+        for binding in &module.resolved.bindings {
+            if binding.name != namespace {
+                continue;
+            }
+            if binding.kind != BindingKind::Import {
+                continue;
+            }
+            if binding.imported_name.as_deref() != Some("*") {
+                continue;
+            }
+            if !binding.available_realms.contains_all(active_realms) {
+                continue;
+            }
+            if let Some(source) = &binding.source_module {
+                sources.insert(source.clone());
+            }
+        }
+
+        let mut candidates = BTreeMap::<String, CompletionCandidate>::new();
+        for source in sources {
+            for candidate in self.importable_exports(current_path, &source, active_realms) {
+                candidates
+                    .entry(candidate.label.clone())
+                    .or_insert(candidate);
+            }
+        }
+        candidates.into_values().collect()
     }
 
     fn binding_symbol(
@@ -3303,10 +3361,14 @@ fn import_source_for_module(
 
 fn import_source_label_for_module(module: &AnalyzedModule) -> String {
     if module.module_path.is_empty() {
-        format!("@{}", module.id.as_str())
+        external_import_source_label(&module.id)
     } else {
         module.module_path.clone()
     }
+}
+
+fn external_import_source_label(module_id: &ModuleId) -> String {
+    format!("@{}", module_id.as_str().trim_start_matches('@'))
 }
 
 fn importable_exports_from_module(
@@ -3553,6 +3615,64 @@ mod tests {
         assert_eq!(button.source.as_deref(), Some("@lux/ui"));
         assert!(exports.iter().any(|candidate| candidate.label == "signal"
             && candidate.source.as_deref() == Some("@lux/reactive")));
+        let _ = std::fs::remove_dir_all(std_root);
+    }
+
+    #[test]
+    fn module_path_completion_lists_installed_runtime_packages() {
+        let std_root = crate::test_support::test_std_package_root();
+        let root = std::path::PathBuf::from("src");
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![std_root.clone()]),
+            [AnalysisFile {
+                path: root.join("client/ui.lux"),
+                text: "import ".into(),
+            }],
+        )
+        .expect("analysis");
+
+        let labels = output
+            .module_path_completions()
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "@lux/ui"), "{labels:#?}");
+        assert!(
+            labels.iter().any(|label| label == "@lux/reactive"),
+            "{labels:#?}"
+        );
+        let _ = std::fs::remove_dir_all(std_root);
+    }
+
+    #[test]
+    fn namespace_member_completion_lists_installed_runtime_package_exports() {
+        let std_root = crate::test_support::test_std_package_root();
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("client/ui.lux");
+        let text = "import * as ui from \"@lux/ui\"\nclient fn mount(panel) {\n  ui.Button\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![std_root.clone()]),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = output
+            .offset_for_position(&consumer, 2, "  ui.".len())
+            .expect("offset");
+        let labels = output
+            .namespace_member_completions(&consumer, offset, "ui")
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "Button"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "Column"), "{labels:#?}");
         let _ = std::fs::remove_dir_all(std_root);
     }
 

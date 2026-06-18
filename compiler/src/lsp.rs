@@ -492,11 +492,19 @@ impl Server {
                 .into_iter()
                 .map(completion_item)
                 .collect::<Vec<_>>(),
-            CompletionContext::ApiMember { prefix } => api_completion_candidates(
-                &self.gmod_api,
-                &prefix,
-                (!snapshot.file.text.is_empty()).then_some(snapshot.file.text.as_str()),
-            ),
+            CompletionContext::ApiMember { prefix } => {
+                let namespace_items =
+                    namespace_member_completion_items(analysis, path.as_deref(), offset, &prefix);
+                if namespace_items.is_empty() {
+                    api_completion_candidates(
+                        &self.gmod_api,
+                        &prefix,
+                        (!snapshot.file.text.is_empty()).then_some(snapshot.file.text.as_str()),
+                    )
+                } else {
+                    namespace_items
+                }
+            }
             CompletionContext::General => {
                 let current_prefix = identifier_prefix(line_prefix);
                 let mut items = analysis
@@ -2839,6 +2847,32 @@ fn general_binding_completions(
     candidates.into_values().collect()
 }
 
+fn namespace_member_completion_items(
+    analysis: Option<&ProjectAnalysis>,
+    path: Option<&Path>,
+    offset: usize,
+    prefix: &str,
+) -> Vec<CompletionItem> {
+    let Some(namespace) = namespace_from_member_prefix(prefix) else {
+        return Vec::new();
+    };
+    analysis
+        .zip(path)
+        .map(|(analysis, path)| analysis.namespace_member_completions(path, offset, namespace))
+        .unwrap_or_default()
+        .into_iter()
+        .map(completion_item)
+        .collect()
+}
+
+fn namespace_from_member_prefix(prefix: &str) -> Option<&str> {
+    let namespace = prefix.trim_end_matches(['.', ':']);
+    if namespace.is_empty() || namespace.contains(['.', ':']) {
+        return None;
+    }
+    Some(namespace)
+}
+
 fn lexical_binding_completions(file: &SourceFile, offset: usize) -> Vec<CompletionCandidate> {
     let tokens = lex_completion_tokens(file);
     let mut collector = LexicalCompletionCollector::new(file, &tokens, offset);
@@ -4053,8 +4087,8 @@ mod tests {
         hook_name_at_offset, identifier_prefix, import_completion_item, infer_receiver_class,
         is_lux_analysis_watched_path, keyword_completion_items, lexical_binding_completions,
         manifest_section_insert_position, method_path_at_offset, module_exports_command,
-        path_to_url, resolve_typed_method_path, same_path, server_capabilities, signature_help_at,
-        std_package_code_actions,
+        namespace_member_completion_items, path_to_url, resolve_typed_method_path, same_path,
+        server_capabilities, signature_help_at, std_package_code_actions,
     };
     use super::{
         CompletionContext, Server, analysis_configs, completion_context, encode_semantic_tokens,
@@ -4979,6 +5013,57 @@ mod tests {
             Some("Button } from \"@vendor/ui\"")
         );
         assert!(item.label_details.is_some());
+
+        let _ = std::fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn namespace_member_completion_items_use_installed_package_exports() {
+        let root = temp_root("namespace_member_completion");
+        let project = root.join("project");
+        let source_root = project.join("src");
+        let package_root = root.join("package-set");
+        std::fs::create_dir_all(&source_root).expect("project source");
+        write_runtime_package(&package_root, "@vendor/ui", "Button");
+        std::fs::write(
+            project.join("lux.toml"),
+            "package_id = \"game\"\nbundle_id = \"game\"\n\n[target.gmod]\nsource_root = \"src\"\nout = \"generated/lua\"\nruntime_base = \"lux/game\"\nautorun = true\n\n[dependencies]\n\"@vendor/ui\" = { path = \"../package-set\" }\n",
+        )
+        .expect("manifest");
+        lock_project(&LockRequest {
+            project_root: project.clone(),
+        })
+        .expect("lock project");
+        let path = source_root.join("client/ui.lux");
+        let text = "import * as ui from \"@vendor/ui\"\nclient fn mount(panel) {\n  ui.Button\n}\n";
+        let config = analysis_configs(&project, &HashMap::new())
+            .into_iter()
+            .find(|config| !config.is_package_set())
+            .expect("analysis config");
+        let analysis = analyze_files(
+            config,
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = analysis
+            .offset_for_position(&path, 2, "  ui.".len())
+            .expect("offset");
+        assert_eq!(
+            completion_context("  ui.", ""),
+            CompletionContext::ApiMember {
+                prefix: "ui.".into()
+            }
+        );
+
+        let labels =
+            namespace_member_completion_items(Some(&analysis), Some(path.as_path()), offset, "ui.")
+                .into_iter()
+                .map(|item| item.label)
+                .collect::<Vec<_>>();
+        assert!(labels.iter().any(|label| label == "Button"), "{labels:#?}");
 
         let _ = std::fs::remove_dir_all(root);
     }
