@@ -405,18 +405,24 @@ keep in sync with the compiler.
 
 ## Quick Start
 
-Lux is currently in alpha. A prerelease binary is available, but building from
-source remains the fastest way to get the current tree:
+Lux is currently in alpha. Download the prerelease zip, extract it, and run the
+installer script from the extracted directory:
+
+```powershell
+Expand-Archive .\luxc-windows-x64.zip -DestinationPath .\luxc-windows-x64 -Force
+.\luxc-windows-x64\install-lux-path.ps1
+luxc --version
+```
+
+If you want the current checkout instead of the published prerelease, build from
+source and install that executable:
 
 ```powershell
 git clone https://github.com/TimeWatcher/lux.git
-cd lux\compiler
-cargo build --release
-
-$Luxc = Resolve-Path .\target\release\luxc.exe
-& $Luxc self install --default
-$Luxc = Join-Path $env:USERPROFILE ".lux\bin\luxc.exe"
-& ..\scripts\install-lux-path.ps1
+cd lux
+cargo build --manifest-path compiler\Cargo.toml --release
+.\scripts\install-lux-path.ps1 -LuxcPath .\compiler\target\release\luxc.exe
+luxc --version
 ```
 
 This installs:
@@ -429,9 +435,11 @@ This installs:
 
 On Windows this is `%USERPROFILE%\.lux\bin\luxc.exe` and
 `%USERPROFILE%\.lux\toolchains\<version>\luxc.exe`. The repo includes
-`scripts/install-lux-path.ps1`, which adds `~/.lux/bin` to the current user's
-`PATH`. The VS Code extension also detects `~/.lux/bin/luxc` directly, so editor
-support does not require a manual `lux.compiler.path` setting.
+`scripts/install-lux-path.ps1`, which installs a local compiler executable when
+one is passed with `-LuxcPath` or placed beside the script, then adds
+`~/.lux/bin` to the current user's `PATH`. The VS Code extension also detects
+`~/.lux/bin/luxc` directly, so editor support does not require a manual
+`lux.compiler.path` setting.
 
 Create an offline, dependency-free project:
 
@@ -471,7 +479,7 @@ the install or lock step before building:
 & $Luxc lock ..\my_addon
 ```
 
-Compiler updates are explicit. Once binary releases are published, use:
+Compiler updates are explicit:
 
 ```powershell
 & $Luxc self update

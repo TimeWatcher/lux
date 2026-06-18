@@ -38,7 +38,7 @@ cargo run -- gmod build path\to\src --out path\to\generated\lua --no-autorun
 cargo run -- gmod build --manifest path\to\lux.toml
 cargo run -- self install --default
 cargo run -- self list
-cargo run -- self pin 0.1.0-alpha.1 --project path\to\project
+cargo run -- self pin 0.1.0-alpha.2 --project path\to\project
 cargo run -- --version
 cargo run -- lsp
 ```
@@ -65,7 +65,9 @@ through the same analysis graph used by builds.
 developer installs one stable entrypoint at `~/.lux/bin/luxc`, and that shim
 dispatches to `~/.lux/toolchains/<version>/luxc` using either the global default
 or an optional project pin at `.lux/toolchain.toml`. Single-file use and ordinary
-projects do not need a pin.
+projects do not need a pin. Release zips include `install-lux-path.ps1`, which
+installs the adjacent `luxc.exe`; source builds can use the same script with
+`-LuxcPath compiler\target\release\luxc.exe`.
 
 The GMod build path also injects required compiler-provided runtime modules.
 Currently `import { arr } from "@lux/std"` adds a generated `lux/std` module with
