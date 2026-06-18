@@ -945,6 +945,10 @@ impl ProjectAnalysis {
         let module = self.module_for_path(path)?;
         let file_id = self.file_by_path(path)?.id;
 
+        if let Some(symbol) = self.package_member_symbol_at_path_offset(module, path, offset) {
+            return Some(symbol);
+        }
+
         if let Some((span, external)) = find_containing_span(
             module
                 .resolved
@@ -1034,7 +1038,7 @@ impl ProjectAnalysis {
     ) -> Option<AnalysisSignatureHelp> {
         let module = self.module_for_path(path)?;
         let call = find_call_at_offset(module, path, offset)?;
-        let signature = self.signature_for_call_target(module, call.target_span)?;
+        let signature = self.signature_for_call_target_at_path(module, path, call.target_span)?;
         let max_active = signature.parameters.len().saturating_sub(1);
         Some(AnalysisSignatureHelp {
             signature,
@@ -1187,7 +1191,7 @@ impl ProjectAnalysis {
             if let Some(exports) = self.external_exports.get(&target_id) {
                 return exports
                     .iter()
-                    .filter(|export| export.realms.contains_all(active_realms))
+                    .filter(|export| export.realms.intersects(active_realms))
                     .map(|export| CompletionCandidate {
                         label: export.name.clone(),
                         kind: CompletionCandidateKind::Reference,
@@ -1221,7 +1225,7 @@ impl ProjectAnalysis {
             }
             let raw_source = current_module
                 .map(|current| import_source_for_module(current, module))
-                .unwrap_or_else(|| module.module_path.clone());
+                .unwrap_or_else(|| import_source_label_for_module(module));
             candidates.extend(importable_exports_from_module(
                 module,
                 &raw_source,
@@ -1233,7 +1237,7 @@ impl ProjectAnalysis {
             candidates.extend(
                 exports
                     .iter()
-                    .filter(|export| export.realms.contains_all(active_realms))
+                    .filter(|export| export.realms.intersects(active_realms))
                     .map(|export| CompletionCandidate {
                         label: export.name.clone(),
                         kind: CompletionCandidateKind::Reference,
@@ -1256,12 +1260,15 @@ impl ProjectAnalysis {
         candidates
     }
 
-    pub fn namespace_member_completions(
+    pub fn member_path_completions(
         &self,
         current_path: &Path,
         offset: usize,
-        namespace: &str,
+        path: &[&str],
     ) -> Vec<CompletionCandidate> {
+        let Some((namespace, members)) = path.split_first() else {
+            return Vec::new();
+        };
         let Some(module) = self.module_for_path(current_path) else {
             return Vec::new();
         };
@@ -1270,32 +1277,672 @@ impl ProjectAnalysis {
             .unwrap_or(RealmSet::SHARED);
         let mut sources = BTreeSet::<String>::new();
         for binding in &module.resolved.bindings {
-            if binding.name != namespace {
+            if binding.name != *namespace {
                 continue;
             }
             if binding.kind != BindingKind::Import {
                 continue;
             }
-            if binding.imported_name.as_deref() != Some("*") {
-                continue;
-            }
             if !binding.available_realms.contains_all(active_realms) {
                 continue;
             }
-            if let Some(source) = &binding.source_module {
-                sources.insert(source.clone());
+            for source in self.namespace_sources_for_binding(
+                module,
+                binding,
+                active_realms,
+                &mut BTreeSet::new(),
+            ) {
+                sources.insert(source);
             }
         }
 
         let mut candidates = BTreeMap::<String, CompletionCandidate>::new();
         for source in sources {
-            for candidate in self.importable_exports(current_path, &source, active_realms) {
+            for candidate in
+                self.importable_exports_from_source_path(&source, members, active_realms)
+            {
                 candidates
                     .entry(candidate.label.clone())
                     .or_insert(candidate);
             }
         }
         candidates.into_values().collect()
+    }
+
+    pub fn namespace_member_completions(
+        &self,
+        current_path: &Path,
+        offset: usize,
+        namespace: &str,
+    ) -> Vec<CompletionCandidate> {
+        self.member_path_completions(current_path, offset, &[namespace])
+    }
+
+    pub fn package_member_symbol_from_import_path(
+        &self,
+        source: &str,
+        imported: &str,
+        members: &[&str],
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        if imported == "*" {
+            return self.package_member_symbol_from_source_path(source, members, active_realms);
+        }
+        if members.is_empty() {
+            return self.package_member_symbol_from_source_path(source, &[imported], active_realms);
+        }
+        let next_source = self.namespace_source_for_export(source, imported, active_realms)?;
+        self.package_member_symbol_from_source_path(&next_source, members, active_realms)
+    }
+
+    fn importable_exports_from_source_path(
+        &self,
+        source: &str,
+        members: &[&str],
+        active_realms: RealmSet,
+    ) -> Vec<CompletionCandidate> {
+        let mut source = source.to_string();
+        for member in members {
+            let exports = self.importable_exports_from_absolute_source(&source, active_realms);
+            let Some(candidate) = exports.iter().find(|candidate| candidate.label == *member)
+            else {
+                return Vec::new();
+            };
+            let Some(next_source) =
+                self.namespace_source_for_export(&source, &candidate.label, active_realms)
+            else {
+                return Vec::new();
+            };
+            source = next_source;
+        }
+        self.importable_exports_from_absolute_source(&source, active_realms)
+    }
+
+    fn importable_exports_from_absolute_source(
+        &self,
+        source: &str,
+        active_realms: RealmSet,
+    ) -> Vec<CompletionCandidate> {
+        let target_id = ModuleId::new(source.trim_start_matches('@'));
+        if let Some(target_module) = self.modules.iter().find(|module| module.id == target_id) {
+            return importable_exports_from_module(target_module, source, active_realms);
+        }
+        self.external_exports
+            .get(&target_id)
+            .map(|exports| {
+                exports
+                    .iter()
+                    .filter(|export| export.realms.intersects(active_realms))
+                    .map(|export| CompletionCandidate {
+                        label: export.name.clone(),
+                        kind: CompletionCandidateKind::Reference,
+                        detail: Some(format!(
+                            "{} from `{}`",
+                            export.realms.display_name(),
+                            source
+                        )),
+                        documentation: Some(format!("Exported by runtime package `{source}`")),
+                        source: Some(source.to_string()),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn namespace_source_for_export(
+        &self,
+        source: &str,
+        export_name: &str,
+        active_realms: RealmSet,
+    ) -> Option<String> {
+        let target_id = ModuleId::new(source.trim_start_matches('@'));
+        let target_module = self.modules.iter().find(|module| module.id == target_id)?;
+        let export = target_module
+            .resolved
+            .exports
+            .iter()
+            .find(|export| export.name == export_name)?;
+        let binding = target_module.resolved.bindings.get(export.binding.0)?;
+        self.namespace_sources_for_binding(
+            target_module,
+            binding,
+            active_realms,
+            &mut BTreeSet::new(),
+        )
+        .into_iter()
+        .next()
+    }
+
+    fn package_member_symbol_at_path_offset(
+        &self,
+        module: &AnalyzedModule,
+        path: &Path,
+        offset: usize,
+    ) -> Option<AnalysisSymbol> {
+        let part = module
+            .parts
+            .iter()
+            .find(|part| same_path(&part.path, path))?;
+        let active_realms = active_realms_in_stmts(
+            &part.module.body,
+            offset,
+            RealmSet::from_realm(part.default_realm),
+        );
+        for stmt in &part.module.body {
+            if let Some(symbol) = self.package_member_symbol_in_stmt(
+                module,
+                stmt,
+                part.source_file.id,
+                offset,
+                active_realms,
+            ) {
+                return Some(symbol);
+            }
+        }
+        None
+    }
+
+    fn package_member_symbol_at_span(
+        &self,
+        module: &AnalyzedModule,
+        span: SourceSpan,
+    ) -> Option<AnalysisSymbol> {
+        let part = module
+            .parts
+            .iter()
+            .find(|part| part.source_file.id == span.file_id)?;
+        self.package_member_symbol_at_path_offset(module, &part.path, span.byte_start)
+    }
+
+    fn package_member_symbol_in_stmt(
+        &self,
+        module: &AnalyzedModule,
+        stmt: &Stmt,
+        file_id: FileId,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        match &stmt.kind {
+            StmtKind::LocalDecl { values, .. } => {
+                self.package_member_symbol_in_exprs(module, values, file_id, offset, active_realms)
+            }
+            StmtKind::LocalDestructure { values, .. } => {
+                self.package_member_symbol_in_exprs(module, values, file_id, offset, active_realms)
+            }
+            StmtKind::Assign { targets, values } => self
+                .package_member_symbol_in_exprs(module, targets, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_exprs(
+                        module,
+                        values,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            StmtKind::CompoundAssign { target, value, .. } => self
+                .package_member_symbol_in_expr(module, target, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_expr(
+                        module,
+                        value,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            StmtKind::Expr(expr) => {
+                self.package_member_symbol_in_expr(module, expr, file_id, offset, active_realms)
+            }
+            StmtKind::Return(values) => {
+                self.package_member_symbol_in_exprs(module, values, file_id, offset, active_realms)
+            }
+            StmtKind::ExportDecl { stmt: inner, .. } | StmtKind::RealmDecl { stmt: inner, .. } => {
+                self.package_member_symbol_in_stmt(module, inner, file_id, offset, active_realms)
+            }
+            StmtKind::If {
+                condition,
+                then_block,
+                else_block,
+            } => self
+                .package_member_symbol_in_expr(module, condition, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_block(
+                        module,
+                        then_block,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                })
+                .or_else(|| {
+                    else_block.as_ref().and_then(|block| {
+                        self.package_member_symbol_in_block(
+                            module,
+                            block,
+                            file_id,
+                            offset,
+                            active_realms,
+                        )
+                    })
+                }),
+            StmtKind::While { condition, body } | StmtKind::RepeatUntil { body, condition } => self
+                .package_member_symbol_in_expr(module, condition, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_block(
+                        module,
+                        body,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            StmtKind::NumericFor {
+                start,
+                end,
+                step,
+                body,
+                ..
+            } => self
+                .package_member_symbol_in_expr(module, start, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_expr(module, end, file_id, offset, active_realms)
+                })
+                .or_else(|| {
+                    step.as_ref().and_then(|expr| {
+                        self.package_member_symbol_in_expr(
+                            module,
+                            expr,
+                            file_id,
+                            offset,
+                            active_realms,
+                        )
+                    })
+                })
+                .or_else(|| {
+                    self.package_member_symbol_in_block(
+                        module,
+                        body,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            StmtKind::GenericFor { iter, body, .. } => self
+                .package_member_symbol_in_exprs(module, iter, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_block(
+                        module,
+                        body,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            StmtKind::Do(block) => {
+                self.package_member_symbol_in_block(module, block, file_id, offset, active_realms)
+            }
+            StmtKind::RealmBlock { block, .. } | StmtKind::InitDecl { block, .. } => {
+                self.package_member_symbol_in_block(module, block, file_id, offset, active_realms)
+            }
+            StmtKind::FunctionDecl(decl) => self.package_member_symbol_in_function_body(
+                module,
+                &decl.body,
+                file_id,
+                offset,
+                active_realms,
+            ),
+            StmtKind::Import(_)
+            | StmtKind::PartOrderDecl(_)
+            | StmtKind::ExternDecl(_)
+            | StmtKind::HostPackageDecl(_)
+            | StmtKind::ExportList { .. }
+            | StmtKind::ExportAll { .. }
+            | StmtKind::EnumDecl(_)
+            | StmtKind::Break
+            | StmtKind::Continue => None,
+        }
+    }
+
+    fn package_member_symbol_in_block(
+        &self,
+        module: &AnalyzedModule,
+        block: &Block,
+        file_id: FileId,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        for stmt in &block.statements {
+            if let Some(symbol) =
+                self.package_member_symbol_in_stmt(module, stmt, file_id, offset, active_realms)
+            {
+                return Some(symbol);
+            }
+        }
+        block.tail.as_ref().and_then(|expr| {
+            self.package_member_symbol_in_expr(module, expr, file_id, offset, active_realms)
+        })
+    }
+
+    fn package_member_symbol_in_function_body(
+        &self,
+        module: &AnalyzedModule,
+        body: &FunctionBody,
+        file_id: FileId,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        match body {
+            FunctionBody::Expr(expr) => {
+                self.package_member_symbol_in_expr(module, expr, file_id, offset, active_realms)
+            }
+            FunctionBody::Block(block) => {
+                self.package_member_symbol_in_block(module, block, file_id, offset, active_realms)
+            }
+        }
+    }
+
+    fn package_member_symbol_in_exprs(
+        &self,
+        module: &AnalyzedModule,
+        exprs: &[Expr],
+        file_id: FileId,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        exprs.iter().find_map(|expr| {
+            self.package_member_symbol_in_expr(module, expr, file_id, offset, active_realms)
+        })
+    }
+
+    fn package_member_symbol_in_expr(
+        &self,
+        module: &AnalyzedModule,
+        expr: &Expr,
+        file_id: FileId,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        if expr.span.file_id != file_id || !contains_offset(expr.span, offset) {
+            return None;
+        }
+        match &expr.kind {
+            ExprKind::Chain(chain) => self
+                .package_member_symbol_in_chain(module, chain, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_expr(
+                        module,
+                        &chain.base,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            ExprKind::Paren(inner)
+            | ExprKind::Unary {
+                argument: inner, ..
+            } => self.package_member_symbol_in_expr(module, inner, file_id, offset, active_realms),
+            ExprKind::Binary { left, right, .. } => self
+                .package_member_symbol_in_expr(module, left, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_expr(
+                        module,
+                        right,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            ExprKind::Conditional {
+                condition,
+                then_branch,
+                else_branch,
+                ..
+            } => self
+                .package_member_symbol_in_expr(module, condition, file_id, offset, active_realms)
+                .or_else(|| {
+                    self.package_member_symbol_in_expr_or_block(
+                        module,
+                        then_branch,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                })
+                .or_else(|| {
+                    self.package_member_symbol_in_expr_or_block(
+                        module,
+                        else_branch,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                }),
+            ExprKind::Match(match_expr) => {
+                if let Some(symbol) = self.package_member_symbol_in_expr(
+                    module,
+                    &match_expr.subject,
+                    file_id,
+                    offset,
+                    active_realms,
+                ) {
+                    return Some(symbol);
+                }
+                match_expr.arms.iter().find_map(|arm| {
+                    self.package_member_symbol_in_expr_or_block(
+                        module,
+                        &arm.body,
+                        file_id,
+                        offset,
+                        active_realms,
+                    )
+                })
+            }
+            ExprKind::Do(block) => {
+                self.package_member_symbol_in_block(module, block, file_id, offset, active_realms)
+            }
+            ExprKind::Function(function) => self.package_member_symbol_in_function_body(
+                module,
+                &function.body,
+                file_id,
+                offset,
+                active_realms,
+            ),
+            ExprKind::Table(table) => table.fields.iter().find_map(|field| match &field.kind {
+                TableFieldKind::Array(value)
+                | TableFieldKind::Named { value, .. }
+                | TableFieldKind::Spread(value) => self.package_member_symbol_in_expr(
+                    module,
+                    value,
+                    file_id,
+                    offset,
+                    active_realms,
+                ),
+                TableFieldKind::ExprKey { key, value } => self
+                    .package_member_symbol_in_expr(module, key, file_id, offset, active_realms)
+                    .or_else(|| {
+                        self.package_member_symbol_in_expr(
+                            module,
+                            value,
+                            file_id,
+                            offset,
+                            active_realms,
+                        )
+                    }),
+            }),
+            ExprKind::Identifier(_)
+            | ExprKind::Nil
+            | ExprKind::Boolean(_)
+            | ExprKind::Number(_)
+            | ExprKind::String(_)
+            | ExprKind::Vararg
+            | ExprKind::PipelinePlaceholder
+            | ExprKind::TemplateString(_) => None,
+        }
+    }
+
+    fn package_member_symbol_in_expr_or_block(
+        &self,
+        module: &AnalyzedModule,
+        item: &ExprOrBlock,
+        file_id: FileId,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        match item {
+            ExprOrBlock::Expr(expr) => {
+                self.package_member_symbol_in_expr(module, expr, file_id, offset, active_realms)
+            }
+            ExprOrBlock::Block(block) => {
+                self.package_member_symbol_in_block(module, block, file_id, offset, active_realms)
+            }
+        }
+    }
+
+    fn package_member_symbol_in_chain(
+        &self,
+        module: &AnalyzedModule,
+        chain: &ChainExpr,
+        offset: usize,
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        let ExprKind::Identifier(base) = &chain.base.kind else {
+            return None;
+        };
+        let mut parts = vec![base.name.as_str()];
+        for segment in &chain.segments {
+            match &segment.kind {
+                ChainSegmentKind::Member { name, .. }
+                | ChainSegmentKind::SafeDotCall { name, .. }
+                | ChainSegmentKind::MethodCall { name, .. } => {
+                    parts.push(name.name.as_str());
+                    if contains_offset(name.span, offset) {
+                        return self.package_member_symbol_for_path(module, &parts, active_realms);
+                    }
+                }
+                ChainSegmentKind::Call { .. } => {}
+                ChainSegmentKind::Index { .. } => return None,
+            }
+        }
+        None
+    }
+
+    fn package_member_symbol_for_path(
+        &self,
+        module: &AnalyzedModule,
+        parts: &[&str],
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        if parts.len() < 2 {
+            return None;
+        }
+        let mut sources = Vec::<String>::new();
+        for binding in &module.resolved.bindings {
+            if binding.name == parts[0]
+                && binding.kind == BindingKind::Import
+                && binding.available_realms.intersects(active_realms)
+            {
+                sources.extend(self.namespace_sources_for_binding(
+                    module,
+                    binding,
+                    active_realms,
+                    &mut BTreeSet::new(),
+                ));
+            }
+        }
+        for source in sources {
+            if let Some(symbol) =
+                self.package_member_symbol_from_source_path(&source, &parts[1..], active_realms)
+            {
+                return Some(symbol);
+            }
+        }
+        None
+    }
+
+    fn package_member_symbol_from_source_path(
+        &self,
+        source: &str,
+        members: &[&str],
+        active_realms: RealmSet,
+    ) -> Option<AnalysisSymbol> {
+        let (member, rest) = members.split_first()?;
+        let target_id = ModuleId::new(source.trim_start_matches('@'));
+        let target_module = self.modules.iter().find(|module| module.id == target_id)?;
+        let export = target_module
+            .resolved
+            .exports
+            .iter()
+            .find(|export| export.name == *member)?;
+        let binding = target_module.resolved.bindings.get(export.binding.0)?;
+        if rest.is_empty() {
+            return Some(self.binding_symbol(target_module, binding, export.span));
+        }
+        let next_source = self.namespace_source_for_export(source, member, active_realms)?;
+        self.package_member_symbol_from_source_path(&next_source, rest, active_realms)
+    }
+
+    fn namespace_sources_for_binding(
+        &self,
+        module: &AnalyzedModule,
+        binding: &Binding,
+        active_realms: RealmSet,
+        visited: &mut BTreeSet<(String, usize)>,
+    ) -> Vec<String> {
+        if !visited.insert((module.id.as_str().to_string(), binding.id.0)) {
+            return Vec::new();
+        }
+
+        if binding.kind == BindingKind::Import {
+            let Some(source) = &binding.source_module else {
+                return Vec::new();
+            };
+            let Some(imported) = &binding.imported_name else {
+                return Vec::new();
+            };
+            if imported == "*" {
+                return vec![source.clone()];
+            }
+            if let Some((target_module, _, target_binding)) = self.import_definition_binding(
+                module,
+                source,
+                imported,
+                binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
+            ) {
+                return self.namespace_sources_for_binding(
+                    target_module,
+                    target_binding,
+                    active_realms,
+                    visited,
+                );
+            }
+            return Vec::new();
+        }
+
+        let Some(alias_binding) = self.module_initializer_identifier_binding(module, binding)
+        else {
+            return Vec::new();
+        };
+        if !alias_binding.available_realms.contains_all(active_realms) {
+            return Vec::new();
+        }
+        self.namespace_sources_for_binding(module, alias_binding, active_realms, visited)
+    }
+
+    fn module_initializer_identifier_binding<'a>(
+        &'a self,
+        module: &'a AnalyzedModule,
+        binding: &Binding,
+    ) -> Option<&'a Binding> {
+        if !binding.module_scope {
+            return None;
+        }
+        let order = binding.initialized_at?;
+        let stmt = module_top_level_stmt_by_order(module, order)?;
+        let expr = initializer_expr_for_binding_name(stmt, &binding.name)?;
+        let ident = initializer_identifier(expr)?;
+        let symbol = module.resolved.symbols_by_span.get(&ident.span)?;
+        module.resolved.bindings.get(symbol.binding.0)
     }
 
     fn binding_symbol(
@@ -1382,25 +2029,48 @@ impl ProjectAnalysis {
         module: &AnalyzedModule,
         target_span: SourceSpan,
     ) -> Option<AnalysisFunctionSignature> {
-        let symbol = module.resolved.symbols_by_span.get(&target_span)?;
-        let binding = module.resolved.bindings.get(symbol.binding.0)?;
-        let target_binding = binding
-            .source_module
-            .as_ref()
-            .zip(binding.imported_name.as_ref())
-            .and_then(|(source, imported)| {
-                self.import_definition_binding(
-                    module,
-                    source,
-                    imported,
-                    binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
-                )
+        let local_signature = module
+            .resolved
+            .symbols_by_span
+            .get(&target_span)
+            .and_then(|symbol| module.resolved.bindings.get(symbol.binding.0))
+            .and_then(|binding| {
+                let target_binding = binding
+                    .source_module
+                    .as_ref()
+                    .zip(binding.imported_name.as_ref())
+                    .and_then(|(source, imported)| {
+                        self.import_definition_binding(
+                            module,
+                            source,
+                            imported,
+                            binding.kind == BindingKind::MacroImport
+                                || module.phase.is_compile_time(),
+                        )
+                    });
+                target_binding
+                    .and_then(|(target_module, export, binding)| {
+                        self.function_signature_for_binding(target_module, binding, &export.name)
+                    })
+                    .or_else(|| self.function_signature_for_binding(module, binding, &binding.name))
             });
-        target_binding
-            .and_then(|(target_module, export, binding)| {
-                self.function_signature_for_binding(target_module, binding, &export.name)
+        local_signature.or_else(|| {
+            self.package_member_symbol_at_span(module, target_span)
+                .and_then(|symbol| symbol.signature)
+        })
+    }
+
+    fn signature_for_call_target_at_path(
+        &self,
+        module: &AnalyzedModule,
+        path: &Path,
+        target_span: SourceSpan,
+    ) -> Option<AnalysisFunctionSignature> {
+        self.signature_for_call_target(module, target_span)
+            .or_else(|| {
+                self.package_member_symbol_at_path_offset(module, path, target_span.byte_start)
+                    .and_then(|symbol| symbol.signature)
             })
-            .or_else(|| self.function_signature_for_binding(module, binding, &binding.name))
     }
 
     fn function_signature_for_binding(
@@ -2646,8 +3316,13 @@ fn collect_calls_in_chain<'a>(chain: &'a ChainExpr, calls: &mut Vec<AnalysisCall
                 collect_calls_in_exprs(args, calls);
                 direct_target = None;
             }
-            ChainSegmentKind::SafeDotCall { args, .. }
-            | ChainSegmentKind::MethodCall { args, .. } => {
+            ChainSegmentKind::SafeDotCall { name, args, .. }
+            | ChainSegmentKind::MethodCall { name, args, .. } => {
+                calls.push(AnalysisCall {
+                    target_span: name.span,
+                    args,
+                    call_span: segment.span,
+                });
                 collect_calls_in_exprs(args, calls);
                 direct_target = None;
             }
@@ -2655,8 +3330,8 @@ fn collect_calls_in_chain<'a>(chain: &'a ChainExpr, calls: &mut Vec<AnalysisCall
                 collect_calls_in_expr(index, calls);
                 direct_target = None;
             }
-            ChainSegmentKind::Member { .. } => {
-                direct_target = None;
+            ChainSegmentKind::Member { name, .. } => {
+                direct_target = Some(name.span);
             }
         }
     }
@@ -3353,7 +4028,7 @@ fn import_source_for_module(
     target_module: &AnalyzedModule,
 ) -> String {
     if current_module.package_id == target_module.package_id {
-        target_module.module_path.clone()
+        import_source_label_for_module(target_module)
     } else {
         format!("@{}", target_module.id.as_str())
     }
@@ -3371,6 +4046,40 @@ fn external_import_source_label(module_id: &ModuleId) -> String {
     format!("@{}", module_id.as_str().trim_start_matches('@'))
 }
 
+fn module_top_level_stmt_by_order(module: &AnalyzedModule, order: usize) -> Option<&Stmt> {
+    let mut current = 0usize;
+    for part in &module.parts {
+        for stmt in &part.module.body {
+            if current == order {
+                return Some(stmt);
+            }
+            current = current.saturating_add(1);
+        }
+    }
+    None
+}
+
+fn initializer_expr_for_binding_name<'a>(stmt: &'a Stmt, name: &str) -> Option<&'a Expr> {
+    match &stmt.kind {
+        StmtKind::LocalDecl { names, values, .. } => names
+            .iter()
+            .position(|candidate| candidate.name == name)
+            .and_then(|index| values.get(index)),
+        StmtKind::ExportDecl { stmt: inner, .. } | StmtKind::RealmDecl { stmt: inner, .. } => {
+            initializer_expr_for_binding_name(inner, name)
+        }
+        _ => None,
+    }
+}
+
+fn initializer_identifier(expr: &Expr) -> Option<&crate::ast::Identifier> {
+    match &expr.kind {
+        ExprKind::Identifier(ident) => Some(ident),
+        ExprKind::Paren(inner) => initializer_identifier(inner),
+        _ => None,
+    }
+}
+
 fn importable_exports_from_module(
     module: &AnalyzedModule,
     source_label: &str,
@@ -3379,25 +4088,37 @@ fn importable_exports_from_module(
     module
         .exports
         .iter()
-        .filter(|export| export.realms.contains_all(active_realms))
+        .filter(|export| export.realms.intersects(active_realms))
         .map(|export| {
-            let kind = module
+            let binding = module
                 .resolved
                 .exports
                 .iter()
                 .find(|resolved| resolved.name == export.name && resolved.span == export.span)
-                .and_then(|resolved| module.resolved.bindings.get(resolved.binding.0))
+                .and_then(|resolved| module.resolved.bindings.get(resolved.binding.0));
+            let kind = binding
                 .map(|binding| completion_kind_for_binding(binding.kind))
                 .unwrap_or(CompletionCandidateKind::Reference);
+            let signature = binding.and_then(|binding| {
+                function_decl_for_binding(module, binding)
+                    .filter(|_| binding.kind == BindingKind::Function)
+                    .map(|decl| function_signature_label(&export.name, &decl.params, decl.vararg))
+            });
+            let detail = signature.clone().unwrap_or_else(|| {
+                format!("{} from `{}`", export.realms.display_name(), source_label)
+            });
+            let documentation = match signature {
+                Some(signature) => Some(format!(
+                    "**Signature:** `{signature}`\n\nExported by `{}`",
+                    module.id
+                )),
+                None => Some(format!("Exported by `{}`", module.id)),
+            };
             CompletionCandidate {
                 label: export.name.clone(),
                 kind,
-                detail: Some(format!(
-                    "{} from `{}`",
-                    export.realms.display_name(),
-                    source_label
-                )),
-                documentation: Some(format!("Exported by `{}`", module.id)),
+                detail: Some(detail),
+                documentation,
                 source: Some(source_label.to_string()),
             }
         })
@@ -3434,7 +4155,9 @@ fn project_error_to_analysis(error: crate::project::ProjectError) -> AnalysisErr
 #[cfg(test)]
 mod tests {
     use super::{AnalysisChangeKind, AnalysisWorkspace};
-    use super::{AnalysisConfig, AnalysisFile, AnalysisSymbolKind, analyze_files};
+    use super::{
+        AnalysisConfig, AnalysisFile, AnalysisSymbolKind, CompletionCandidateKind, analyze_files,
+    };
     use crate::module::{RealmAvailability, RealmSet};
 
     #[test]
@@ -3616,6 +4339,268 @@ mod tests {
         assert!(exports.iter().any(|candidate| candidate.label == "signal"
             && candidate.source.as_deref() == Some("@lux/reactive")));
         let _ = std::fs::remove_dir_all(std_root);
+    }
+
+    fn reexported_namespace_package_root() -> std::path::PathBuf {
+        let root = crate::test_support::temp_root("reexported_namespace_packages");
+        std::fs::create_dir_all(root.join("vendor/mgfx/src")).expect("root package source");
+        std::fs::create_dir_all(root.join("vendor/mgfx/paint/src")).expect("paint package source");
+        std::fs::write(
+            root.join("lux.package.toml"),
+            r#"
+name = "vendor-test"
+
+[[package]]
+id = "@vendor/mgfx"
+version = "0.1.0"
+path = "vendor/mgfx"
+
+[[package]]
+id = "@vendor/mgfx/paint"
+version = "0.1.0"
+path = "vendor/mgfx/paint"
+"#,
+        )
+        .expect("package manifest");
+        std::fs::write(
+            root.join("vendor/mgfx/src/cl_module.lux"),
+            "import * as paint_mod from \"@vendor/mgfx/paint\"\nlocal paint = paint_mod\nexport client { paint }\n",
+        )
+        .expect("root package module");
+        std::fs::write(
+            root.join("vendor/mgfx/paint/src/cl_module.lux"),
+            "export client fn draw() = nil\nexport client fn roundedBox() = nil\nexport client fn chamferBoxEx(x, y, w, h, drawStyle = nil) = nil\n",
+        )
+        .expect("paint package module");
+        root
+    }
+
+    #[test]
+    fn import_completion_at_top_level_lists_client_runtime_exports() {
+        let package_root = reexported_namespace_package_root();
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("module.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![package_root.clone()]),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: "import { pai } from \"@vendor/mgfx\"\n".into(),
+            }],
+        )
+        .expect("analysis");
+
+        let exports = output.importable_exports(&consumer, "@vendor/mgfx", RealmSet::SHARED);
+        assert!(exports.iter().any(|candidate| candidate.label == "paint"));
+        let _ = std::fs::remove_dir_all(package_root);
+    }
+
+    #[test]
+    fn namespace_member_completion_follows_named_import_to_reexported_namespace() {
+        let package_root = reexported_namespace_package_root();
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("module.lux");
+        let text = "import { paint as MPaint } from \"@vendor/mgfx\"\nclient fn draw() {\n  MPaint.draw\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![package_root.clone()]),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = output
+            .offset_for_position(&consumer, 2, "  MPaint.".len())
+            .expect("offset");
+        let labels = output
+            .namespace_member_completions(&consumer, offset, "MPaint")
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "draw"), "{labels:#?}");
+        assert!(
+            labels.iter().any(|label| label == "roundedBox"),
+            "{labels:#?}"
+        );
+        let _ = std::fs::remove_dir_all(package_root);
+    }
+
+    #[test]
+    fn member_path_completion_follows_reexported_namespace_chain() {
+        let package_root = reexported_namespace_package_root();
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("module.lux");
+        let text =
+            "import * as mgfx from \"@vendor/mgfx\"\nclient fn draw() {\n  mgfx.paint.draw\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![package_root.clone()]),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = output
+            .offset_for_position(&consumer, 2, "  mgfx.paint.".len())
+            .expect("offset");
+        let labels = output
+            .member_path_completions(&consumer, offset, &["mgfx", "paint"])
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "draw"), "{labels:#?}");
+        assert!(
+            labels.iter().any(|label| label == "roundedBox"),
+            "{labels:#?}"
+        );
+        let _ = std::fs::remove_dir_all(package_root);
+    }
+
+    #[test]
+    fn package_member_metadata_follows_named_import_to_reexported_namespace() {
+        let package_root = reexported_namespace_package_root();
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("module.lux");
+        let text = "import { paint as MPaint } from \"@vendor/mgfx\"\nclient fn draw() {\n  MPaint.chamferBoxEx(1, 2, 3)\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![package_root.clone()]),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = output
+            .offset_for_position(&consumer, 2, "  MPaint.chamferBoxEx".len())
+            .expect("offset");
+        let symbol = output
+            .symbol_at_path_offset(&consumer, offset)
+            .expect("symbol");
+        assert_eq!(symbol.name, "chamferBoxEx");
+        let signature = symbol.signature.as_ref().expect("signature");
+        assert_eq!(signature.label, "chamferBoxEx(x, y, w, h, drawStyle?)");
+        assert_eq!(signature.module_id.as_str(), "vendor/mgfx/paint");
+        assert!(
+            symbol
+                .definition_path
+                .as_ref()
+                .is_some_and(|path| path.ends_with("vendor/mgfx/paint/src/cl_module.lux")),
+            "{:?}",
+            symbol.definition_path
+        );
+
+        let hover = output
+            .hover_markdown_at_path_offset(&consumer, offset)
+            .expect("hover");
+        assert!(
+            hover.contains("**Signature:** `chamferBoxEx(x, y, w, h, drawStyle?)`"),
+            "{hover}"
+        );
+        assert!(
+            hover.contains("**Defined in:** `vendor/mgfx/paint`"),
+            "{hover}"
+        );
+
+        let help_offset = output
+            .offset_for_position(&consumer, 2, "  MPaint.chamferBoxEx(1, 2, ".len())
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&consumer, help_offset)
+            .expect("signature help");
+        assert_eq!(help.signature.label, "chamferBoxEx(x, y, w, h, drawStyle?)");
+        assert_eq!(help.active_parameter, 2);
+
+        assert!(
+            output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("CALL001")
+                    && diagnostic.message
+                        == "`chamferBoxEx` expects between 4 and 5 arguments, got 3"
+            }),
+            "{:#?}",
+            output.diagnostics
+        );
+
+        let completions = output.namespace_member_completions(&consumer, offset, "MPaint");
+        let candidate = completions
+            .iter()
+            .find(|candidate| candidate.label == "chamferBoxEx")
+            .expect("completion candidate");
+        assert_eq!(candidate.kind, CompletionCandidateKind::Function);
+        assert_eq!(
+            candidate.detail.as_deref(),
+            Some("chamferBoxEx(x, y, w, h, drawStyle?)")
+        );
+        assert!(
+            candidate
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation
+                    .contains("**Signature:** `chamferBoxEx(x, y, w, h, drawStyle?)`")),
+            "{candidate:#?}"
+        );
+
+        let _ = std::fs::remove_dir_all(package_root);
+    }
+
+    #[test]
+    fn package_member_metadata_follows_reexported_namespace_chain() {
+        let package_root = reexported_namespace_package_root();
+        let root = std::path::PathBuf::from("src");
+        let consumer = root.join("module.lux");
+        let text = "import * as mgfx from \"@vendor/mgfx\"\nclient fn draw() {\n  mgfx.paint.chamferBoxEx(1, 2, 3, 4)\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root)
+                .with_package_id("game")
+                .with_package_roots(vec![package_root.clone()]),
+            [AnalysisFile {
+                path: consumer.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+        let offset = output
+            .offset_for_position(&consumer, 2, "  mgfx.paint.chamferBoxEx".len())
+            .expect("offset");
+        let symbol = output
+            .symbol_at_path_offset(&consumer, offset)
+            .expect("symbol");
+        assert_eq!(symbol.name, "chamferBoxEx");
+        assert_eq!(
+            symbol
+                .signature
+                .as_ref()
+                .map(|signature| signature.label.as_str()),
+            Some("chamferBoxEx(x, y, w, h, drawStyle?)")
+        );
+
+        let help_offset = output
+            .offset_for_position(&consumer, 2, "  mgfx.paint.chamferBoxEx(1, ".len())
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&consumer, help_offset)
+            .expect("signature help");
+        assert_eq!(help.signature.label, "chamferBoxEx(x, y, w, h, drawStyle?)");
+        assert_eq!(help.active_parameter, 1);
+
+        assert!(
+            !output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("CALL001")
+                    && diagnostic.message.contains("chamferBoxEx")
+            }),
+            "{:#?}",
+            output.diagnostics
+        );
+
+        let _ = std::fs::remove_dir_all(package_root);
     }
 
     #[test]
