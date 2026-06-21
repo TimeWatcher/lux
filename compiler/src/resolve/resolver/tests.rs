@@ -84,6 +84,20 @@ fn imports_are_immutable_bindings() {
 }
 
 #[test]
+fn match_variant_patterns_must_resolve_to_enum_variants() {
+    let module = parse(
+        "local ShopPanelKey = core.ShopPanelKey\nfn demo(mode) = match mode { ShopPanelKey.Arsenal => true _ => false }",
+    );
+    let output = Resolver::resolve(&module);
+    assert!(output.has_errors(), "{:#?}", output.diagnostics);
+    assert!(
+        has_diagnostic(&output, "RESOLVE015"),
+        "{:#?}",
+        output.diagnostics
+    );
+}
+
+#[test]
 fn exports_const_bindings() {
     let module = parse("export const answer = 42");
     let output = Resolver::resolve(&module);

@@ -276,6 +276,9 @@ impl Linter<'_> {
             }
             ExprKind::Chain(chain) => {
                 self.expr(&chain.base);
+                if self.options.warn_gmod_callback_implicit_return {
+                    self.warn_gmod_hook_callback_arg(chain);
+                }
                 for segment in &chain.segments {
                     match &segment.kind {
                         ChainSegmentKind::Member { .. } => {}
@@ -407,6 +410,19 @@ impl Linter<'_> {
         self.warn_gmod_callback_body_return(&function.body, target_span);
     }
 
+    fn warn_gmod_hook_callback_arg(&mut self, chain: &ChainExpr) {
+        let Some((args, call_span)) = hook_registration_call(chain) else {
+            return;
+        };
+        let Some(callback) = args.last() else {
+            return;
+        };
+        let ExprKind::Function(function) = &callback.kind else {
+            return;
+        };
+        self.warn_gmod_callback_function_return(function, call_span);
+    }
+
     fn warn_gmod_callback_body_return(
         &mut self,
         body: &FunctionBody,
@@ -480,6 +496,38 @@ fn is_gmod_callback_name(name: &str) -> bool {
             | "OnMouseWheeled"
             | "OnRemove"
             | "Init"
+    )
+}
+
+fn hook_registration_call(chain: &ChainExpr) -> Option<(&[Expr], crate::source::SourceSpan)> {
+    let (last, prefix) = chain.segments.split_last()?;
+    let ChainSegmentKind::Call { args, .. } = &last.kind else {
+        return None;
+    };
+    if is_hook_add_callee(&chain.base, prefix) {
+        Some((args, last.span))
+    } else {
+        None
+    }
+}
+
+fn is_hook_add_callee(base: &Expr, segments: &[crate::ast::ChainSegment]) -> bool {
+    let ExprKind::Identifier(base) = &base.kind else {
+        return false;
+    };
+    let path = std::iter::once(base.name.as_str())
+        .chain(segments.iter().filter_map(|segment| match &segment.kind {
+            ChainSegmentKind::Member {
+                name,
+                optional: false,
+            } => Some(name.name.as_str()),
+            _ => None,
+        }))
+        .collect::<Vec<_>>();
+
+    matches!(
+        path.as_slice(),
+        ["hookAdd"] | ["hook", "Add"] | ["hookx", "add"]
     )
 }
 
@@ -707,6 +755,33 @@ mod tests {
         );
 
         let diagnostics =
+            lint("fn setup() { hookAdd(\"Initialize\", \"id\", () => { loadWorthCarts() }) }");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diag| diag.code.as_deref() == Some("LINT004")),
+            "{diagnostics:#?}"
+        );
+
+        let diagnostics =
+            lint("fn setup() { hook.Add(\"Initialize\", \"id\", () => { loadWorthCarts() }) }");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diag| diag.code.as_deref() == Some("LINT004")),
+            "{diagnostics:#?}"
+        );
+
+        let diagnostics =
+            lint("fn setup() { hookx.add(\"Initialize\", \"id\", () => { loadWorthCarts() }) }");
+        assert!(
+            diagnostics
+                .iter()
+                .any(|diag| diag.code.as_deref() == Some("LINT004")),
+            "{diagnostics:#?}"
+        );
+
+        let diagnostics =
             lint("fn setup(panel) { panel.Paint = (w, h) -> { drawBody(self, w, h) } }");
         assert!(
             diagnostics
@@ -719,6 +794,21 @@ mod tests {
     #[test]
     fn gmod_callback_semicolon_does_not_warn_as_suppressed_return() {
         let diagnostics = lint("fn PANEL:Paint(w, h) { drawBody(self, w, h); }");
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diag| diag.code.as_deref() != Some("LINT002")),
+            "{diagnostics:#?}"
+        );
+        assert!(
+            diagnostics
+                .iter()
+                .all(|diag| diag.code.as_deref() != Some("LINT004")),
+            "{diagnostics:#?}"
+        );
+
+        let diagnostics =
+            lint("fn setup() { hookAdd(\"Initialize\", \"id\", () => { loadWorthCarts(); }) }");
         assert!(
             diagnostics
                 .iter()

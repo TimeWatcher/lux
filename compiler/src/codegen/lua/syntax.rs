@@ -5,13 +5,6 @@ use super::{BinaryOperandSide, LuaPrecedence};
 
 const READABLE_LINE_WIDTH: usize = 88;
 
-pub(super) fn dotted_name(path: &[crate::ast::Identifier]) -> String {
-    path.iter()
-        .map(|part| part.name.as_str())
-        .collect::<Vec<_>>()
-        .join(".")
-}
-
 pub(super) fn param_list(params: &[IrParam], vararg: bool) -> String {
     let mut parts = params
         .iter()

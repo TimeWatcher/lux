@@ -985,6 +985,9 @@ impl Resolver {
             }
             ExprKind::Match(match_expr) => {
                 self.resolve_expr(&match_expr.subject);
+                for arm in &match_expr.arms {
+                    self.validate_match_pattern_variants(&arm.pattern);
+                }
                 self.analyze_match_coverage(match_expr);
                 for arm in &match_expr.arms {
                     self.with_scope(ScopeKind::Block, |this| {
@@ -1325,6 +1328,66 @@ impl Resolver {
         }
 
         None
+    }
+
+    fn validate_match_pattern_variants(&mut self, pattern: &MatchPattern) {
+        match &pattern.kind {
+            MatchPatternKind::Or(patterns) => {
+                for pattern in patterns {
+                    self.validate_match_pattern_variants(pattern);
+                }
+            }
+            MatchPatternKind::Variant { path, payload } => {
+                if self.lookup_match_variant_path(path).is_none() {
+                    let path_text = path
+                        .iter()
+                        .map(|part| part.name.as_str())
+                        .collect::<Vec<_>>()
+                        .join(".");
+                    self.diagnostics.push(
+                        Diagnostic::error(format!(
+                            "match pattern `{path_text}` does not resolve to a known enum variant"
+                        ))
+                        .with_code("RESOLVE015")
+                        .with_label(Label::primary(pattern.span, "unresolved match pattern"))
+                        .with_help(
+                            "match value patterns must name enum variants or use literal patterns",
+                        ),
+                    );
+                }
+                if let Some(payload) = payload {
+                    self.validate_match_pattern_payload_variants(payload);
+                }
+            }
+            MatchPatternKind::Object(fields) => {
+                for field in fields {
+                    self.validate_match_pattern_variants(&field.pattern);
+                }
+            }
+            MatchPatternKind::Array(items) => {
+                for item in items {
+                    self.validate_match_pattern_variants(&item.pattern);
+                }
+            }
+            MatchPatternKind::Wildcard
+            | MatchPatternKind::Binding(_)
+            | MatchPatternKind::Literal(_) => {}
+        }
+    }
+
+    fn validate_match_pattern_payload_variants(&mut self, payload: &MatchPatternPayload) {
+        match payload {
+            MatchPatternPayload::Tuple(patterns) => {
+                for pattern in patterns {
+                    self.validate_match_pattern_variants(pattern);
+                }
+            }
+            MatchPatternPayload::Record(fields) => {
+                for field in fields {
+                    self.validate_match_pattern_variants(&field.pattern);
+                }
+            }
+        }
     }
 
     fn warn_unreachable_match_arm(

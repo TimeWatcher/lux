@@ -7,7 +7,7 @@ use std::path::{Component, Path, PathBuf};
 mod manifest;
 
 use crate::ast::{
-    ArrowKind, BindingMode, Block, ChainExpr, ChainSegment, ChainSegmentKind, EnumDecl,
+    ArrowKind, BindingMode, Block, ChainExpr, ChainSegment, ChainSegmentKind, EnumDecl, EnumRepr,
     EnumVariant, Expr, ExprKind, ExprOrBlock, FunctionBody, FunctionDecl, FunctionExpr,
     FunctionName, ImportPhase, MatchArm, MatchExpr, Module, Realm, Stmt, StmtKind, TableExpr,
     TableField, TableFieldKind, TemplatePart, TemplatePartKind,
@@ -914,6 +914,16 @@ fn transform_top_level_stmt(
                 out.push(function_decl_assignment(decl, current_realms, artifact_set));
             }
         }
+        StmtKind::EnumDecl(decl) if decl.runtime => {
+            if enum_decl_realms(decl, resolved, current_realms).intersects(artifact_set) {
+                out.push(runtime_enum_metadata_decl(
+                    decl,
+                    current_realms,
+                    artifact_set,
+                ));
+                out.push(runtime_enum_assignment(decl, current_realms, artifact_set));
+            }
+        }
         StmtKind::LocalDecl { names, values, .. } => {
             let active_names = names
                 .iter()
@@ -993,6 +1003,94 @@ fn function_decl_realms(
             .unwrap_or(fallback);
     }
     fallback
+}
+
+fn enum_decl_realms(decl: &EnumDecl, resolved: &ResolveOutput, fallback: RealmSet) -> RealmSet {
+    resolved
+        .binding_by_name(&decl.name.name)
+        .map(|binding| binding.available_realms)
+        .unwrap_or(fallback)
+}
+
+fn runtime_enum_metadata_decl(
+    decl: &EnumDecl,
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+) -> Stmt {
+    let mut metadata = transform_enum_decl(decl, current_realms, artifact_set);
+    metadata.runtime = false;
+    Stmt {
+        kind: StmtKind::EnumDecl(metadata),
+        span: decl.name.span,
+    }
+}
+
+fn runtime_enum_assignment(
+    decl: &EnumDecl,
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+) -> Stmt {
+    Stmt {
+        span: decl.name.span,
+        kind: StmtKind::Assign {
+            targets: vec![Expr {
+                kind: ExprKind::Identifier(decl.name.clone()),
+                span: decl.name.span,
+            }],
+            values: vec![runtime_enum_table_expr(decl, current_realms, artifact_set)],
+        },
+    }
+}
+
+fn runtime_enum_table_expr(
+    decl: &EnumDecl,
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+) -> Expr {
+    let fields = decl
+        .variants
+        .iter()
+        .enumerate()
+        .map(|(index, variant)| TableField {
+            span: variant.span,
+            kind: TableFieldKind::Named {
+                name: variant.name.clone(),
+                value: runtime_enum_variant_tag_expr(
+                    decl,
+                    variant,
+                    index,
+                    current_realms,
+                    artifact_set,
+                ),
+            },
+        })
+        .collect();
+    Expr {
+        span: decl.name.span,
+        kind: ExprKind::Table(TableExpr { fields }),
+    }
+}
+
+fn runtime_enum_variant_tag_expr(
+    decl: &EnumDecl,
+    variant: &EnumVariant,
+    index: usize,
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+) -> Expr {
+    if let Some(tag) = &variant.tag {
+        return transform_expr(tag, current_realms, artifact_set);
+    }
+    let kind = match &decl.repr {
+        EnumRepr::Number => ExprKind::Number(index.to_string()),
+        EnumRepr::String | EnumRepr::Table { .. } | EnumRepr::Existing { .. } => {
+            ExprKind::String(variant.name.name.clone())
+        }
+    };
+    Expr {
+        kind,
+        span: variant.span,
+    }
 }
 
 fn function_decl_assignment(
@@ -1085,24 +1183,9 @@ fn transform_stmt(stmt: &Stmt, current_realms: RealmSet, artifact_set: RealmSet)
         StmtKind::FunctionDecl(decl) => {
             StmtKind::FunctionDecl(transform_function_decl(decl, current_realms, artifact_set))
         }
-        StmtKind::EnumDecl(decl) => StmtKind::EnumDecl(EnumDecl {
-            name: decl.name.clone(),
-            repr: decl.repr.clone(),
-            runtime: decl.runtime,
-            variants: decl
-                .variants
-                .iter()
-                .map(|variant| EnumVariant {
-                    name: variant.name.clone(),
-                    payload: variant.payload.clone(),
-                    tag: variant
-                        .tag
-                        .as_ref()
-                        .map(|expr| transform_expr(expr, current_realms, artifact_set)),
-                    span: variant.span,
-                })
-                .collect(),
-        }),
+        StmtKind::EnumDecl(decl) => {
+            StmtKind::EnumDecl(transform_enum_decl(decl, current_realms, artifact_set))
+        }
         StmtKind::If {
             condition,
             then_block,
@@ -1208,6 +1291,31 @@ fn transform_function_decl(
         params: decl.params.clone(),
         vararg: decl.vararg,
         body: transform_function_body(&decl.body, current_realms, artifact_set),
+    }
+}
+
+fn transform_enum_decl(
+    decl: &EnumDecl,
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+) -> EnumDecl {
+    EnumDecl {
+        name: decl.name.clone(),
+        repr: decl.repr.clone(),
+        runtime: decl.runtime,
+        variants: decl
+            .variants
+            .iter()
+            .map(|variant| EnumVariant {
+                name: variant.name.clone(),
+                payload: variant.payload.clone(),
+                tag: variant
+                    .tag
+                    .as_ref()
+                    .map(|expr| transform_expr(expr, current_realms, artifact_set)),
+                span: variant.span,
+            })
+            .collect(),
     }
 }
 

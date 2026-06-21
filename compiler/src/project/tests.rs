@@ -103,6 +103,85 @@ fn directory_module_parts_compile_as_one_logical_module() {
 }
 
 #[test]
+fn multipart_runtime_enum_lift_uses_assignment_not_local_member_decl() {
+    let root = temp_project("runtime_enum_lift");
+    let source_root = root.join("src");
+    let entry = source_root.join("shop/base/module.lux");
+    let state = source_root.join("shop/base/cl_state.lux");
+    let mut entry_text =
+        String::from("part order { \"module\", \"cl_state\" }\nexport { ShopPanelKey }\n");
+    for index in 0..170 {
+        entry_text.push_str(&format!("local binding{index} = {index}\n"));
+    }
+    write_lux(&entry, &entry_text);
+    write_lux(
+        &state,
+        "enum ShopPanelKey repr string runtime {\n  Arsenal = \"arsenal\",\n  Worth = \"worth\",\n  Field = \"field\",\n  Remantler = \"remantler\"\n}",
+    );
+
+    let config = ProjectConfig::new(&source_root).with_package_id("game");
+    let output = compile_paths(&config, &[entry.clone(), state.clone()]).expect("compile");
+    let module = output
+        .modules
+        .iter()
+        .find(|module| module.artifact_realm == ArtifactRealm::Client)
+        .expect("client artifact");
+
+    assert!(
+        module.lua.lua.contains("__lux_module_1.ShopPanelKey = {"),
+        "{}",
+        module.lua.lua
+    );
+    assert!(
+        !module.lua.lua.contains("local __lux_module_1.ShopPanelKey"),
+        "{}",
+        module.lua.lua
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
+fn lifted_method_decl_uses_module_local_receiver() {
+    let root = temp_project("lifted_method");
+    let source_root = root.join("src");
+    let source = source_root.join("client/ui.lux");
+
+    let mut text = String::new();
+    text.push_str("local PANEL = {}\n");
+    for index in 0..170 {
+        text.push_str(&format!("local binding{index} = {index}\n"));
+    }
+    text.push_str("fn PANEL:Paint(w, h) {\n  drawBody(self, w, h);\n}\n");
+    text.push_str("export client fn panel() = PANEL\n");
+    write_lux(&source, &text);
+
+    let config = ProjectConfig::new(&source_root).with_package_id("game");
+    let output = compile_paths(&config, std::slice::from_ref(&source)).expect("compile");
+    let module = output
+        .modules
+        .iter()
+        .find(|module| module.artifact_realm == ArtifactRealm::Client)
+        .expect("client artifact");
+
+    assert!(
+        module
+            .lua
+            .lua
+            .contains("function __lux_module_1.PANEL:Paint(w, h)"),
+        "{}",
+        module.lua.lua
+    );
+    assert!(
+        !module.lua.lua.contains("function PANEL:Paint"),
+        "{}",
+        module.lua.lua
+    );
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn module_part_order_reports_use_before_initialization() {
     let root = temp_project("order");
     let source_root = root.join("src");

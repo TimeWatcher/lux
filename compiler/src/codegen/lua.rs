@@ -183,6 +183,18 @@ impl<'a> LuaCodegen<'a> {
         name.to_string()
     }
 
+    fn emit_path(&self, path: &[crate::ast::Identifier]) -> String {
+        let Some((first, rest)) = path.split_first() else {
+            return String::new();
+        };
+        let mut out = self.emit_identifier(&first.name);
+        for part in rest {
+            out.push('.');
+            out.push_str(&part.name);
+        }
+        out
+    }
+
     fn is_shadowed(&self, name: &str) -> bool {
         self.name_scopes
             .iter()
@@ -636,7 +648,7 @@ impl<'a> LuaCodegen<'a> {
             fields.push(format!("{} = {}", variant.name, tag.value));
         }
         self.emit_scoped_setup(setup, origin, |this| {
-            if this.is_module_scope() && this.is_module_lifted(&decl.name) {
+            if this.is_module_lifted(&decl.name) && !this.is_shadowed(&decl.name) {
                 this.line(format!("{target} = {{ {} }}", fields.join(", ")), origin);
             } else {
                 this.line(
@@ -862,7 +874,7 @@ impl<'a> LuaCodegen<'a> {
                 self.line("end", origin);
             }
             FunctionName::Dotted(path) => {
-                let name = dotted_name(path);
+                let name = self.emit_path(path);
                 self.line(
                     format!(
                         "function {}({})",
@@ -883,7 +895,7 @@ impl<'a> LuaCodegen<'a> {
                 self.line("end", origin);
             }
             FunctionName::Method { receiver, method } => {
-                let receiver = dotted_name(receiver);
+                let receiver = self.emit_path(receiver);
                 self.line(
                     format!(
                         "function {}:{}({})",
@@ -1465,9 +1477,11 @@ impl<'a> LuaCodegen<'a> {
         pattern: &IrMatchPattern,
     ) -> Result<CompiledMatchPattern, CodegenError> {
         let Some((enum_decl, variant)) = self.enums.lookup_variant(path) else {
-            return Ok(CompiledMatchPattern {
-                conditions: vec![format!("{source} == {}", path.join("."))],
-                bindings: Vec::new(),
+            return Err(CodegenError {
+                message: format!(
+                    "match pattern `{}` does not resolve to a known enum variant",
+                    path.join(".")
+                ),
             });
         };
         let repr = enum_decl.repr.clone();
