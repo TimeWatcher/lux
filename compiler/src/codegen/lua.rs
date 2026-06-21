@@ -819,9 +819,8 @@ impl<'a> LuaCodegen<'a> {
         match (action, block.tail.as_ref()) {
             (BlockTailAction::Statement, Some(tail)) => self.emit_expr_as_stmt(tail),
             (BlockTailAction::Statement, None) => Ok(()),
-            (BlockTailAction::Return, Some(tail)) | (BlockTailAction::ReturnNil, Some(tail)) => {
-                self.emit_return_expr(tail)
-            }
+            (BlockTailAction::Return, Some(tail)) => self.emit_implicit_return_expr(tail),
+            (BlockTailAction::ReturnNil, Some(tail)) => self.emit_return_expr(tail),
             (BlockTailAction::Return, None) => Ok(()),
             (BlockTailAction::ReturnNil, None) if block_ends_with_terminal_stmt(block) => Ok(()),
             (BlockTailAction::ReturnNil, None) => {
@@ -1184,10 +1183,30 @@ impl<'a> LuaCodegen<'a> {
         Ok(())
     }
 
+    fn emit_implicit_return_expr(&mut self, expr: &IrExpr) -> Result<(), CodegenError> {
+        if self.emit_conditional_with_mode(expr, ExprEmitMode::ImplicitReturn)? {
+            return Ok(());
+        }
+        if self.emit_match_with_mode(expr, ExprEmitMode::ImplicitReturn)? {
+            return Ok(());
+        }
+        self.emit_return_expr(expr)
+    }
+
     fn emit_branch_as_return(&mut self, branch: &IrExprOrBlock) -> Result<(), CodegenError> {
         match branch {
             IrExprOrBlock::Expr(expr) => self.emit_return_expr(expr),
             IrExprOrBlock::Block(block) => self.emit_block_value_as_return(block),
+        }
+    }
+
+    fn emit_branch_as_implicit_return(
+        &mut self,
+        branch: &IrExprOrBlock,
+    ) -> Result<(), CodegenError> {
+        match branch {
+            IrExprOrBlock::Expr(expr) => self.emit_implicit_return_expr(expr),
+            IrExprOrBlock::Block(block) => self.emit_block_as_return(block),
         }
     }
 
@@ -1580,6 +1599,7 @@ impl<'a> LuaCodegen<'a> {
         match mode {
             ExprEmitMode::Statement => self.emit_branch_as_stmt(branch),
             ExprEmitMode::Return => self.emit_branch_as_return(branch),
+            ExprEmitMode::ImplicitReturn => self.emit_branch_as_implicit_return(branch),
             ExprEmitMode::AssignInto(target) => self.emit_branch_into(branch, target),
         }
     }
@@ -2740,6 +2760,7 @@ enum FinalCallKind {
 enum ExprEmitMode<'a> {
     Statement,
     Return,
+    ImplicitReturn,
     AssignInto(&'a str),
 }
 

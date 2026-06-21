@@ -230,6 +230,52 @@ fn trailing_semicolon_suppresses_block_tail() {
 }
 
 #[test]
+fn final_if_else_without_semicolon_is_block_tail_expression() {
+    let module = parse(
+        "fn choose(ok) { if ok { 1 } else { 0 } }\nfn no(ok) { if ok { 1 } else { 0 }; }\nfn stmt(ok) { if ok { 1 } }",
+    );
+
+    let StmtKind::FunctionDecl(choose) = &module.body[0].kind else {
+        panic!("expected function");
+    };
+    let FunctionBody::Block(choose_block) = &choose.body else {
+        panic!("expected block body");
+    };
+    assert!(matches!(
+        choose_block.tail.as_ref().map(|expr| &expr.kind),
+        Some(ExprKind::Conditional { .. })
+    ));
+    assert!(choose_block.statements.is_empty());
+
+    let StmtKind::FunctionDecl(no) = &module.body[1].kind else {
+        panic!("expected function");
+    };
+    let FunctionBody::Block(no_block) = &no.body else {
+        panic!("expected block body");
+    };
+    assert!(no_block.tail.is_none());
+    assert!(matches!(
+        no_block.statements.first().map(|stmt| &stmt.kind),
+        Some(StmtKind::If { .. })
+    ));
+
+    let StmtKind::FunctionDecl(stmt) = &module.body[2].kind else {
+        panic!("expected function");
+    };
+    let FunctionBody::Block(stmt_block) = &stmt.body else {
+        panic!("expected block body");
+    };
+    assert!(stmt_block.tail.is_none());
+    assert!(matches!(
+        stmt_block.statements.first().map(|stmt| &stmt.kind),
+        Some(StmtKind::If {
+            else_block: None,
+            ..
+        })
+    ));
+}
+
+#[test]
 fn distinguishes_safe_dot_call_and_optional_member_call() {
     let module = parse("obj?.name(args); (obj?.name)(args)");
     assert_eq!(module.body.len(), 2);

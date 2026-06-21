@@ -98,6 +98,77 @@ fn emits_conditional_return_as_if() {
 }
 
 #[test]
+fn conditional_block_branch_without_tail_does_not_implicitly_return_nil() {
+    let output = compile("fn choose(ok) { if ok { log(); } else { 1 } }");
+    let lua = output.lua;
+    assert!(lua.contains("if ok then"), "{lua}");
+    assert!(lua.contains("log()"), "{lua}");
+    assert!(lua.contains("return 1"), "{lua}");
+    assert!(!lua.contains("return nil"), "{lua}");
+}
+
+#[test]
+fn explicit_return_conditional_block_without_tail_returns_nil() {
+    let output = compile("fn choose(ok) { return if ok { log(); } else { 1 } }");
+    let lua = output.lua;
+    assert!(lua.contains("if ok then"), "{lua}");
+    assert!(lua.contains("log()"), "{lua}");
+    assert!(lua.contains("return nil"), "{lua}");
+    assert!(lua.contains("return 1"), "{lua}");
+}
+
+#[test]
+fn conditional_block_tail_preserves_multivalue_return() {
+    let output = compile("fn pass(...) = ...\nfn choose(ok) { if ok { pass() } else { pass() } }");
+    let lua = output.lua;
+    assert_eq!(lua.matches("return pass()").count(), 2, "{lua}");
+}
+
+#[test]
+fn conditional_expr_tail_preserves_multivalue_return() {
+    let output = compile("fn pass(...) = ...\nfn choose(ok) = ok then pass() else pass()");
+    let lua = output.lua;
+    assert_eq!(lua.matches("return pass()").count(), 2, "{lua}");
+}
+
+#[test]
+fn do_expression_without_tail_still_returns_nil_in_value_position() {
+    let output = compile("fn choose() { return do { log(); } }");
+    let lua = output.lua;
+    assert!(lua.contains("log()"), "{lua}");
+    assert!(lua.contains("return nil"), "{lua}");
+}
+
+#[test]
+fn final_if_else_without_semicolon_is_implicit_return() {
+    let output = compile("fn choose(ok) { if ok { 1 } else { 0 } }");
+    let lua = output.lua;
+    assert!(lua.contains("if ok then"), "{lua}");
+    assert!(lua.contains("return 1"), "{lua}");
+    assert!(lua.contains("return 0"), "{lua}");
+}
+
+#[test]
+fn final_else_if_chain_without_semicolon_is_implicit_return() {
+    let output = compile("fn choose(x) { if x == 1 { 1 } else if x == 2 { 2 } else { 3 } }");
+    let lua = output.lua;
+    assert!(lua.contains("if x == 1 then"), "{lua}");
+    assert!(lua.contains("if x == 2 then"), "{lua}");
+    assert!(lua.contains("return 1"), "{lua}");
+    assert!(lua.contains("return 2"), "{lua}");
+    assert!(lua.contains("return 3"), "{lua}");
+}
+
+#[test]
+fn final_if_statement_with_semicolon_does_not_implicitly_return() {
+    let output = compile("fn choose(ok) { if ok { 1 } else { 0 }; }");
+    let lua = output.lua;
+    assert!(lua.contains("if ok then"), "{lua}");
+    assert!(!lua.contains("return 1"), "{lua}");
+    assert!(!lua.contains("return 0"), "{lua}");
+}
+
+#[test]
 fn emits_compound_assignment_with_single_evaluation_place() {
     let output = compile("fn add() { getTable()[nextIndex()] += 1 }");
     assert!(output.lua.contains("local __lux_tbl_"));
@@ -825,6 +896,46 @@ fn match_return_arm_block_with_explicit_return_does_not_append_return_nil() {
         !lua.contains("return 0, 0, 0, 0\n      return nil"),
         "{lua}"
     );
+}
+
+#[test]
+fn match_return_arm_block_without_tail_does_not_append_return_nil() {
+    let output = compile(
+        "enum Op repr string { A = \"A\", B = \"B\" }\nfn bounds(op) {\n  match op {\n    Op.A => { log(); }\n    _ => { 0 }\n  }\n}",
+    );
+    let lua = output.lua;
+    assert!(lua.contains("log()"), "{lua}");
+    assert!(lua.contains("return 0"), "{lua}");
+    assert!(!lua.contains("return nil"), "{lua}");
+}
+
+#[test]
+fn explicit_return_match_arm_block_without_tail_returns_nil() {
+    let output = compile(
+        "enum Op repr string { A = \"A\", B = \"B\" }\nfn bounds(op) {\n  return match op {\n    Op.A => { log(); }\n    _ => { 0 }\n  }\n}",
+    );
+    let lua = output.lua;
+    assert!(lua.contains("log()"), "{lua}");
+    assert!(lua.contains("return nil"), "{lua}");
+    assert!(lua.contains("return 0"), "{lua}");
+}
+
+#[test]
+fn match_return_arm_block_tail_preserves_multivalue_return() {
+    let output = compile(
+        "enum Op repr string { A = \"A\", B = \"B\" }\nfn pass(...) = ...\nfn bounds(op) {\n  match op {\n    Op.A => { pass() }\n    _ => { pass() }\n  }\n}",
+    );
+    let lua = output.lua;
+    assert_eq!(lua.matches("return pass()").count(), 2, "{lua}");
+}
+
+#[test]
+fn match_return_arm_expr_tail_preserves_multivalue_return() {
+    let output = compile(
+        "enum Op repr string { A = \"A\", B = \"B\" }\nfn pass(...) = ...\nfn bounds(op) = match op { Op.A => pass() _ => pass() }",
+    );
+    let lua = output.lua;
+    assert_eq!(lua.matches("return pass()").count(), 2, "{lua}");
 }
 
 #[test]

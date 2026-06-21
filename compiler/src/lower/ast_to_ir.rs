@@ -82,7 +82,7 @@ impl<'a> Lowerer<'a> {
             tail: block
                 .tail
                 .as_ref()
-                .map(|expr| self.lower_expr(expr))
+                .map(|expr| self.lower_tail_expr(expr))
                 .transpose()?,
             origin: Origin::source(block.span),
         })
@@ -333,13 +333,20 @@ impl<'a> Lowerer<'a> {
             .iter()
             .enumerate()
             .map(|(index, expr)| {
-                let mut lowered = self.lower_expr(expr)?;
-                if index == last_index && can_produce_multivalue(&lowered) {
-                    lowered.value_mode = ValueMode::MultiTail;
-                }
+                let lowered = if index == last_index {
+                    self.lower_tail_expr(expr)?
+                } else {
+                    self.lower_expr(expr)?
+                };
                 Ok(lowered)
             })
             .collect()
+    }
+
+    fn lower_tail_expr(&self, expr: &Expr) -> Result<IrExpr, LowerError> {
+        let mut lowered = self.lower_expr(expr)?;
+        mark_tail_multivalue(&mut lowered);
+        Ok(lowered)
     }
 
     fn lower_expr(&self, expr: &Expr) -> Result<IrExpr, LowerError> {
@@ -772,6 +779,42 @@ impl<'a> Lowerer<'a> {
 
 fn can_produce_multivalue(expr: &IrExpr) -> bool {
     matches!(expr.kind, IrExprKind::Vararg | IrExprKind::Chain(_))
+}
+
+fn mark_tail_multivalue(expr: &mut IrExpr) {
+    if can_produce_multivalue(expr) {
+        expr.value_mode = ValueMode::MultiTail;
+    }
+    match &mut expr.kind {
+        IrExprKind::Conditional {
+            then_branch,
+            else_branch,
+            ..
+        } => {
+            mark_expr_or_block_tail_multivalue(then_branch);
+            mark_expr_or_block_tail_multivalue(else_branch);
+        }
+        IrExprKind::Match(match_expr) => {
+            for arm in &mut match_expr.arms {
+                mark_expr_or_block_tail_multivalue(&mut arm.body);
+            }
+        }
+        IrExprKind::Do(block) => mark_block_tail_multivalue(block),
+        _ => {}
+    }
+}
+
+fn mark_expr_or_block_tail_multivalue(item: &mut IrExprOrBlock) {
+    match item {
+        IrExprOrBlock::Expr(expr) => mark_tail_multivalue(expr),
+        IrExprOrBlock::Block(block) => mark_block_tail_multivalue(block),
+    }
+}
+
+fn mark_block_tail_multivalue(block: &mut IrBlock) {
+    if let Some(tail) = &mut block.tail {
+        mark_tail_multivalue(tail);
+    }
 }
 
 fn resolved_symbol_for_expr(

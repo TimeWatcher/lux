@@ -1171,10 +1171,9 @@ impl<'a> Parser<'a> {
             }
 
             if self.at(&TokenKind::RBrace) {
-                if let StmtKind::Expr(expr) = stmt.kind {
-                    tail = Some(expr);
-                } else {
-                    statements.push(stmt);
+                match stmt_into_tail_expr(stmt) {
+                    Ok(expr) => tail = Some(expr),
+                    Err(stmt) => statements.push(stmt),
                 }
                 break;
             }
@@ -2583,6 +2582,52 @@ fn branch_end(branch: &ExprOrBlock) -> usize {
         ExprOrBlock::Expr(expr) => expr.span.byte_end,
         ExprOrBlock::Block(block) => block.span.byte_end,
     }
+}
+
+fn stmt_into_tail_expr(stmt: Stmt) -> Result<Expr, Stmt> {
+    match stmt.kind {
+        StmtKind::Expr(expr) => Ok(expr),
+        StmtKind::If {
+            condition,
+            then_block,
+            else_block: Some(else_block),
+        } => {
+            let span = stmt.span;
+            Ok(Expr {
+                kind: ExprKind::Conditional {
+                    condition: Box::new(condition),
+                    then_branch: ExprOrBlock::Block(Box::new(then_block)),
+                    else_branch: block_into_conditional_branch(else_block),
+                    form: ConditionalForm::IfExpr,
+                },
+                span,
+            })
+        }
+        kind => Err(Stmt {
+            kind,
+            span: stmt.span,
+        }),
+    }
+}
+
+fn block_into_conditional_branch(block: Block) -> ExprOrBlock {
+    if block.tail.is_none() && block.statements.len() == 1 {
+        let span = block.span;
+        let mut statements = block.statements;
+        let stmt = statements
+            .pop()
+            .expect("block statement length was checked above");
+        return match stmt_into_tail_expr(stmt) {
+            Ok(expr) => ExprOrBlock::Expr(Box::new(expr)),
+            Err(stmt) => ExprOrBlock::Block(Box::new(Block {
+                statements: vec![stmt],
+                tail: None,
+                span,
+            })),
+        };
+    }
+
+    ExprOrBlock::Block(Box::new(block))
 }
 
 fn contains_unparenthesized_coalesce(expr: &Expr) -> bool {
