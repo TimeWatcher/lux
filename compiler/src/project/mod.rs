@@ -9,8 +9,8 @@ mod manifest;
 use crate::ast::{
     ArrowKind, BindingMode, Block, ChainExpr, ChainSegment, ChainSegmentKind, EnumDecl, EnumRepr,
     EnumVariant, Expr, ExprKind, ExprOrBlock, FunctionBody, FunctionDecl, FunctionExpr,
-    FunctionName, ImportPhase, MatchArm, MatchExpr, Module, Realm, Stmt, StmtKind, TableExpr,
-    TableField, TableFieldKind, TemplatePart, TemplatePartKind,
+    FunctionName, ImportPhase, MatchArm, MatchExpr, Module, Pattern, PatternKind, Realm, Stmt,
+    StmtKind, TableExpr, TableField, TableFieldKind, TemplatePart, TemplatePartKind,
 };
 use crate::codegen::{CodegenError, LuaCodegen, LuaOutput};
 use crate::compile_time::{CompileTimeError, CompileTimePackageRegistry};
@@ -978,10 +978,18 @@ fn transform_top_level_stmt(
         | StmtKind::HostPackageDecl(_)
         | StmtKind::ExportList { .. }
         | StmtKind::ExportAll { .. } => {}
-        StmtKind::LocalDestructure { .. } => {
-            if let Some(stmt) = transform_stmt(stmt, current_realms, artifact_set) {
-                out.push(stmt);
-            }
+        StmtKind::LocalDestructure {
+            patterns, values, ..
+        } => {
+            let statements = top_level_destructure_assignments(
+                patterns,
+                values,
+                current_realms,
+                artifact_set,
+                resolved,
+                stmt.span,
+            );
+            out.extend(statements);
         }
         _ => {
             if let Some(stmt) = transform_stmt(stmt, current_realms, artifact_set) {
@@ -1010,6 +1018,139 @@ fn enum_decl_realms(decl: &EnumDecl, resolved: &ResolveOutput, fallback: RealmSe
         .binding_by_name(&decl.name.name)
         .map(|binding| binding.available_realms)
         .unwrap_or(fallback)
+}
+
+fn top_level_destructure_assignments(
+    patterns: &[Pattern],
+    values: &[Expr],
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+    resolved: &ResolveOutput,
+    span: SourceSpan,
+) -> Vec<Stmt> {
+    let mut active_patterns = Vec::new();
+    let mut active_names = Vec::new();
+    for pattern in patterns {
+        let active_pattern = top_level_destructure_temp_pattern(
+            pattern,
+            current_realms,
+            artifact_set,
+            resolved,
+            &mut active_names,
+        );
+        active_patterns.push(active_pattern);
+    }
+
+    if active_names.is_empty() {
+        return Vec::new();
+    }
+
+    vec![
+        Stmt {
+            span,
+            kind: StmtKind::LocalDestructure {
+                mode: BindingMode::Local,
+                patterns: active_patterns,
+                values: values
+                    .iter()
+                    .map(|value| transform_expr(value, current_realms, artifact_set))
+                    .collect(),
+            },
+        },
+        Stmt {
+            span,
+            kind: StmtKind::Assign {
+                targets: active_names
+                    .iter()
+                    .map(|name| Expr {
+                        kind: ExprKind::Identifier(name.clone()),
+                        span: name.span,
+                    })
+                    .collect(),
+                values: active_names
+                    .iter()
+                    .map(|name| Expr {
+                        kind: ExprKind::Identifier(top_level_destructure_temp_name(name)),
+                        span: name.span,
+                    })
+                    .collect(),
+            },
+        },
+    ]
+}
+
+fn top_level_destructure_temp_pattern(
+    pattern: &Pattern,
+    current_realms: RealmSet,
+    artifact_set: RealmSet,
+    resolved: &ResolveOutput,
+    active_names: &mut Vec<crate::ast::Identifier>,
+) -> Pattern {
+    let kind = match &pattern.kind {
+        PatternKind::Identifier(name) => {
+            if name.name != "_"
+                && resolved
+                    .binding_by_name(&name.name)
+                    .is_some_and(|binding| binding.available_realms.intersects(artifact_set))
+            {
+                active_names.push(name.clone());
+            }
+            PatternKind::Identifier(top_level_destructure_temp_name(name))
+        }
+        PatternKind::Object(fields) => PatternKind::Object(
+            fields
+                .iter()
+                .map(|field| crate::ast::ObjectPatternField {
+                    key: field.key.clone(),
+                    pattern: top_level_destructure_temp_pattern(
+                        &field.pattern,
+                        current_realms,
+                        artifact_set,
+                        resolved,
+                        active_names,
+                    ),
+                    default: field
+                        .default
+                        .as_ref()
+                        .map(|expr| transform_expr(expr, current_realms, artifact_set)),
+                    span: field.span,
+                })
+                .collect(),
+        ),
+        PatternKind::Array(items) => PatternKind::Array(
+            items
+                .iter()
+                .map(|item| crate::ast::ArrayPatternItem {
+                    pattern: top_level_destructure_temp_pattern(
+                        &item.pattern,
+                        current_realms,
+                        artifact_set,
+                        resolved,
+                        active_names,
+                    ),
+                    default: item
+                        .default
+                        .as_ref()
+                        .map(|expr| transform_expr(expr, current_realms, artifact_set)),
+                    span: item.span,
+                })
+                .collect(),
+        ),
+    };
+    Pattern {
+        kind,
+        span: pattern.span,
+    }
+}
+
+fn top_level_destructure_temp_name(name: &crate::ast::Identifier) -> crate::ast::Identifier {
+    crate::ast::Identifier {
+        name: format!(
+            "__lux_module_destructure_{}_{}_{}",
+            name.span.file_id.0, name.span.byte_start, name.name
+        ),
+        span: name.span,
+    }
 }
 
 fn runtime_enum_metadata_decl(

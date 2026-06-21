@@ -270,6 +270,53 @@ fn top_level_local_without_initializer_does_not_emit_empty_assignment() {
 }
 
 #[test]
+fn top_level_destructure_initializes_module_binding_across_parts() {
+    let root = temp_project("destructure_module_binding");
+    let source_root = root.join("src");
+    let entry = source_root.join("inventory/module.lux");
+    let state = source_root.join("inventory/state.lux");
+    let reader = source_root.join("inventory/read.lux");
+
+    let mut entry_text = String::from("part order { \"module\", \"state\", \"read\" }\n");
+    entry_text.push_str("export { readName }\n");
+    for index in 0..170 {
+        entry_text.push_str(&format!("local binding{index} = {index}\n"));
+    }
+
+    write_lux(&entry, &entry_text);
+    write_lux(
+        &state,
+        "local { item: { name }, ignored: _ }, [firstCount = 1] = { item = { name = \"kit\" }, ignored = true }, {}\nconst { worth } = { worth = 12 }",
+    );
+    write_lux(
+        &reader,
+        "fn readName() = name .. \":\" .. firstCount .. \":\" .. worth",
+    );
+
+    let config = ProjectConfig::new(&source_root).with_package_id("game");
+    let output =
+        compile_paths(&config, &[entry.clone(), state.clone(), reader.clone()]).expect("compile");
+    let module = output
+        .modules
+        .iter()
+        .find(|module| module.artifact_realm == ArtifactRealm::Server)
+        .expect("server artifact");
+    let lua = &module.lua.lua;
+
+    assert!(
+        lua.contains("__lux_module_1.name, __lux_module_1.firstCount ="),
+        "{lua}"
+    );
+    assert!(lua.contains("__lux_module_1.worth ="), "{lua}");
+    assert!(lua.contains("return __lux_module_1.name"), "{lua}");
+    assert!(!lua.contains("local __lux_module_1.name"), "{lua}");
+    assert!(!lua.contains("__lux_module_1._"), "{lua}");
+    assert!(!lua.contains("local name"), "{lua}");
+
+    let _ = fs::remove_dir_all(root);
+}
+
+#[test]
 fn multi_part_module_requires_entry_part() {
     let root = temp_project("missing_entry");
     let source_root = root.join("src");
