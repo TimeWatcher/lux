@@ -194,6 +194,11 @@ fn initialize_capabilities_are_not_double_wrapped() {
             .any(|trigger| trigger.as_str() == Some(" "))
     );
     assert!(
+        signature_triggers
+            .iter()
+            .any(|trigger| trigger.as_str() == Some(">"))
+    );
+    assert!(
         execute_commands
             .iter()
             .any(|command| command.as_str() == Some(protocol::INSTALL_STD_PACKAGES_COMMAND))
@@ -1090,6 +1095,95 @@ fn gmod_api_alias_call_diagnostics_keep_nested_callback_args_out_of_call_arity()
         "concommand.Add(name, callback, autoComplete = nil, helpText = nil, flags = 0)"
     );
     assert_eq!(help.signature.parameters.len(), 5);
+}
+
+#[test]
+fn gmod_api_alias_signature_help_enters_callback_parameter_list() {
+    let root = PathBuf::from("src");
+    let path = root.join("server/commands.lux");
+    let text = "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, command, arguments) => nil)\n}\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+
+    let help = analysis
+        .signature_help_at_path_offset(
+            &path,
+            "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, command".len(),
+        )
+        .expect("signature help");
+    assert_eq!(help.signature.label, "callback(ply, cmd, args, argStr)");
+    assert_eq!(help.active_parameter, 1);
+}
+
+#[test]
+fn gmod_api_alias_callback_signature_help_carries_parameter_docs() {
+    let root = PathBuf::from("src");
+    let path = root.join("server/commands.lux");
+    let text = "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, command, arguments) => nil)\n}\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+
+    let help = analysis
+        .signature_help_at_path_offset(
+            &path,
+            "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender".len(),
+        )
+        .expect("signature help");
+    let lsp_help = protocol::signature_help_from_analysis(help);
+    let parameters = lsp_help.signatures[0]
+        .parameters
+        .as_ref()
+        .expect("parameters");
+    let documentation = signature_parameter_documentation(&parameters[0].documentation);
+    assert!(documentation.contains("Type: `Player`"), "{documentation}");
+    assert!(documentation.contains("The player"), "{documentation}");
+}
+
+#[test]
+fn gmod_api_hook_add_alias_signature_help_enters_event_callback_parameter_list() {
+    let root = PathBuf::from("src");
+    let path = root.join("server/hooks.lux");
+    let text = "local hookAdd = hook?.Add\nserver fn setup() {\n  hookAdd(\"PlayerInitialSpawn\", \"id\", (ply, transition) => nil)\n}\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+
+    let help = analysis
+        .signature_help_at_path_offset(
+            &path,
+            "local hookAdd = hook?.Add\nserver fn setup() {\n  hookAdd(\"PlayerInitialSpawn\", \"id\", (ply, transition".len(),
+        )
+        .expect("signature help");
+    assert_eq!(
+        help.signature.label,
+        "GM:PlayerInitialSpawn(player, transition)"
+    );
+    assert_eq!(help.active_parameter, 1);
+    assert_eq!(
+        help.signature
+            .parameters
+            .iter()
+            .map(|parameter| parameter.name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["player", "transition"]
+    );
 }
 
 #[test]
@@ -2132,6 +2226,14 @@ fn gmod_api_coverage_command_reports_full_official_docs() {
 }
 
 fn completion_documentation_text(documentation: &Option<Documentation>) -> String {
+    match documentation {
+        Some(Documentation::MarkupContent(markup)) => markup.value.clone(),
+        Some(Documentation::String(value)) => value.clone(),
+        None => String::new(),
+    }
+}
+
+fn signature_parameter_documentation(documentation: &Option<Documentation>) -> String {
     match documentation {
         Some(Documentation::MarkupContent(markup)) => markup.value.clone(),
         Some(Documentation::String(value)) => value.clone(),

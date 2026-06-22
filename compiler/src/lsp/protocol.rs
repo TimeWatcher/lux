@@ -37,8 +37,14 @@ pub(crate) fn server_capabilities() -> ServerCapabilities {
             }),
         }),
         signature_help_provider: Some(SignatureHelpOptions {
-            trigger_characters: Some(vec!["(".into(), ",".into(), " ".into(), "\"".into()]),
-            retrigger_characters: Some(vec![",".into(), " ".into()]),
+            trigger_characters: Some(vec![
+                "(".into(),
+                ",".into(),
+                " ".into(),
+                "\"".into(),
+                ">".into(),
+            ]),
+            retrigger_characters: Some(vec![",".into(), " ".into(), ">".into()]),
             work_done_progress_options: WorkDoneProgressOptions::default(),
         }),
         definition_provider: Some(OneOf::Left(true)),
@@ -252,9 +258,13 @@ pub(crate) fn signature_help_from_analysis(help: AnalysisSignatureHelp) -> Signa
                     .into_iter()
                     .map(|parameter| ParameterInformation {
                         label: ParameterLabel::Simple(parameter.name),
-                        documentation: parameter
-                            .optional
-                            .then(|| Documentation::String("optional".into())),
+                        documentation: parameter.documentation.map(markdown_documentation).or_else(
+                            || {
+                                parameter
+                                    .optional
+                                    .then(|| Documentation::String("optional".into()))
+                            },
+                        ),
                     })
                     .collect(),
             ),

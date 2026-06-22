@@ -5,7 +5,8 @@ use std::path::{Path, PathBuf};
 
 use crate::ast::{
     Block, ChainExpr, ChainSegmentKind, Expr, ExprKind, ExprOrBlock, FunctionBody, FunctionDecl,
-    FunctionName, Module, Param, Realm, Stmt, StmtKind, TableFieldKind, TemplatePartKind,
+    FunctionExpr, FunctionName, Module, Param, Realm, Stmt, StmtKind, TableFieldKind,
+    TemplatePartKind,
 };
 use crate::compile_time::CompileTimePackageRegistry;
 use crate::diag::{Diagnostic, Label, Severity};
@@ -354,6 +355,8 @@ pub struct AnalysisFunctionSignature {
 pub struct AnalysisParameter {
     pub name: String,
     pub optional: bool,
+    pub documentation: Option<String>,
+    pub callback: Option<Box<AnalysisFunctionSignature>>,
 }
 
 #[derive(Debug, Clone)]
@@ -1042,6 +1045,35 @@ impl ProjectAnalysis {
         let module = self.module_for_path(path)?;
         let call = find_call_at_offset(module, path, offset)?;
         let signature = self.signature_for_call_target_at_path(module, path, call.target_span)?;
+        if let Some((argument_index, active_parameter)) =
+            callback_argument_context(call.args, offset)
+            && let Some(callback) = self.dynamic_callback_signature_for_call_target_at_path(
+                module,
+                path,
+                call.target_span,
+                call.args,
+                argument_index,
+            )
+        {
+            let max_active = callback.parameters.len().saturating_sub(1);
+            return Some(AnalysisSignatureHelp {
+                signature: callback,
+                active_parameter: active_parameter.min(max_active),
+            });
+        }
+        if let Some((argument_index, active_parameter)) =
+            callback_argument_context(call.args, offset)
+            && let Some(callback) = signature
+                .parameters
+                .get(argument_index)
+                .and_then(|parameter| parameter.callback.as_deref())
+        {
+            let max_active = callback.parameters.len().saturating_sub(1);
+            return Some(AnalysisSignatureHelp {
+                signature: callback.clone(),
+                active_parameter: active_parameter.min(max_active),
+            });
+        }
         let max_active = signature.parameters.len().saturating_sub(1);
         Some(AnalysisSignatureHelp {
             signature,
@@ -2066,10 +2098,26 @@ impl ProjectAnalysis {
                         )
                     })
             });
-        local_signature.or_else(|| {
-            self.package_member_symbol_at_span(module, target_span)
-                .and_then(|symbol| symbol.signature)
-        })
+        local_signature
+            .or_else(|| {
+                module
+                    .resolved
+                    .external_symbols_by_span
+                    .get(&target_span)
+                    .and_then(|external| {
+                        let path = external.path.join(".");
+                        self.function_signature_for_external_path(
+                            &path,
+                            &path,
+                            target_span,
+                            self.path_for_span(target_span),
+                        )
+                    })
+            })
+            .or_else(|| {
+                self.package_member_symbol_at_span(module, target_span)
+                    .and_then(|symbol| symbol.signature)
+            })
     }
 
     fn signature_for_call_target_at_path(
@@ -2083,6 +2131,104 @@ impl ProjectAnalysis {
                 self.package_member_symbol_at_path_offset(module, path, target_span.byte_start)
                     .and_then(|symbol| symbol.signature)
             })
+    }
+
+    fn dynamic_callback_signature_for_call_target_at_path(
+        &self,
+        module: &AnalyzedModule,
+        path: &Path,
+        target_span: SourceSpan,
+        args: &[Expr],
+        argument_index: usize,
+    ) -> Option<AnalysisFunctionSignature> {
+        let api_path = self.external_api_path_for_call_target_at_path(module, path, target_span)?;
+        if api_path == "hook.Add" && argument_index == 2 {
+            return self.hook_add_callback_signature(target_span, args);
+        }
+        None
+    }
+
+    fn hook_add_callback_signature(
+        &self,
+        target_span: SourceSpan,
+        args: &[Expr],
+    ) -> Option<AnalysisFunctionSignature> {
+        let api = self.config.resolver_options.gmod_api.as_ref()?;
+        let hook_name = string_literal_arg(args.first()?)?;
+        let hook = api.hook(hook_name)?;
+        Some(analysis_signature_from_api_signature(
+            &hook.name,
+            &hook.callback,
+            target_span,
+            self.path_for_span(target_span),
+            "GMod hook callback",
+        ))
+    }
+
+    fn external_api_path_for_call_target_at_path(
+        &self,
+        module: &AnalyzedModule,
+        path: &Path,
+        target_span: SourceSpan,
+    ) -> Option<String> {
+        self.external_api_path_for_call_target(module, target_span)
+            .or_else(|| {
+                self.package_member_symbol_at_path_offset(module, path, target_span.byte_start)
+                    .and_then(|symbol| symbol.external_name)
+            })
+    }
+
+    fn external_api_path_for_call_target(
+        &self,
+        module: &AnalyzedModule,
+        target_span: SourceSpan,
+    ) -> Option<String> {
+        module
+            .resolved
+            .symbols_by_span
+            .get(&target_span)
+            .and_then(|symbol| module.resolved.bindings.get(symbol.binding.0))
+            .and_then(|binding| {
+                module
+                    .resolved
+                    .external_aliases_by_binding
+                    .get(&binding.id)
+                    .map(|alias| alias.path.join("."))
+                    .or_else(|| self.external_api_path_for_import_binding(module, binding))
+            })
+            .or_else(|| {
+                module
+                    .resolved
+                    .external_symbols_by_span
+                    .get(&target_span)
+                    .map(|external| external.path.join("."))
+            })
+            .or_else(|| {
+                self.package_member_symbol_at_span(module, target_span)
+                    .and_then(|symbol| symbol.external_name)
+            })
+    }
+
+    fn external_api_path_for_import_binding(
+        &self,
+        module: &AnalyzedModule,
+        binding: &Binding,
+    ) -> Option<String> {
+        let (source, imported) = binding
+            .source_module
+            .as_ref()
+            .zip(binding.imported_name.as_ref())?;
+        let (target_module, _, target_binding) = self.import_definition_binding(
+            module,
+            source,
+            imported,
+            binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
+        )?;
+        target_module
+            .resolved
+            .external_aliases_by_binding
+            .get(&target_binding.id)
+            .map(|alias| alias.path.join("."))
     }
 
     fn function_signature_for_binding(
@@ -2101,6 +2247,8 @@ impl ProjectAnalysis {
             .map(|param| AnalysisParameter {
                 name: param.name.name.clone(),
                 optional: param.default.is_some(),
+                documentation: None,
+                callback: None,
             })
             .collect::<Vec<_>>();
         Some(AnalysisFunctionSignature {
@@ -2120,25 +2268,43 @@ impl ProjectAnalysis {
         alias: Option<&ResolvedExternalAlias>,
     ) -> Option<AnalysisFunctionSignature> {
         let alias = alias?;
-        let api = self.config.resolver_options.gmod_api.as_ref()?;
         let path = alias.path.join(".");
-        let entry = api.entry(&path)?;
+        self.function_signature_for_external_path(
+            &binding.name,
+            &path,
+            binding.span,
+            self.path_for_span(binding.span),
+        )
+    }
+
+    fn function_signature_for_external_path(
+        &self,
+        display_name: &str,
+        path: &str,
+        definition_span: SourceSpan,
+        definition_path: Option<PathBuf>,
+    ) -> Option<AnalysisFunctionSignature> {
+        let api = self.config.resolver_options.gmod_api.as_ref()?;
+        let entry = api.entry(path)?;
         let signature = entry.signatures.first()?;
-        let vararg = api_signature_is_vararg(signature);
         Some(AnalysisFunctionSignature {
-            name: binding.name.clone(),
+            name: display_name.to_string(),
             label: signature.label.clone(),
             parameters: signature
                 .parameters
                 .iter()
-                .map(|parameter| AnalysisParameter {
-                    name: parameter.name.clone(),
-                    optional: parameter.optional || parameter.default.is_some(),
+                .map(|parameter| {
+                    analysis_parameter_from_api_parameter(
+                        parameter,
+                        definition_span,
+                        definition_path.clone(),
+                        "GMod API callback",
+                    )
                 })
                 .collect(),
-            vararg,
-            definition_span: binding.span,
-            definition_path: self.path_for_span(binding.span),
+            vararg: api_signature_is_vararg(signature),
+            definition_span,
+            definition_path,
             module_id: "GMod API".to_string(),
         })
     }
@@ -3134,6 +3300,74 @@ fn api_parameter_is_vararg(parameter: &gmod_api_db::ApiParameter) -> bool {
         || parameter.name == "..."
 }
 
+fn analysis_parameter_from_api_parameter(
+    parameter: &gmod_api_db::ApiParameter,
+    definition_span: SourceSpan,
+    definition_path: Option<PathBuf>,
+    callback_module_id: &str,
+) -> AnalysisParameter {
+    AnalysisParameter {
+        name: parameter.name.clone(),
+        optional: parameter.optional || parameter.default.is_some(),
+        documentation: api_parameter_documentation(parameter),
+        callback: parameter.callback.as_ref().map(|callback| {
+            Box::new(analysis_signature_from_api_signature(
+                &parameter.name,
+                callback,
+                definition_span,
+                definition_path.clone(),
+                callback_module_id,
+            ))
+        }),
+    }
+}
+
+fn analysis_signature_from_api_signature(
+    name: &str,
+    signature: &gmod_api_db::ApiSignature,
+    definition_span: SourceSpan,
+    definition_path: Option<PathBuf>,
+    module_id: &str,
+) -> AnalysisFunctionSignature {
+    AnalysisFunctionSignature {
+        name: name.to_string(),
+        label: signature.label.clone(),
+        parameters: signature
+            .parameters
+            .iter()
+            .map(|parameter| {
+                analysis_parameter_from_api_parameter(
+                    parameter,
+                    definition_span,
+                    definition_path.clone(),
+                    module_id,
+                )
+            })
+            .collect(),
+        vararg: api_signature_is_vararg(signature),
+        definition_span,
+        definition_path,
+        module_id: module_id.to_string(),
+    }
+}
+
+fn api_parameter_documentation(parameter: &gmod_api_db::ApiParameter) -> Option<String> {
+    let mut parts = Vec::new();
+    if !parameter.ty.is_empty() && !parameter.ty.eq_ignore_ascii_case("any") {
+        parts.push(format!("Type: `{}`", parameter.ty));
+    }
+    if parameter.optional {
+        parts.push("Optional".to_string());
+    }
+    if let Some(default) = &parameter.default {
+        parts.push(format!("Default: `{default}`"));
+    }
+    if !parameter.description.is_empty() {
+        parts.push(parameter.description.clone());
+    }
+    (!parts.is_empty()).then(|| parts.join("\n\n"))
+}
+
 #[derive(Debug, Clone, Copy)]
 struct AnalysisCall<'a> {
     target_span: SourceSpan,
@@ -3494,6 +3728,41 @@ fn active_parameter_index(args: &[Expr], offset: usize) -> usize {
         active = index + 1;
     }
     active
+}
+
+fn string_literal_arg(expr: &Expr) -> Option<&str> {
+    match &expr.kind {
+        ExprKind::String(value) => Some(value),
+        ExprKind::Paren(inner) => string_literal_arg(inner),
+        _ => None,
+    }
+}
+
+fn callback_argument_context(args: &[Expr], offset: usize) -> Option<(usize, usize)> {
+    args.iter().enumerate().find_map(|(argument_index, arg)| {
+        let ExprKind::Function(function) = &arg.kind else {
+            return None;
+        };
+        active_function_parameter_index(function, offset)
+            .map(|active_parameter| (argument_index, active_parameter))
+    })
+}
+
+fn active_function_parameter_index(function: &FunctionExpr, offset: usize) -> Option<usize> {
+    if function.params.is_empty() {
+        return None;
+    }
+    let first = function.params.first()?.span;
+    let last = function.params.last()?.span;
+    if offset < first.byte_start || offset > last.byte_end {
+        return None;
+    }
+    for (index, param) in function.params.iter().enumerate() {
+        if offset <= param.span.byte_end {
+            return Some(index);
+        }
+    }
+    Some(function.params.len().saturating_sub(1))
 }
 
 fn semantic_kind_for_binding(kind: BindingKind) -> SemanticTokenKind {
@@ -4894,6 +5163,133 @@ path = "vendor/mgfx/paint"
             "{:#?}",
             output.diagnostics
         );
+    }
+
+    #[test]
+    fn external_api_alias_callback_signature_help_uses_nested_parameters() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("commands.lux");
+        let text = "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, command, arguments) => nil)\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        let help_offset = output
+            .offset_for_position(
+                &path,
+                2,
+                "  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, comm".len(),
+            )
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&path, help_offset)
+            .expect("signature help");
+
+        assert_eq!(help.signature.label, "callback(ply, cmd, args, argStr)");
+        assert_eq!(help.active_parameter, 1);
+        assert_eq!(
+            help.signature
+                .parameters
+                .iter()
+                .map(|parameter| parameter.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["ply", "cmd", "args", "argStr"]
+        );
+        assert!(
+            help.signature.parameters[0]
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| {
+                    documentation.contains("Type: `Player`") && documentation.contains("The player")
+                }),
+            "{:#?}",
+            help.signature.parameters[0].documentation
+        );
+    }
+
+    #[test]
+    fn external_api_alias_hook_add_callback_signature_uses_hook_event_parameters() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("hooks.lux");
+        let text = "local hookAdd = hook?.Add\nserver fn setup() {\n  hookAdd(\"PlayerInitialSpawn\", \"id\", (ply, transition) => nil)\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        let help_offset = output
+            .offset_for_position(
+                &path,
+                2,
+                "  hookAdd(\"PlayerInitialSpawn\", \"id\", (ply, trans".len(),
+            )
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&path, help_offset)
+            .expect("signature help");
+
+        assert_eq!(
+            help.signature.label,
+            "GM:PlayerInitialSpawn(player, transition)"
+        );
+        assert_eq!(help.active_parameter, 1);
+        assert_eq!(
+            help.signature
+                .parameters
+                .iter()
+                .map(|parameter| parameter.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["player", "transition"]
+        );
+        assert!(
+            help.signature.parameters[0]
+                .documentation
+                .as_deref()
+                .is_some_and(|documentation| documentation.contains("Type: `Player`")),
+            "{:#?}",
+            help.signature.parameters[0].documentation
+        );
+    }
+
+    #[test]
+    fn direct_hook_add_callback_signature_uses_hook_event_parameters() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("hooks.lux");
+        let text = "server fn setup() {\n  hook.Add(\"PlayerInitialSpawn\", \"id\", (ply, transition) => nil)\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        let help_offset = output
+            .offset_for_position(
+                &path,
+                1,
+                "  hook.Add(\"PlayerInitialSpawn\", \"id\", (ply, transition".len(),
+            )
+            .expect("help offset");
+        let help = output
+            .signature_help_at_path_offset(&path, help_offset)
+            .expect("signature help");
+
+        assert_eq!(
+            help.signature.label,
+            "GM:PlayerInitialSpawn(player, transition)"
+        );
+        assert_eq!(help.active_parameter, 1);
     }
 
     #[test]
