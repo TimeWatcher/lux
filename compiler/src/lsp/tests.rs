@@ -1059,6 +1059,40 @@ fn gmod_api_alias_call_diagnostics_respect_vararg_parameters() {
 }
 
 #[test]
+fn gmod_api_alias_call_diagnostics_keep_nested_callback_args_out_of_call_arity() {
+    let root = PathBuf::from("src");
+    let path = root.join("server/commands.lux");
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, command, arguments) => nil)\n}\n"
+                .into(),
+        }],
+    )
+    .expect("analysis");
+    let diagnostics = analysis.lsp_diagnostics_for_path(&path);
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_deref() != Some("CALL001")),
+        "{diagnostics:#?}"
+    );
+
+    let help = analysis
+        .signature_help_at_path_offset(
+            &path,
+            "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(".len(),
+        )
+        .expect("signature help");
+    assert_eq!(
+        help.signature.label,
+        "concommand.Add(name, callback, autoComplete = nil, helpText = nil, flags = 0)"
+    );
+    assert_eq!(help.signature.parameters.len(), 5);
+}
+
+#[test]
 fn lux_import_hover_takes_precedence_over_gmod_api_names() {
     let root = PathBuf::from("src");
     let path = root.join("client/ui.lux");

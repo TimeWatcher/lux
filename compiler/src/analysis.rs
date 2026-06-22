@@ -4873,6 +4873,30 @@ path = "vendor/mgfx/paint"
     }
 
     #[test]
+    fn external_api_alias_call_diagnostics_ignore_nested_callback_parameters() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("commands.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path,
+                text: "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, command, arguments) => nil)\n}\n"
+                    .into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            output
+                .diagnostics
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("CALL001")),
+            "{:#?}",
+            output.diagnostics
+        );
+    }
+
+    #[test]
     fn definition_crosses_part_files_for_module_scope_bindings() {
         let root = std::path::PathBuf::from("src");
         let module_path = root.join("inventory/module.lux");
