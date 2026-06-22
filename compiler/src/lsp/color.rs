@@ -16,8 +16,11 @@ struct LuxColorCall {
     a: u8,
 }
 
-pub(crate) fn document_colors(file: &SourceFile) -> Vec<ColorInformation> {
-    color_calls(file)
+pub(crate) fn document_colors(
+    file: &SourceFile,
+    mut semantic_color_constructor: impl FnMut(usize) -> bool,
+) -> Vec<ColorInformation> {
+    color_calls(file, &mut semantic_color_constructor)
         .into_iter()
         .map(|call| ColorInformation {
             range: source_range(file, call.span),
@@ -46,7 +49,10 @@ pub(crate) fn color_presentations(color: Color, range: Range) -> Vec<ColorPresen
     }]
 }
 
-fn color_calls(file: &SourceFile) -> Vec<LuxColorCall> {
+fn color_calls(
+    file: &SourceFile,
+    semantic_color_constructor: &mut impl FnMut(usize) -> bool,
+) -> Vec<LuxColorCall> {
     let lex = Lexer::new(file).lex_all();
     let tokens = lex
         .tokens
@@ -57,7 +63,13 @@ fn color_calls(file: &SourceFile) -> Vec<LuxColorCall> {
     let mut calls = Vec::new();
     let mut index = 0usize;
     while index < tokens.len() {
-        let Some(call) = parse_color_call(file, &tokens, &constructors, index) else {
+        let Some(call) = parse_color_call(
+            file,
+            &tokens,
+            &constructors,
+            semantic_color_constructor,
+            index,
+        ) else {
             index += 1;
             continue;
         };
@@ -71,19 +83,22 @@ fn parse_color_call(
     file: &SourceFile,
     tokens: &[Token],
     constructors: &BTreeMap<String, usize>,
+    semantic_color_constructor: &mut impl FnMut(usize) -> bool,
     index: usize,
 ) -> Option<(LuxColorCall, usize)> {
     let TokenKind::Identifier(name) = &tokens.get(index)?.kind else {
         return None;
     };
-    if !is_color_constructor_at(constructors, name, index) {
-        return None;
-    }
     if !matches!(tokens.get(index + 1)?.kind, TokenKind::LParen) {
         return None;
     }
     let close = matching_paren(tokens, index + 1)?;
     let args = parse_color_args(file, tokens, index + 2, close)?;
+    if !is_color_constructor_at(constructors, name, index)
+        && !semantic_color_constructor(tokens[index].span.byte_start)
+    {
+        return None;
+    }
     Some((
         LuxColorCall {
             span: SourceSpan::new(

@@ -2486,6 +2486,103 @@ fn document_color_detects_color_calls_and_local_aliases() {
 }
 
 #[test]
+fn document_color_follows_color_aliases_across_module_parts() {
+    let root = temp_root("document_color_module_part_alias");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join("shop/base")).expect("module dir");
+    std::fs::write(
+        root.join("lux.toml"),
+        "[target.gmod]\nsource_root = \"src\"\nout = \"dist\"\n",
+    )
+    .expect("manifest");
+    let env_path = src.join("shop/base/cl_env.lux");
+    let theme_path = src.join("shop/base/cl_theme.lux");
+    std::fs::write(&env_path, "client local makeColor = Color\n").expect("env");
+    let text = "client local theme = {\n  ink = makeColor(236, 246, 255, 248),\n  ignored = makeOther(1, 2, 3),\n}\n";
+    std::fs::write(&theme_path, text).expect("theme");
+
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&root).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    server.reanalyze_and_publish();
+    let uri = path_to_url(&theme_path).expect("theme uri");
+    let params = lsp_types::DocumentColorParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+
+    let response = server.document_color(params).expect("document color");
+    let colors: Vec<lsp_types::ColorInformation> =
+        serde_json::from_value(response).expect("document color response");
+    assert_eq!(colors.len(), 1, "{colors:#?}");
+    assert_eq!(colors[0].range.start.line, 1);
+    assert!((colors[0].color.red - (236.0 / 255.0)).abs() < f32::EPSILON);
+    assert!((colors[0].color.alpha - (248.0 / 255.0)).abs() < f32::EPSILON);
+
+    drop(client_connection);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn document_color_follows_imported_color_aliases_across_modules() {
+    let root = temp_root("document_color_imported_alias");
+    let src = root.join("src");
+    std::fs::create_dir_all(src.join("shop/base")).expect("base dir");
+    std::fs::create_dir_all(src.join("shop/modes")).expect("modes dir");
+    std::fs::write(
+        root.join("lux.toml"),
+        "[target.gmod]\nsource_root = \"src\"\nout = \"dist\"\n",
+    )
+    .expect("manifest");
+    let base_env_path = src.join("shop/base/cl_env.lux");
+    let base_module_path = src.join("shop/base/module.lux");
+    let modes_module_path = src.join("shop/modes/module.lux");
+    let modes_theme_path = src.join("shop/modes/cl_theme.lux");
+    std::fs::write(&base_env_path, "client local makeColor = Color\n").expect("base env");
+    std::fs::write(&base_module_path, "export client { makeColor }\n").expect("base module");
+    std::fs::write(
+        &modes_module_path,
+        "import * as core from \"../base\"\nclient local makeColor = core.makeColor\n",
+    )
+    .expect("modes module");
+    let text = "client local theme = {\n  cyan = makeColor(94, 224, 255, 235),\n  ignored = makeOther(1, 2, 3),\n}\n";
+    std::fs::write(&modes_theme_path, text).expect("modes theme");
+
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&root).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    server.reanalyze_and_publish();
+    let uri = path_to_url(&modes_theme_path).expect("theme uri");
+    let params = lsp_types::DocumentColorParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+
+    let response = server.document_color(params).expect("document color");
+    let colors: Vec<lsp_types::ColorInformation> =
+        serde_json::from_value(response).expect("document color response");
+    assert_eq!(colors.len(), 1, "{colors:#?}");
+    assert_eq!(colors[0].range.start.line, 1);
+    assert!((colors[0].color.green - (224.0 / 255.0)).abs() < f32::EPSILON);
+    assert!((colors[0].color.alpha - (235.0 / 255.0)).abs() < f32::EPSILON);
+
+    drop(client_connection);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn color_presentation_replaces_range_with_color_constructor() {
     let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
         "processId": null,

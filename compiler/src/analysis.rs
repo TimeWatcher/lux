@@ -1109,6 +1109,30 @@ impl ProjectAnalysis {
         })
     }
 
+    pub fn call_target_offsets_for_external_name(
+        &self,
+        path: &Path,
+        external_name: &str,
+    ) -> BTreeSet<usize> {
+        let Some(module) = self.module_for_path(path) else {
+            return BTreeSet::new();
+        };
+        let Some(part) = self.part_for_path(path) else {
+            return BTreeSet::new();
+        };
+        let mut calls = Vec::new();
+        collect_calls_in_stmts(&part.module.body, &mut calls);
+        calls
+            .into_iter()
+            .filter(|call| call.target_span.file_id == part.source_file.id)
+            .filter(|call| {
+                self.external_api_path_for_call_target_at_path(module, path, call.target_span)
+                    .is_some_and(|name| name == external_name)
+            })
+            .map(|call| call.target_span.byte_start)
+            .collect()
+    }
+
     pub fn callback_parameter_completions_at_path_offset(
         &self,
         path: &Path,
@@ -2031,12 +2055,15 @@ impl ProjectAnalysis {
             let Some(imported) = &binding.imported_name else {
                 return Vec::new();
             };
+            let Some(source) = self.absolute_source_for_import(module, source) else {
+                return Vec::new();
+            };
             if imported == "*" {
-                return vec![source.clone()];
+                return vec![source];
             }
             if let Some((target_module, _, target_binding)) = self.import_definition_binding(
                 module,
-                source,
+                &source,
                 imported,
                 binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
             ) {
@@ -2058,6 +2085,16 @@ impl ProjectAnalysis {
             return Vec::new();
         }
         self.namespace_sources_for_binding(module, alias_binding, active_realms, visited)
+    }
+
+    fn absolute_source_for_import(&self, module: &AnalyzedModule, source: &str) -> Option<String> {
+        resolve_import_target(&module.package_id, &module.module_path, source).map(|target| {
+            if source.starts_with('@') {
+                format!("@{}", target.as_str())
+            } else {
+                target.as_str().to_string()
+            }
+        })
     }
 
     fn module_initializer_identifier_binding<'a>(
@@ -2106,17 +2143,19 @@ impl ProjectAnalysis {
             .map(|(_, _, binding)| binding.span)
             .or(Some(binding.span));
         let definition_path = definition_span.and_then(|span| self.path_for_span(span));
-        let external_alias = module.resolved.external_aliases_by_binding.get(&binding.id);
+        let external_alias = self.external_alias_for_binding(module, binding, &mut BTreeSet::new());
         let signature = target_binding
             .and_then(|(target_module, export, binding)| {
                 self.function_signature_for_binding(target_module, binding, &export.name)
             })
             .or_else(|| self.function_signature_for_binding(module, binding, &binding.name))
-            .or_else(|| self.function_signature_for_external_alias(binding, external_alias));
+            .or_else(|| {
+                self.function_signature_for_external_alias(binding, external_alias.as_ref())
+            });
         AnalysisSymbol {
             kind: AnalysisSymbolKind::Binding,
             name: binding.name.clone(),
-            external_name: external_alias.map(|alias| alias.path.join(".")),
+            external_name: external_alias.as_ref().map(|alias| alias.path.join(".")),
             detail: format!("{} binding", binding_kind_name(binding.kind)),
             span,
             definition_span,
@@ -2125,7 +2164,7 @@ impl ProjectAnalysis {
             available_realms: Some(binding.available_realms),
             exported_as,
             imported_from: import_target,
-            external_availability: external_alias.map(|alias| alias.availability.clone()),
+            external_availability: external_alias.map(|alias| alias.availability),
             signature,
         }
     }
@@ -2285,12 +2324,8 @@ impl ProjectAnalysis {
             .get(&target_span)
             .and_then(|symbol| module.resolved.bindings.get(symbol.binding.0))
             .and_then(|binding| {
-                module
-                    .resolved
-                    .external_aliases_by_binding
-                    .get(&binding.id)
+                self.external_alias_for_binding(module, binding, &mut BTreeSet::new())
                     .map(|alias| alias.path.join("."))
-                    .or_else(|| self.external_api_path_for_import_binding(module, binding))
             })
             .or_else(|| {
                 module
@@ -2305,26 +2340,80 @@ impl ProjectAnalysis {
             })
     }
 
-    fn external_api_path_for_import_binding(
+    fn external_alias_for_binding(
         &self,
         module: &AnalyzedModule,
         binding: &Binding,
-    ) -> Option<String> {
-        let (source, imported) = binding
+        visited: &mut BTreeSet<(String, usize)>,
+    ) -> Option<ResolvedExternalAlias> {
+        if !visited.insert((module.id.as_str().to_string(), binding.id.0)) {
+            return None;
+        }
+        if let Some(alias) = module.resolved.external_aliases_by_binding.get(&binding.id) {
+            return Some(alias.clone());
+        }
+        if let Some((source, imported)) = binding
             .source_module
             .as_ref()
-            .zip(binding.imported_name.as_ref())?;
-        let (target_module, _, target_binding) = self.import_definition_binding(
-            module,
-            source,
-            imported,
-            binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
-        )?;
-        target_module
-            .resolved
-            .external_aliases_by_binding
-            .get(&target_binding.id)
-            .map(|alias| alias.path.join("."))
+            .zip(binding.imported_name.as_ref())
+            && let Some((target_module, _, target_binding)) = self.import_definition_binding(
+                module,
+                source,
+                imported,
+                binding.kind == BindingKind::MacroImport || module.phase.is_compile_time(),
+            )
+            && let Some(alias) =
+                self.external_alias_for_binding(target_module, target_binding, visited)
+        {
+            return Some(alias);
+        }
+        if !binding.module_scope {
+            return None;
+        }
+        let order = binding.initialized_at?;
+        let stmt = module_top_level_stmt_by_order(module, order)?;
+        let expr = initializer_expr_for_binding_name(stmt, &binding.name)?;
+        self.external_alias_for_initializer_expr(module, expr, visited)
+    }
+
+    fn external_alias_for_initializer_expr(
+        &self,
+        module: &AnalyzedModule,
+        expr: &Expr,
+        visited: &mut BTreeSet<(String, usize)>,
+    ) -> Option<ResolvedExternalAlias> {
+        match &expr.kind {
+            ExprKind::Identifier(ident) => {
+                let symbol = module.resolved.symbols_by_span.get(&ident.span)?;
+                let binding = module.resolved.bindings.get(symbol.binding.0)?;
+                self.external_alias_for_binding(module, binding, visited)
+            }
+            ExprKind::Paren(inner) => {
+                self.external_alias_for_initializer_expr(module, inner, visited)
+            }
+            ExprKind::Chain(chain) => {
+                let member_span = chain
+                    .segments
+                    .iter()
+                    .rev()
+                    .find_map(|segment| match &segment.kind {
+                        ChainSegmentKind::Member { name, .. }
+                        | ChainSegmentKind::SafeDotCall { name, .. }
+                        | ChainSegmentKind::MethodCall { name, .. } => Some(name.span),
+                        ChainSegmentKind::Index { .. }
+                        | ChainSegmentKind::Call { .. }
+                        | ChainSegmentKind::SafeCall { .. } => None,
+                    })?;
+                let symbol = self.package_member_symbol_at_span(module, member_span)?;
+                let external_name = symbol.external_name?;
+                let availability = symbol.external_availability?;
+                Some(ResolvedExternalAlias {
+                    path: external_name.split('.').map(str::to_string).collect(),
+                    availability,
+                })
+            }
+            _ => None,
+        }
     }
 
     fn function_signature_for_binding(
