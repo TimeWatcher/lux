@@ -82,6 +82,19 @@ fn parses_lua_style_function_expressions() {
 }
 
 #[test]
+fn parses_arrow_params_with_trailing_comma() {
+    let module = parse("local f = (sender, ) => {}");
+    let StmtKind::LocalDecl { values, .. } = &module.body[0].kind else {
+        panic!("expected local decl");
+    };
+    let Some(ExprKind::Function(function)) = values.first().map(|expr| &expr.kind) else {
+        panic!("expected arrow function");
+    };
+    assert_eq!(function.params.len(), 1);
+    assert_eq!(function.params[0].name.name, "sender");
+}
+
+#[test]
 fn parses_table_enum_with_explicit_tag_field() {
     let module = parse("enum Fill repr table(tag = \"__tag\") { Solid(tag = 1, color: Color) }");
     let StmtKind::EnumDecl(decl) = &module.body[0].kind else {

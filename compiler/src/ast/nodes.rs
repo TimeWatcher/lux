@@ -429,6 +429,7 @@ pub enum ConditionalForm {
 pub struct FunctionExpr {
     pub params: Vec<Param>,
     pub vararg: bool,
+    pub param_span: SourceSpan,
     pub body: FunctionBody,
     pub arrow_kind: ArrowKind,
 }

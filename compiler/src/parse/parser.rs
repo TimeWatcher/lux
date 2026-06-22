@@ -873,7 +873,7 @@ impl<'a> Parser<'a> {
     fn parse_fn_decl_stmt(&mut self) -> Stmt {
         let start = self.expect(&TokenKind::KwFn).byte_start;
         let name = self.parse_function_name();
-        let (params, vararg) = self.parse_param_list();
+        let (params, vararg, _) = self.parse_param_list();
         let body = self.parse_function_body();
         let end = match &body {
             FunctionBody::Expr(expr) => expr.span.byte_end,
@@ -893,7 +893,7 @@ impl<'a> Parser<'a> {
     fn parse_lua_function_decl_stmt(&mut self) -> Stmt {
         let start = self.expect(&TokenKind::KwFunction).byte_start;
         let name = self.parse_function_name();
-        let (params, vararg) = self.parse_param_list();
+        let (params, vararg, _) = self.parse_param_list();
         let body = self.parse_lua_function_body(start);
         let end = function_body_end(&body);
         Stmt {
@@ -910,7 +910,7 @@ impl<'a> Parser<'a> {
     fn parse_local_function_decl_stmt(&mut self, local_start: usize) -> Stmt {
         self.expect(&TokenKind::KwFunction);
         let name = self.expect_identifier();
-        let (params, vararg) = self.parse_param_list();
+        let (params, vararg, _) = self.parse_param_list();
         let body = self.parse_lua_function_body(local_start);
         let end = function_body_end(&body);
         Stmt {
@@ -1358,8 +1358,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_param_list(&mut self) -> (Vec<Param>, bool) {
-        self.expect(&TokenKind::LParen);
+    fn parse_param_list(&mut self) -> (Vec<Param>, bool, SourceSpan) {
+        let start = self.expect(&TokenKind::LParen).byte_start;
         let mut params = Vec::new();
         let mut vararg = false;
 
@@ -1374,8 +1374,8 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.expect(&TokenKind::RParen);
-        (params, vararg)
+        let end = self.expect(&TokenKind::RParen).byte_end;
+        (params, vararg, self.span(start, end))
     }
 
     fn parse_param(&mut self) -> Param {
@@ -1844,13 +1844,14 @@ impl<'a> Parser<'a> {
 
     fn parse_lua_function_expr(&mut self) -> Expr {
         let start = self.expect(&TokenKind::KwFunction).byte_start;
-        let (params, vararg) = self.parse_param_list();
+        let (params, vararg, param_span) = self.parse_param_list();
         let body = self.parse_lua_function_body(start);
         let end = function_body_end(&body);
         Expr {
             kind: ExprKind::Function(FunctionExpr {
                 params,
                 vararg,
+                param_span,
                 body,
                 arrow_kind: ArrowKind::Normal,
             }),
@@ -1861,9 +1862,9 @@ impl<'a> Parser<'a> {
     fn parse_paren_or_arrow_expr(&mut self, options: ExprParseOptions) -> Expr {
         let start = self.expect(&TokenKind::LParen).byte_start;
         let checkpoint = self.index;
-        let params_result = self.try_parse_arrow_params();
+        let params_result = self.try_parse_arrow_params(start);
 
-        if let Some((params, vararg)) = params_result {
+        if let Some((params, vararg, param_span)) = params_result {
             if self.eat(&TokenKind::ArrowNormal).is_some() {
                 let body = self.parse_arrow_body();
                 let end = function_body_end(&body);
@@ -1871,6 +1872,7 @@ impl<'a> Parser<'a> {
                     kind: ExprKind::Function(FunctionExpr {
                         params,
                         vararg,
+                        param_span,
                         body,
                         arrow_kind: ArrowKind::Normal,
                     }),
@@ -1884,6 +1886,7 @@ impl<'a> Parser<'a> {
                     kind: ExprKind::Function(FunctionExpr {
                         params,
                         vararg,
+                        param_span,
                         body,
                         arrow_kind: ArrowKind::ImplicitSelf,
                     }),
@@ -1901,12 +1904,12 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn try_parse_arrow_params(&mut self) -> Option<(Vec<Param>, bool)> {
+    fn try_parse_arrow_params(&mut self, start: usize) -> Option<(Vec<Param>, bool, SourceSpan)> {
         let mut params = Vec::new();
         let mut vararg = false;
 
-        if self.eat(&TokenKind::RParen).is_some() {
-            return Some((params, vararg));
+        if let Some(end) = self.eat(&TokenKind::RParen) {
+            return Some((params, vararg, self.span(start, end.byte_end)));
         }
 
         loop {
@@ -1923,13 +1926,14 @@ impl<'a> Parser<'a> {
             if self.eat(&TokenKind::Comma).is_none() {
                 break;
             }
+            if self.at(&TokenKind::RParen) {
+                break;
+            }
         }
 
-        if self.eat(&TokenKind::RParen).is_none() {
-            return None;
-        }
+        let end = self.eat(&TokenKind::RParen)?;
 
-        Some((params, vararg))
+        Some((params, vararg, self.span(start, end.byte_end)))
     }
 
     fn parse_arrow_body(&mut self) -> FunctionBody {

@@ -1261,6 +1261,7 @@ fn function_decl_assignment(
                 kind: ExprKind::Function(FunctionExpr {
                     params: decl.params.clone(),
                     vararg: decl.vararg,
+                    param_span: name.span,
                     body: transform_function_body(&decl.body, current_realms, artifact_set),
                     arrow_kind: ArrowKind::Normal,
                 }),
@@ -1535,6 +1536,7 @@ fn transform_expr(expr: &Expr, current_realms: RealmSet, artifact_set: RealmSet)
         ExprKind::Function(func) => ExprKind::Function(FunctionExpr {
             params: func.params.clone(),
             vararg: func.vararg,
+            param_span: func.param_span,
             body: transform_function_body(&func.body, current_realms, artifact_set),
             arrow_kind: func.arrow_kind,
         }),

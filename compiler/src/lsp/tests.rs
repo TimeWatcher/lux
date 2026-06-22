@@ -3,8 +3,8 @@ use super::commands::{
     module_exports_command,
 };
 use super::completion::{
-    completion_item, general_binding_completions, import_completion_item, keyword_completion_items,
-    namespace_member_completion_items,
+    CompletionInput, completion_item, completion_items, general_binding_completions,
+    import_completion_item, keyword_completion_items, namespace_member_completion_items,
 };
 use super::cursor::{CompletionContext, completion_context, identifier_prefix};
 use super::diagnostics::manifest_section_insert_position;
@@ -1149,6 +1149,48 @@ fn gmod_api_alias_callback_signature_help_carries_parameter_docs() {
     let documentation = signature_parameter_documentation(&parameters[0].documentation);
     assert!(documentation.contains("Type: `Player`"), "{documentation}");
     assert!(documentation.contains("The player"), "{documentation}");
+}
+
+#[test]
+fn gmod_api_alias_callback_parameter_completion_uses_nested_parameters() {
+    let root = PathBuf::from("src");
+    let path = root.join("server/commands.lux");
+    let text = "local concommandAdd = concommand.Add\nserver {\n  if concommandAdd ~= nil {\n    concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, ) => {})\n  }\n}\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+    let file = analysis.file_by_path(&path).expect("file");
+    let offset = analysis
+        .offset_for_position(
+            &path,
+            3,
+            "    concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, ".len(),
+        )
+        .expect("offset");
+    let items = completion_items(CompletionInput {
+        context: CompletionContext::General,
+        analysis: Some(&analysis),
+        path: Some(&path),
+        offset,
+        line_prefix: &file.text[..offset].rsplit('\n').next().unwrap_or_default(),
+        current_file: file,
+        gmod_api: &ApiIndex::bundled(),
+    });
+    let labels = items
+        .iter()
+        .take(8)
+        .map(|item| item.label.as_str())
+        .collect::<Vec<_>>();
+
+    assert!(labels.contains(&"ply"), "{labels:#?}");
+    assert!(labels.contains(&"cmd"), "{labels:#?}");
+    assert!(labels.contains(&"args"), "{labels:#?}");
+    assert!(labels.contains(&"argStr"), "{labels:#?}");
 }
 
 #[test]

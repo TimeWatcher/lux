@@ -1694,6 +1694,7 @@ fn call_native(
                 kind: ExprKind::Function(FunctionExpr {
                     params,
                     vararg: false,
+                    param_span: span,
                     body: FunctionBody::Block(Box::new(block)),
                     arrow_kind: ArrowKind::Normal,
                 }),

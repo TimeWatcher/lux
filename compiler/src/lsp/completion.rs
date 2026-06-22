@@ -84,13 +84,29 @@ pub(crate) fn completion_items(input: CompletionInput<'_>) -> Vec<CompletionItem
 
 fn general_completion_items(input: CompletionInput<'_>) -> Vec<CompletionItem> {
     let current_prefix = identifier_prefix(input.line_prefix);
-    let mut items = input
+    let mut candidates = input
         .analysis
         .zip(input.path)
         .map(|(analysis, path)| {
-            general_binding_completions(analysis, path, input.offset, input.current_file)
+            analysis.callback_parameter_completions_at_path_offset(path, input.offset)
         })
-        .unwrap_or_else(|| lexical_binding_completions(input.current_file, input.offset))
+        .unwrap_or_default();
+    let mut existing_candidate_labels = candidates
+        .iter()
+        .map(|candidate| candidate.label.clone())
+        .collect::<BTreeSet<_>>();
+    candidates.extend(
+        input
+            .analysis
+            .zip(input.path)
+            .map(|(analysis, path)| {
+                general_binding_completions(analysis, path, input.offset, input.current_file)
+            })
+            .unwrap_or_else(|| lexical_binding_completions(input.current_file, input.offset))
+            .into_iter()
+            .filter(|candidate| existing_candidate_labels.insert(candidate.label.clone())),
+    );
+    let mut items = candidates
         .into_iter()
         .map(completion_item)
         .collect::<Vec<_>>();

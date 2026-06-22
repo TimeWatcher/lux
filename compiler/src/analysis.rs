@@ -1055,28 +1055,76 @@ impl ProjectAnalysis {
         let module = self.module_for_path(path)?;
         let call = find_call_at_offset(module, path, offset)?;
         let signature = self.signature_for_call_target_at_path(module, path, call.target_span)?;
-        if let Some((argument_index, active_parameter)) =
-            callback_argument_context(call.args, offset)
-            && let Some(callback) = self.dynamic_callback_signature_for_call_target_at_path(
-                module,
-                path,
-                call.target_span,
-                call.args,
-                argument_index,
-            )
+        if let Some(help) =
+            self.callback_signature_help_for_call(module, path, call, signature.clone(), offset)
         {
+            return Some(help);
+        }
+        let max_active = signature.parameters.len().saturating_sub(1);
+        Some(AnalysisSignatureHelp {
+            signature,
+            active_parameter: active_parameter_index(call.args, offset).min(max_active),
+        })
+    }
+
+    pub fn callback_parameter_completions_at_path_offset(
+        &self,
+        path: &Path,
+        offset: usize,
+    ) -> Vec<CompletionCandidate> {
+        let Some(help) = self.callback_signature_help_at_path_offset(path, offset) else {
+            return Vec::new();
+        };
+        help.signature
+            .parameters
+            .into_iter()
+            .map(|parameter| CompletionCandidate {
+                label: parameter.name,
+                kind: CompletionCandidateKind::Parameter,
+                detail: Some(help.signature.label.clone()),
+                documentation: parameter.documentation,
+                source: Some(help.signature.module_id.clone()),
+            })
+            .collect()
+    }
+
+    fn callback_signature_help_at_path_offset(
+        &self,
+        path: &Path,
+        offset: usize,
+    ) -> Option<AnalysisSignatureHelp> {
+        let module = self.module_for_path(path)?;
+        let call = find_call_at_offset(module, path, offset)?;
+        let signature = self.signature_for_call_target_at_path(module, path, call.target_span)?;
+        self.callback_signature_help_for_call(module, path, call, signature, offset)
+    }
+
+    fn callback_signature_help_for_call(
+        &self,
+        module: &AnalyzedModule,
+        path: &Path,
+        call: AnalysisCall<'_>,
+        signature: AnalysisFunctionSignature,
+        offset: usize,
+    ) -> Option<AnalysisSignatureHelp> {
+        let (argument_index, active_parameter) = callback_argument_context(call.args, offset)?;
+        if let Some(callback) = self.dynamic_callback_signature_for_call_target_at_path(
+            module,
+            path,
+            call.target_span,
+            call.args,
+            argument_index,
+        ) {
             let max_active = callback.parameters.len().saturating_sub(1);
             return Some(AnalysisSignatureHelp {
                 signature: callback,
                 active_parameter: active_parameter.min(max_active),
             });
         }
-        if let Some((argument_index, active_parameter)) =
-            callback_argument_context(call.args, offset)
-            && let Some(callback) = signature
-                .parameters
-                .get(argument_index)
-                .and_then(|parameter| parameter.callback.as_deref())
+        if let Some(callback) = signature
+            .parameters
+            .get(argument_index)
+            .and_then(|parameter| parameter.callback.as_deref())
         {
             let max_active = callback.parameters.len().saturating_sub(1);
             return Some(AnalysisSignatureHelp {
@@ -1084,11 +1132,7 @@ impl ProjectAnalysis {
                 active_parameter: active_parameter.min(max_active),
             });
         }
-        let max_active = signature.parameters.len().saturating_sub(1);
-        Some(AnalysisSignatureHelp {
-            signature,
-            active_parameter: active_parameter_index(call.args, offset).min(max_active),
-        })
+        None
     }
 
     pub fn module_path_completions(&self) -> Vec<CompletionCandidate> {
@@ -3759,12 +3803,7 @@ fn callback_argument_context(args: &[Expr], offset: usize) -> Option<(usize, usi
 }
 
 fn active_function_parameter_index(function: &FunctionExpr, offset: usize) -> Option<usize> {
-    if function.params.is_empty() {
-        return None;
-    }
-    let first = function.params.first()?.span;
-    let last = function.params.last()?.span;
-    if offset < first.byte_start || offset > last.byte_end {
+    if !contains_offset(function.param_span, offset) {
         return None;
     }
     for (index, param) in function.params.iter().enumerate() {
@@ -3772,7 +3811,7 @@ fn active_function_parameter_index(function: &FunctionExpr, offset: usize) -> Op
             return Some(index);
         }
     }
-    Some(function.params.len().saturating_sub(1))
+    Some(function.params.len())
 }
 
 fn semantic_kind_for_binding(kind: BindingKind) -> SemanticTokenKind {
@@ -5220,6 +5259,72 @@ path = "vendor/mgfx/paint"
             "{:#?}",
             help.signature.parameters[0].documentation
         );
+    }
+
+    #[test]
+    fn external_api_alias_callback_parameter_completion_uses_nested_parameters() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("commands.lux");
+        let text = "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, ) => {})\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        let offset = output
+            .offset_for_position(
+                &path,
+                2,
+                "  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (sender, ".len(),
+            )
+            .expect("offset");
+        let labels = output
+            .callback_parameter_completions_at_path_offset(&path, offset)
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "ply"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "cmd"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "args"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "argStr"), "{labels:#?}");
+    }
+
+    #[test]
+    fn external_api_alias_callback_parameter_completion_works_in_empty_parameter_list() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("commands.lux");
+        let text = "local concommandAdd = concommand.Add\nserver fn setup() {\n  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", () => {})\n}\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        let offset = output
+            .offset_for_position(
+                &path,
+                2,
+                "  concommandAdd(\"zs_mgfx_remantlerbuyscrap\", (".len(),
+            )
+            .expect("offset");
+        let labels = output
+            .callback_parameter_completions_at_path_offset(&path, offset)
+            .into_iter()
+            .map(|candidate| candidate.label)
+            .collect::<Vec<_>>();
+
+        assert!(labels.iter().any(|label| label == "ply"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "cmd"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "args"), "{labels:#?}");
+        assert!(labels.iter().any(|label| label == "argStr"), "{labels:#?}");
     }
 
     #[test]

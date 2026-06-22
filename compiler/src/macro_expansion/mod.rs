@@ -813,6 +813,7 @@ impl Expander<'_> {
                 kind: ExprKind::Function(FunctionExpr {
                     params: function.params.clone(),
                     vararg: function.vararg,
+                    param_span: function.param_span,
                     body: self.expand_function_body(&function.body, ctx, depth),
                     arrow_kind: function.arrow_kind,
                 }),
