@@ -1951,7 +1951,7 @@ impl ProjectAnalysis {
                         return self.package_member_symbol_for_path(module, &parts, active_realms);
                     }
                 }
-                ChainSegmentKind::Call { .. } => {}
+                ChainSegmentKind::Call { .. } | ChainSegmentKind::SafeCall { .. } => {}
                 ChainSegmentKind::Index { .. } => return None,
             }
         }
@@ -2397,10 +2397,11 @@ impl ProjectAnalysis {
             })
             .collect::<Vec<_>>();
         let vararg = api_signature_is_vararg(signature);
+        let arity = api_entry_arities(path, entry);
         Some(AnalysisFunctionSignature {
             name: display_name.to_string(),
             label: signature.label.clone(),
-            arity: api_signature_arity(path, &parameters, vararg),
+            arity,
             parameters,
             vararg,
             definition_span,
@@ -3434,12 +3435,47 @@ fn api_signature_arity(
             AnalysisSignatureArity::exact(4),
             AnalysisSignatureArity::exact(7),
         ],
+        "surface.SetDrawColor" => vec![
+            AnalysisSignatureArity::exact(1),
+            AnalysisSignatureArity::exact(3),
+            AnalysisSignatureArity::exact(4),
+        ],
         "mesh.Begin" => vec![
             AnalysisSignatureArity::exact(2),
             AnalysisSignatureArity::exact(3),
         ],
         _ => arity_from_parameters(parameters, vararg),
     }
+}
+
+fn api_entry_arities(path: &str, entry: &gmod_api_db::ApiEntry) -> Vec<AnalysisSignatureArity> {
+    let mut arities = Vec::new();
+    for signature in &entry.signatures {
+        let parameters = signature
+            .parameters
+            .iter()
+            .map(|parameter| AnalysisParameter {
+                name: parameter.name.clone(),
+                optional: parameter.optional || parameter.default.is_some(),
+                documentation: None,
+                callback: None,
+            })
+            .collect::<Vec<_>>();
+        let vararg = api_signature_is_vararg(signature);
+        arities.extend(api_signature_arity(path, &parameters, vararg));
+    }
+    dedupe_arities(arities)
+}
+
+fn dedupe_arities(arities: Vec<AnalysisSignatureArity>) -> Vec<AnalysisSignatureArity> {
+    let mut seen = BTreeSet::new();
+    let mut deduped = Vec::new();
+    for arity in arities {
+        if seen.insert((arity.required, arity.maximum)) {
+            deduped.push(arity);
+        }
+    }
+    deduped
 }
 
 fn arity_from_parameters(
@@ -3751,6 +3787,17 @@ fn collect_calls_in_chain<'a>(chain: &'a ChainExpr, calls: &mut Vec<AnalysisCall
     for segment in &chain.segments {
         match &segment.kind {
             ChainSegmentKind::Call { args, .. } => {
+                if let Some(target_span) = direct_target {
+                    calls.push(AnalysisCall {
+                        target_span,
+                        args,
+                        call_span: segment.span,
+                    });
+                }
+                collect_calls_in_exprs(args, calls);
+                direct_target = None;
+            }
+            ChainSegmentKind::SafeCall { args, .. } => {
                 if let Some(target_span) = direct_target {
                     calls.push(AnalysisCall {
                         target_span,

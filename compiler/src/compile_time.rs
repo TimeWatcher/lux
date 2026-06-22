@@ -1433,6 +1433,17 @@ fn eval_chain(
                     .collect::<CtResult<Vec<_>>>()?;
                 value = call_value(value, args, env, state)?;
             }
+            ChainSegmentKind::SafeCall { args, .. } => {
+                if matches!(value, CtValue::Nil) {
+                    value = CtValue::Nil;
+                } else {
+                    let args = args
+                        .iter()
+                        .map(|arg| eval_expr(module, arg, env, state))
+                        .collect::<CtResult<Vec<_>>>()?;
+                    value = call_value(value, args, env, state)?;
+                }
+            }
             ChainSegmentKind::MethodCall { name, args, .. } => {
                 let receiver = value.clone();
                 let callee = value.field(&name.name).unwrap_or(CtValue::Nil);

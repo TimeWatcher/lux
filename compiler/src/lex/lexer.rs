@@ -359,13 +359,7 @@ impl<'a> Lexer<'a> {
             return Some(self.make_token(TokenKind::QuestionQuestion, start, self.offset));
         }
 
-        self.report(
-            "LEX001",
-            "bare `?` is not valid in Lux MVP 0.1",
-            start,
-            self.offset,
-        );
-        None
+        Some(self.make_token(TokenKind::Question, start, self.offset))
     }
 
     fn lex_minus_family(&mut self) -> Token {
@@ -709,11 +703,6 @@ mod tests {
         output.tokens.into_iter().map(|token| token.kind).collect()
     }
 
-    fn lex_diagnostics(input: &str) -> Vec<crate::diag::Diagnostic> {
-        let file = SourceFile::new(0, None, input);
-        Lexer::new(&file).lex_all().diagnostics
-    }
-
     #[test]
     fn lexes_longest_match_families() {
         let kinds = lex_kinds("..= ... .. . ?: : ?. ?? |> -> -= - => == =");
@@ -796,7 +785,7 @@ mod tests {
 
     #[test]
     fn lexes_safe_index_and_optional_calls() {
-        let kinds = lex_kinds("tbl?.[key] obj?.name(args) obj?:call()");
+        let kinds = lex_kinds("tbl?.[key] obj?.name(args) obj?:call() func?(arg)");
         assert_eq!(
             kinds,
             vec![
@@ -816,18 +805,14 @@ mod tests {
                 TokenKind::Identifier("call".into()),
                 TokenKind::LParen,
                 TokenKind::RParen,
+                TokenKind::Identifier("func".into()),
+                TokenKind::Question,
+                TokenKind::LParen,
+                TokenKind::Identifier("arg".into()),
+                TokenKind::RParen,
                 TokenKind::Eof,
             ]
         );
-    }
-
-    #[test]
-    fn rejects_old_safe_method_spelling() {
-        let diagnostics = lex_diagnostics("obj:?call()");
-        assert!(diagnostics.iter().any(|diagnostic| {
-            diagnostic.code.as_deref() == Some("LEX001")
-                && diagnostic.message.contains("bare `?` is not valid")
-        }));
     }
 
     #[test]

@@ -444,6 +444,7 @@ impl FormatGuide {
                             self.collect_expr(index, line_starts);
                         }
                         ChainSegmentKind::Call { args, .. }
+                        | ChainSegmentKind::SafeCall { args, .. }
                         | ChainSegmentKind::SafeDotCall { args, .. }
                         | ChainSegmentKind::MethodCall { args, .. } => {
                             for arg in args {
@@ -1480,6 +1481,13 @@ fn fp_chain(out: &mut String, chain: &ChainExpr) {
             }
             ChainSegmentKind::Call { args, style } => {
                 out.push_str("call(");
+                fp_call_style(out, *style);
+                out.push(',');
+                fp_expr_list(out, args);
+                out.push(')');
+            }
+            ChainSegmentKind::SafeCall { args, style } => {
+                out.push_str("safe_call(");
                 fp_call_style(out, *style);
                 out.push(',');
                 fp_expr_list(out, args);

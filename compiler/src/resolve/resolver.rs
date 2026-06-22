@@ -1049,6 +1049,7 @@ impl Resolver {
                 ChainSegmentKind::Member { .. } => {}
                 ChainSegmentKind::Index { index, .. } => self.resolve_expr(index),
                 ChainSegmentKind::Call { args, .. }
+                | ChainSegmentKind::SafeCall { args, .. }
                 | ChainSegmentKind::SafeDotCall { args, .. }
                 | ChainSegmentKind::MethodCall { args, .. } => {
                     for arg in args {
@@ -1100,7 +1101,7 @@ impl Resolver {
                         break;
                     }
                 }
-                ChainSegmentKind::Call { .. } => break,
+                ChainSegmentKind::Call { .. } | ChainSegmentKind::SafeCall { .. } => break,
                 ChainSegmentKind::Index { .. } => break,
             }
         }

@@ -2184,6 +2184,23 @@ impl<'a> Parser<'a> {
                         kind: ChainSegmentKind::Call { args, style },
                     })
                 }
+                TokenKind::Question => {
+                    self.bump();
+                    let (args, end, style) = if self.at(&TokenKind::LParen) {
+                        self.parse_call_args(options)
+                    } else {
+                        self.error(
+                            "PARSE006",
+                            "safe function call requires argument parentheses",
+                            self.previous_span(),
+                        );
+                        (Vec::new(), self.previous_span().byte_end, CallStyle::Paren)
+                    };
+                    Some(ChainSegment {
+                        span: self.span(start, end),
+                        kind: ChainSegmentKind::SafeCall { args, style },
+                    })
+                }
                 TokenKind::LBrace => {
                     if !options.allow_tail_table_call || self.current().leading_newline {
                         None
@@ -2698,6 +2715,7 @@ fn contains_pipeline_placeholder(expr: &Expr) -> bool {
                     ChainSegmentKind::Member { .. } => false,
                     ChainSegmentKind::Index { index, .. } => contains_pipeline_placeholder(index),
                     ChainSegmentKind::Call { args, .. }
+                    | ChainSegmentKind::SafeCall { args, .. }
                     | ChainSegmentKind::SafeDotCall { args, .. }
                     | ChainSegmentKind::MethodCall { args, .. } => {
                         args.iter().any(contains_pipeline_placeholder)

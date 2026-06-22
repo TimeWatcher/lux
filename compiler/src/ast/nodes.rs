@@ -525,6 +525,10 @@ pub enum ChainSegmentKind {
         args: Vec<Expr>,
         style: CallStyle,
     },
+    SafeCall {
+        args: Vec<Expr>,
+        style: CallStyle,
+    },
     SafeDotCall {
         name: Identifier,
         args: Vec<Expr>,

@@ -293,6 +293,11 @@ impl Linter<'_> {
                                 self.expr(arg);
                             }
                         }
+                        ChainSegmentKind::SafeCall { args, .. } => {
+                            for arg in args {
+                                self.expr(arg);
+                            }
+                        }
                         ChainSegmentKind::SafeDotCall { args, .. }
                         | ChainSegmentKind::MethodCall { args, .. } => {
                             for arg in args {
@@ -473,6 +478,7 @@ fn chain_last_callback_name(chain: &ChainExpr) -> Option<&str> {
         ChainSegmentKind::Member { name, .. } => Some(name.name.as_str()),
         ChainSegmentKind::Index { .. }
         | ChainSegmentKind::Call { .. }
+        | ChainSegmentKind::SafeCall { .. }
         | ChainSegmentKind::SafeDotCall { .. }
         | ChainSegmentKind::MethodCall { .. } => None,
     }
@@ -609,6 +615,23 @@ fn chain_segment_equivalent(left: &ChainSegmentKind, right: &ChainSegmentKind) -
                 style: left_style,
             },
             ChainSegmentKind::Call {
+                args: right_args,
+                style: right_style,
+            },
+        ) => {
+            left_style == right_style
+                && left_args.len() == right_args.len()
+                && left_args
+                    .iter()
+                    .zip(right_args)
+                    .all(|(left, right)| expr_equivalent(left, right))
+        }
+        (
+            ChainSegmentKind::SafeCall {
+                args: left_args,
+                style: left_style,
+            },
+            ChainSegmentKind::SafeCall {
                 args: right_args,
                 style: right_style,
             },

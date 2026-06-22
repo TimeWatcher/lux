@@ -336,6 +336,10 @@ pub enum IrChainSegmentKind {
         args: Vec<IrExpr>,
         style: IrCallStyle,
     },
+    SafeCall {
+        args: Vec<IrExpr>,
+        style: IrCallStyle,
+    },
     SafeDotCall {
         name: String,
         args: Vec<IrExpr>,

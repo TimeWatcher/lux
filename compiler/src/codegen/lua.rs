@@ -2311,6 +2311,33 @@ impl<'a> LuaCodegen<'a> {
                     current.may_be_nil = true;
                     current_hint = None;
                 }
+                IrChainSegmentKind::SafeCall { args, .. } => {
+                    let func = self.gensym.next_hinted("fn", current_hint.as_deref());
+                    let result = self.gensym.next_hinted("val", current_hint.as_deref());
+                    current.setup.push(PendingLine::new(
+                        format!("local {func} = {}", current.value),
+                        &segment.origin,
+                    ));
+                    current.setup.push(PendingLine::new(
+                        format!("local {result} = nil"),
+                        &segment.origin,
+                    ));
+                    current.setup.push(PendingLine::new(
+                        format!("if {func} ~= nil then"),
+                        &segment.origin,
+                    ));
+                    let args = self.emit_expr_list(args)?;
+                    current.setup.extend(indent_pending(args.setup, 1));
+                    current.setup.push(PendingLine::new(
+                        format!("  {result} = {}", format_lua_call(&func, &args.items)),
+                        &segment.origin,
+                    ));
+                    current.setup.push(PendingLine::new("end", &segment.origin));
+                    current.value = result;
+                    current.precedence = LuaPrecedence::Primary;
+                    current.may_be_nil = true;
+                    current_hint = None;
+                }
                 IrChainSegmentKind::SafeDotCall { name, args, .. } => {
                     let obj = self.gensym.next_hinted("obj", current_hint.as_deref());
                     let func = self.gensym.next_hinted("fn", Some(name));
@@ -3056,7 +3083,7 @@ fn chain_temp_hint(chain: &IrChain) -> Option<String> {
             IrChainSegmentKind::Index { index, .. } => {
                 hint = expr_temp_hint(index).or(hint);
             }
-            IrChainSegmentKind::Call { args, .. } => {
+            IrChainSegmentKind::Call { args, .. } | IrChainSegmentKind::SafeCall { args, .. } => {
                 if args.len() == 1 {
                     hint = expr_temp_hint(&args[0]).or(hint);
                 }

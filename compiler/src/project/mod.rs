@@ -1644,6 +1644,13 @@ fn transform_chain_segment(
                 .collect(),
             style: *style,
         },
+        ChainSegmentKind::SafeCall { args, style } => ChainSegmentKind::SafeCall {
+            args: args
+                .iter()
+                .map(|arg| transform_expr(arg, current_realms, artifact_set))
+                .collect(),
+            style: *style,
+        },
         ChainSegmentKind::SafeDotCall { name, args, style } => ChainSegmentKind::SafeDotCall {
             name: name.clone(),
             args: args

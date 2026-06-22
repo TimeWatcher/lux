@@ -541,6 +541,10 @@ impl HostTransformer<'_> {
                     args: args.into_iter().map(|expr| self.expr(expr)).collect(),
                     style,
                 },
+                IrChainSegmentKind::SafeCall { args, style } => IrChainSegmentKind::SafeCall {
+                    args: args.into_iter().map(|expr| self.expr(expr)).collect(),
+                    style,
+                },
                 IrChainSegmentKind::SafeDotCall { name, args, style } => {
                     IrChainSegmentKind::SafeDotCall {
                         name,
@@ -1023,6 +1027,7 @@ fn collect_expr_binding_names(expr: &IrExpr, names: &mut BTreeSet<String>) {
                         collect_expr_binding_names(index, names);
                     }
                     IrChainSegmentKind::Call { args, .. }
+                    | IrChainSegmentKind::SafeCall { args, .. }
                     | IrChainSegmentKind::SafeDotCall { args, .. }
                     | IrChainSegmentKind::MethodCall { args, .. } => {
                         for arg in args {
@@ -1222,6 +1227,7 @@ fn collect_expr_imports(expr: &IrExpr, out: &mut BTreeSet<(String, String)>) {
                     IrChainSegmentKind::Member { .. } => {}
                     IrChainSegmentKind::Index { index, .. } => collect_expr_imports(index, out),
                     IrChainSegmentKind::Call { args, .. }
+                    | IrChainSegmentKind::SafeCall { args, .. }
                     | IrChainSegmentKind::SafeDotCall { args, .. }
                     | IrChainSegmentKind::MethodCall { args, .. } => {
                         for arg in args {

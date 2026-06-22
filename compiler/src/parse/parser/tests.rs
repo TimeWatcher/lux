@@ -336,6 +336,32 @@ fn parses_safe_index_followed_by_normal_call() {
 }
 
 #[test]
+fn parses_safe_function_call() {
+    let module = parse("func?(arg)");
+    let StmtKind::Expr(expr) = &module.body[0].kind else {
+        panic!("expected expression");
+    };
+    let ExprKind::Chain(chain) = &expr.kind else {
+        panic!("expected chain");
+    };
+    assert!(matches!(
+        chain.segments.last().map(|segment| &segment.kind),
+        Some(ChainSegmentKind::SafeCall { .. })
+    ));
+}
+
+#[test]
+fn rejects_old_safe_method_spelling() {
+    let diagnostics = parse_diagnostics("obj:?call()");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.code.as_deref() == Some("PARSE004")),
+        "{diagnostics:#?}"
+    );
+}
+
+#[test]
 fn parses_import_and_export() {
     let module = parse(
         "import { arr } from \"lux/std\"\nimport \"setup\"\nexport fn foo() = 1\nexport const answer = 42\nexport { foo }",

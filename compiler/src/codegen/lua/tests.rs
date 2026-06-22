@@ -405,6 +405,12 @@ fn optional_index_delays_key_evaluation_until_receiver_exists() {
 
 #[test]
 fn safe_call_delays_arguments_until_callable_exists() {
+    let output = compile("fn demo(func) = func?(sideEffect())");
+    let lua = output.lua;
+    let guard = lua.find("if __lux_fn_func_").expect("function guard");
+    let arg = lua.find("sideEffect()").expect("argument call");
+    assert!(guard < arg, "{lua}");
+
     let output = compile("fn demo(obj) = obj?.run(sideEffect())");
     let lua = output.lua;
     let guard = lua.find("if __lux_fn_").expect("function guard");

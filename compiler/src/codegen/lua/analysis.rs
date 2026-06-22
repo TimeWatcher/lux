@@ -283,7 +283,8 @@ pub(super) fn final_call_kind(expr: &IrExpr) -> Option<FinalCallKind> {
         Some(IrChainSegmentKind::MethodCall {
             optional: false, ..
         }) => Some(FinalCallKind::Inline),
-        Some(IrChainSegmentKind::SafeDotCall { .. })
+        Some(IrChainSegmentKind::SafeCall { .. })
+        | Some(IrChainSegmentKind::SafeDotCall { .. })
         | Some(IrChainSegmentKind::MethodCall { optional: true, .. }) => {
             Some(FinalCallKind::AlreadyEmittedInSetup)
         }
@@ -344,6 +345,7 @@ pub(super) fn is_stable_place_component(expr: &IrExpr) -> bool {
                     IrChainSegmentKind::Member { optional: true, .. }
                     | IrChainSegmentKind::Index { optional: true, .. }
                     | IrChainSegmentKind::Call { .. }
+                    | IrChainSegmentKind::SafeCall { .. }
                     | IrChainSegmentKind::SafeDotCall { .. }
                     | IrChainSegmentKind::MethodCall { .. } => false,
                 })
@@ -420,6 +422,7 @@ pub(super) fn expr_references_any_name(expr: &IrExpr, names: &BTreeSet<&str>) ->
                         expr_references_any_name(index, names)
                     }
                     IrChainSegmentKind::Call { args, .. }
+                    | IrChainSegmentKind::SafeCall { args, .. }
                     | IrChainSegmentKind::SafeDotCall { args, .. }
                     | IrChainSegmentKind::MethodCall { args, .. } => {
                         args.iter().any(|arg| expr_references_any_name(arg, names))

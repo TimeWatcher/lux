@@ -742,6 +742,10 @@ impl<'a> Lowerer<'a> {
                 args: self.lower_exprs_with_tail(args)?,
                 style: lower_call_style(*style),
             },
+            ChainSegmentKind::SafeCall { args, style } => IrChainSegmentKind::SafeCall {
+                args: self.lower_exprs_with_tail(args)?,
+                style: lower_call_style(*style),
+            },
             ChainSegmentKind::SafeDotCall { name, args, style } => {
                 IrChainSegmentKind::SafeDotCall {
                     name: name.name.clone(),

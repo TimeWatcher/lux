@@ -913,6 +913,13 @@ impl Expander<'_> {
                         .collect(),
                     style: *style,
                 },
+                ChainSegmentKind::SafeCall { args, style } => ChainSegmentKind::SafeCall {
+                    args: args
+                        .iter()
+                        .map(|expr| self.expand_expr(expr, ctx, depth))
+                        .collect(),
+                    style: *style,
+                },
                 ChainSegmentKind::SafeDotCall { name, args, style } => {
                     ChainSegmentKind::SafeDotCall {
                         name: name.clone(),
@@ -1242,6 +1249,7 @@ impl Expander<'_> {
                             self.validate_no_runtime_macro_refs_in_expr(index, ctx)
                         }
                         ChainSegmentKind::Call { args, .. }
+                        | ChainSegmentKind::SafeCall { args, .. }
                         | ChainSegmentKind::SafeDotCall { args, .. }
                         | ChainSegmentKind::MethodCall { args, .. } => {
                             for arg in args {

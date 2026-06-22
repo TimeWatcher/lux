@@ -1178,7 +1178,7 @@ fn gmod_api_alias_call_diagnostics_respect_vararg_parameters() {
 fn gmod_api_alias_call_diagnostics_accept_common_lua_and_gmod_overloads() {
     let root = PathBuf::from("src");
     let path = root.join("client/overloads.lux");
-    let text = "client local protectedCall = pcall\nclient local tableInsert = table.insert\nclient local renderOverrideBlend = render?.OverrideBlend\nclient local meshBegin = mesh?.Begin\nclient fn draw(records, reload, batch) {\n  protectedCall(reload)\n  tableInsert(records, batch)\n  renderOverrideBlend(false)\n  renderOverrideBlend(true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD)\n  renderOverrideBlend(true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD)\n  meshBegin(MATERIAL_TRIANGLES, #batch * 2)\n}\n";
+    let text = "client local protectedCall = pcall\nclient local tableInsert = table.insert\nclient local renderOverrideBlend = render?.OverrideBlend\nclient local meshBegin = mesh?.Begin\nclient local surfaceSetDrawColor = surface.SetDrawColor\nclient fn draw(records, reload, batch, tint) {\n  protectedCall(reload)\n  tableInsert(records, batch)\n  renderOverrideBlend(false)\n  renderOverrideBlend(true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD)\n  renderOverrideBlend(true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD)\n  meshBegin(MATERIAL_TRIANGLES, #batch * 2)\n  surfaceSetDrawColor(tint)\n  surfaceSetDrawColor(255, 255, 255)\n  surfaceSetDrawColor(255, 255, 255, 128)\n}\n";
     let analysis = analyze_files(
         AnalysisConfig::new(&root).with_package_id("game"),
         [AnalysisFile {
@@ -1200,7 +1200,7 @@ fn gmod_api_alias_call_diagnostics_accept_common_lua_and_gmod_overloads() {
         AnalysisConfig::new(&root).with_package_id("game"),
         [AnalysisFile {
             path: bad_path.clone(),
-            text: "client local tableInsert = table.insert\nclient local renderOverrideBlend = render?.OverrideBlend\nclient fn draw(records) {\n  tableInsert(records)\n  renderOverrideBlend(true, BLEND_SRC_COLOR)\n}\n"
+            text: "client local tableInsert = table.insert\nclient local renderOverrideBlend = render?.OverrideBlend\nclient local surfaceSetDrawColor = surface.SetDrawColor\nclient fn draw(records) {\n  tableInsert(records)\n  renderOverrideBlend(true, BLEND_SRC_COLOR)\n  surfaceSetDrawColor(255, 255)\n}\n"
                 .into(),
         }],
     )
@@ -1219,6 +1219,15 @@ fn gmod_api_alias_call_diagnostics_accept_common_lua_and_gmod_overloads() {
                 && diagnostic
                     .message
                     .contains("1 argument or 4 arguments or 7 arguments")
+        }),
+        "{bad_diagnostics:#?}"
+    );
+    assert!(
+        bad_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_deref() == Some("CALL001")
+                && diagnostic
+                    .message
+                    .contains("1 argument or 3 arguments or 4 arguments")
         }),
         "{bad_diagnostics:#?}"
     );
