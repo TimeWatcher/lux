@@ -1979,6 +1979,103 @@ fn member_signature_and_hover_survive_incomplete_argument_edits() {
 }
 
 #[test]
+fn general_hover_uses_previous_analysis_while_reanalysis_is_pending() {
+    let root = temp_root("general_hover_pending_analysis");
+    std::fs::create_dir_all(&root).expect("root");
+    let path = root.join("module.lux");
+    let stable_text = "fn helper() = 1\nfn run() {\n  helper()\n}\n";
+    std::fs::write(&path, stable_text).expect("source");
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&root).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    let uri = path_to_url(&path).expect("source uri");
+    server.documents.insert(uri.clone(), stable_text.into());
+    server.reanalyze_and_publish();
+
+    let edited_text = "fn helper() = 1\nfn run() {\n  helper(\n}\n";
+    server.documents.insert(uri.clone(), edited_text.into());
+    server.analysis_due = Some(std::time::Instant::now() + Duration::from_secs(60));
+
+    let hover_params: HoverParams = serde_json::from_value(serde_json::json!({
+        "textDocument": { "uri": uri },
+        "position": { "line": 2, "character": "  helper".len() }
+    }))
+    .expect("hover params");
+    let hover_response = server.hover(hover_params).expect("hover");
+    assert!(
+        server.analysis_due.is_some(),
+        "hover should not synchronously flush pending analysis when a previous analysis exists"
+    );
+    let hover: Option<Hover> = serde_json::from_value(hover_response).expect("hover response");
+    let hover = hover.expect("hover result");
+    let HoverContents::Markup(markup) = hover.contents else {
+        panic!("expected markdown hover");
+    };
+    assert!(markup.value.contains("helper"), "{}", markup.value);
+
+    drop(client_connection);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn general_completion_uses_previous_analysis_while_reanalysis_is_pending() {
+    let root = temp_root("general_completion_pending_analysis");
+    std::fs::create_dir_all(&root).expect("root");
+    let path = root.join("module.lux");
+    let stable_text = "fn helper() = 1\nfn run() {\n  hel\n}\n";
+    std::fs::write(&path, stable_text).expect("source");
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&root).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    let uri = path_to_url(&path).expect("source uri");
+    server.documents.insert(uri.clone(), stable_text.into());
+    server.reanalyze_and_publish();
+
+    let edited_text = "fn helper() = 1\nfn run() {\n  local helperLocal = helper\n  hel\n}\n";
+    server.documents.insert(uri.clone(), edited_text.into());
+    server.analysis_due = Some(std::time::Instant::now() + Duration::from_secs(60));
+
+    let params: lsp_types::CompletionParams = serde_json::from_value(serde_json::json!({
+        "textDocument": { "uri": uri },
+        "position": { "line": 3, "character": "  hel".len() },
+        "context": { "triggerKind": 1 }
+    }))
+    .expect("completion params");
+    let response = server.completion(params).expect("completion");
+    assert!(
+        server.analysis_due.is_some(),
+        "completion should not synchronously flush pending analysis when a previous analysis exists"
+    );
+    let completion: Option<lsp_types::CompletionResponse> =
+        serde_json::from_value(response).expect("completion response");
+    let labels = match completion.expect("completion result") {
+        lsp_types::CompletionResponse::Array(items) => items,
+        lsp_types::CompletionResponse::List(list) => list.items,
+    }
+    .into_iter()
+    .map(|item| item.label)
+    .collect::<Vec<_>>();
+    assert!(labels.iter().any(|label| label == "helper"), "{labels:#?}");
+    assert!(
+        labels.iter().any(|label| label == "helperLocal"),
+        "{labels:#?}"
+    );
+
+    drop(client_connection);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn keyword_completion_includes_import_and_conditional_controls() {
     let import = keyword_completion_items("imp")
         .into_iter()

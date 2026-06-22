@@ -21,10 +21,8 @@ use commands::{
     gmod_api_coverage_command, module_exports_command,
 };
 use completion::{CompletionInput, completion_items, resolve_completion_item};
-use crossbeam_channel::RecvTimeoutError;
-use cursor::{
-    completion_context_at, previous_non_whitespace_char, should_flush_analysis_for_completion,
-};
+use crossbeam_channel::{RecvTimeoutError, TryRecvError};
+use cursor::{completion_context_at, previous_non_whitespace_char};
 use diagnostics::{
     api_doc_code_actions, code_action, is_official_lux_package,
     is_transient_import_parse_diagnostic, lsp_diagnostic, manifest_extern_code_actions,
@@ -60,7 +58,7 @@ use protocol::{
 };
 use semantic::{
     package_member_signature_help_from_snapshot, package_member_symbol_from_snapshot,
-    should_flush_analysis_for_position, symbol_hover_markdown as analysis_symbol_hover_markdown,
+    symbol_hover_markdown as analysis_symbol_hover_markdown,
 };
 use text_sync::{
     apply_document_changes, debug_log, diagnostic_summary, document_change_summary, focus_lines,
@@ -167,6 +165,11 @@ impl Server {
                     Err(_) => Ok(None),
                 };
             };
+            match self.connection.receiver.try_recv() {
+                Ok(message) => return Ok(Some(message)),
+                Err(TryRecvError::Empty) => {}
+                Err(TryRecvError::Disconnected) => return Ok(None),
+            }
             let now = Instant::now();
             if now >= due {
                 self.reanalyze_and_publish();
@@ -179,6 +182,11 @@ impl Server {
             {
                 Ok(message) => return Ok(Some(message)),
                 Err(RecvTimeoutError::Timeout) => {
+                    match self.connection.receiver.try_recv() {
+                        Ok(message) => return Ok(Some(message)),
+                        Err(TryRecvError::Empty) => {}
+                        Err(TryRecvError::Disconnected) => return Ok(None),
+                    }
                     self.reanalyze_and_publish();
                 }
                 Err(RecvTimeoutError::Disconnected) => return Ok(None),
@@ -283,7 +291,11 @@ impl Server {
                 ));
                 self.document_versions.insert(uri.clone(), version);
                 self.documents.insert(uri, text);
-                self.reanalyze_and_publish();
+                if self.workspaces.is_empty() {
+                    self.reanalyze_and_publish();
+                } else {
+                    self.schedule_reanalysis();
+                }
             }
             DidChangeTextDocument::METHOD => {
                 let params: DidChangeTextDocumentParams =
@@ -367,13 +379,21 @@ impl Server {
         }
     }
 
+    fn flush_pending_analysis_if_missing_path(&mut self, path: Option<&Path>) {
+        if self.analysis_due.is_some()
+            && path
+                .map(|path| !self.has_analysis_for_path(path))
+                .unwrap_or_else(|| self.workspaces.is_empty())
+        {
+            self.flush_pending_analysis();
+        }
+    }
+
     fn hover(&mut self, params: HoverParams) -> Result<serde_json::Value, String> {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let snapshot = self.document_snapshot(uri, position);
-        if should_flush_analysis_for_position(&snapshot) {
-            self.flush_pending_analysis();
-        }
+        self.flush_pending_analysis_if_missing_path(snapshot.path.as_deref());
         if let Some((analysis, path, offset)) = self.analysis_and_offset(uri, position) {
             if let Some(symbol) = analysis.symbol_at_path_offset(&path, offset) {
                 match symbol.external_availability.as_ref() {
@@ -425,9 +445,7 @@ impl Server {
         if is_ignored_space_completion_trigger(&params, &snapshot.file.text, offset, &context) {
             return json_result(Some(CompletionResponse::Array(Vec::new())));
         }
-        if should_flush_analysis_for_completion(&context) {
-            self.flush_pending_analysis();
-        }
+        self.flush_pending_analysis_if_missing_path(path.as_deref());
         let analysis = path
             .as_deref()
             .and_then(|path| self.analysis_for_path(path))
@@ -460,9 +478,7 @@ impl Server {
         if is_ignored_space_signature_trigger(&params, &snapshot.file.text, snapshot.offset) {
             return json_result::<Option<SignatureHelp>>(None);
         }
-        if should_flush_analysis_for_position(&snapshot) {
-            self.flush_pending_analysis();
-        }
+        self.flush_pending_analysis_if_missing_path(snapshot.path.as_deref());
         let Some((analysis, path, offset)) = self.analysis_and_offset(uri, position) else {
             return json_result::<Option<SignatureHelp>>(None);
         };
@@ -486,9 +502,7 @@ impl Server {
         let uri = &params.text_document_position_params.text_document.uri;
         let position = params.text_document_position_params.position;
         let snapshot = self.document_snapshot(uri, position);
-        if should_flush_analysis_for_position(&snapshot) {
-            self.flush_pending_analysis();
-        }
+        self.flush_pending_analysis_if_missing_path(snapshot.path.as_deref());
         let Some((analysis, path, offset)) = self.analysis_and_offset(uri, position) else {
             return json_result::<Option<GotoDefinitionResponse>>(None);
         };
@@ -836,65 +850,26 @@ impl Server {
             .map(AnalysisWorkspace::analysis)
     }
 
-    fn publish_all_diagnostics(&mut self) {
-        let analyses = self
-            .workspaces
+    fn has_analysis_for_path(&self, path: &Path) -> bool {
+        self.workspaces
             .values()
-            .map(|workspace| workspace.analysis().clone())
-            .collect::<Vec<_>>();
-        self.publish_diagnostics(&analyses);
+            .any(|workspace| workspace.analysis().file_by_path(path).is_some())
     }
 
-    fn publish_diagnostics(&mut self, analyses: &[ProjectAnalysis]) {
+    fn publish_all_diagnostics(&mut self) {
         let mut diagnostics_by_url = BTreeMap::<Uri, Vec<Diagnostic>>::new();
-        for analysis in analyses {
-            for file in &analysis.files {
-                let Some(path) = file.path.as_ref() else {
-                    continue;
-                };
-                let Some(uri) = path_to_url(path) else {
-                    continue;
-                };
-                let document_text = self
-                    .documents
-                    .get(&uri)
-                    .map(String::as_str)
-                    .unwrap_or(file.text.as_str());
-                let is_open = self.documents.contains_key(&uri);
-                let raw_diagnostics = analysis.lsp_diagnostics_for_path(path);
-                let raw_summary = diagnostic_summary(&raw_diagnostics);
-                let suppress_parse_cascade = is_open
-                    && raw_diagnostics.iter().any(|diagnostic| {
-                        is_transient_import_parse_diagnostic(diagnostic, document_text)
-                    });
-                let diagnostics = raw_diagnostics
-                    .into_iter()
-                    .filter(|diagnostic| {
-                        should_publish_diagnostic(
-                            diagnostic,
-                            document_text,
-                            is_open,
-                            suppress_parse_cascade,
-                        )
-                    })
-                    .map(lsp_diagnostic)
-                    .collect::<Vec<_>>();
-                if is_open || !diagnostics.is_empty() {
-                    debug_log(format!(
-                        "publish config={} uri={uri:?} version={:?} is_open={is_open} raw=[{}] sent={} suppress_parse_cascade={suppress_parse_cascade} focus={}",
-                        analysis_config_label(&analysis.config),
-                        self.document_versions.get(&uri),
-                        raw_summary,
-                        diagnostics.len(),
-                        focus_lines(document_text)
-                    ));
-                }
-                diagnostics_by_url
-                    .entry(uri)
-                    .or_default()
-                    .extend(diagnostics);
-            }
+        for analysis in self.workspaces.values().map(AnalysisWorkspace::analysis) {
+            collect_diagnostics_for_analysis(
+                analysis,
+                &self.documents,
+                &self.document_versions,
+                &mut diagnostics_by_url,
+            );
         }
+        self.publish_diagnostics(diagnostics_by_url);
+    }
+
+    fn publish_diagnostics(&mut self, diagnostics_by_url: BTreeMap<Uri, Vec<Diagnostic>>) {
         for uri in self
             .published_diagnostics
             .difference(&diagnostics_by_url.keys().cloned().collect::<BTreeSet<_>>())
@@ -1041,6 +1016,59 @@ fn is_space_signature_trigger(params: &lsp_types::SignatureHelpParams) -> bool {
         .as_ref()
         .and_then(|context| context.trigger_character.as_deref())
         == Some(" ")
+}
+
+fn collect_diagnostics_for_analysis(
+    analysis: &ProjectAnalysis,
+    documents: &HashMap<Uri, String>,
+    document_versions: &HashMap<Uri, i32>,
+    diagnostics_by_url: &mut BTreeMap<Uri, Vec<Diagnostic>>,
+) {
+    for file in &analysis.files {
+        let Some(path) = file.path.as_ref() else {
+            continue;
+        };
+        let Some(uri) = path_to_url(path) else {
+            continue;
+        };
+        let document_text = documents
+            .get(&uri)
+            .map(String::as_str)
+            .unwrap_or(file.text.as_str());
+        let is_open = documents.contains_key(&uri);
+        let raw_diagnostics = analysis.lsp_diagnostics_for_path(path);
+        let raw_summary = diagnostic_summary(&raw_diagnostics);
+        let suppress_parse_cascade = is_open
+            && raw_diagnostics
+                .iter()
+                .any(|diagnostic| is_transient_import_parse_diagnostic(diagnostic, document_text));
+        let diagnostics = raw_diagnostics
+            .into_iter()
+            .filter(|diagnostic| {
+                should_publish_diagnostic(
+                    diagnostic,
+                    document_text,
+                    is_open,
+                    suppress_parse_cascade,
+                )
+            })
+            .map(lsp_diagnostic)
+            .collect::<Vec<_>>();
+        if is_open || !diagnostics.is_empty() {
+            debug_log(format!(
+                "publish config={} uri={uri:?} version={:?} is_open={is_open} raw=[{}] sent={} suppress_parse_cascade={suppress_parse_cascade} focus={}",
+                analysis_config_label(&analysis.config),
+                document_versions.get(&uri),
+                raw_summary,
+                diagnostics.len(),
+                focus_lines(document_text)
+            ));
+        }
+        diagnostics_by_url
+            .entry(uri)
+            .or_default()
+            .extend(diagnostics);
+    }
 }
 
 #[cfg(test)]

@@ -44,21 +44,15 @@ pub(crate) fn completion_context_at(text: &str, offset: usize) -> CompletionCont
     if let Some(context) = structured_completion_context(text, offset) {
         return context;
     }
-    let line_start = text[..offset].rfind('\n').map(|index| index + 1).unwrap_or(0);
+    let line_start = text[..offset]
+        .rfind('\n')
+        .map(|index| index + 1)
+        .unwrap_or(0);
     let line_end = text[offset..]
         .find('\n')
         .map(|index| offset + index)
         .unwrap_or(text.len());
     completion_context(&text[line_start..offset], &text[offset..line_end])
-}
-
-pub(crate) fn should_flush_analysis_for_completion(context: &CompletionContext) -> bool {
-    !matches!(
-        context,
-        CompletionContext::ApiMember { .. }
-            | CompletionContext::ImportSpecifierList { .. }
-            | CompletionContext::ExportList
-    )
 }
 
 pub(crate) fn previous_non_whitespace_char(text: &str, offset: usize) -> Option<char> {
@@ -233,9 +227,7 @@ fn import_specifier_context(
         let close = matching_delimiter(tokens, list_start, TokenKind::LBrace, TokenKind::RBrace);
         let cursor_inside = close
             .map(|list_end| cursor_inside_token_range(tokens, list_start, list_end, offset))
-            .unwrap_or_else(|| {
-                tokens[list_start].span.byte_end <= offset && offset <= text.len()
-            });
+            .unwrap_or_else(|| tokens[list_start].span.byte_end <= offset && offset <= text.len());
         if !cursor_inside {
             continue;
         }
@@ -302,7 +294,11 @@ fn cursor_inside_token_range(
     open.span.byte_end <= offset && offset <= end
 }
 
-fn import_source_after_brace(tokens: &[Token], text: &str, brace_end_index: usize) -> Option<String> {
+fn import_source_after_brace(
+    tokens: &[Token],
+    text: &str,
+    brace_end_index: usize,
+) -> Option<String> {
     let mut index = brace_end_index + 1;
     if !matches!(
         tokens.get(index).map(|token| &token.kind),
@@ -541,6 +537,9 @@ mod tests {
     #[test]
     fn completion_context_at_does_not_treat_table_literals_as_export_or_import_lists() {
         let text = "local t = { Button,  }";
-        assert_eq!(completion_context_at(text, "local t = { Button, ".len()), CompletionContext::General);
+        assert_eq!(
+            completion_context_at(text, "local t = { Button, ".len()),
+            CompletionContext::General
+        );
     }
 }

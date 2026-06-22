@@ -7,10 +7,6 @@ use crate::resolve::BindingKind;
 use super::DocumentSnapshot;
 use super::cursor::{package_member_call_at_offset, package_member_path_at_offset};
 
-pub(crate) fn should_flush_analysis_for_position(snapshot: &DocumentSnapshot) -> bool {
-    package_member_path_at_offset(&snapshot.file.text, snapshot.offset).is_none()
-}
-
 pub(crate) fn package_member_symbol_from_snapshot(
     analysis: &ProjectAnalysis,
     path: &Path,
