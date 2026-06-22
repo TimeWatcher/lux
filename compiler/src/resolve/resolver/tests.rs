@@ -138,6 +138,22 @@ fn underscore_can_be_reused_as_discard_binding() {
 }
 
 #[test]
+fn implicit_self_arrow_assignments_bind_self_lexically() {
+    let module = parse("local PANEL = {}\nPANEL.Paint = (w, h) -> self:PaintBody(w, h)");
+    let output = Resolver::resolve(&module);
+
+    assert!(output.diagnostics.is_empty(), "{:#?}", output.diagnostics);
+    assert!(
+        output
+            .external_symbols_by_span
+            .values()
+            .all(|external| external.path.first().is_none_or(|part| part != "self")),
+        "{:#?}",
+        output.external_symbols_by_span
+    );
+}
+
+#[test]
 fn reports_non_exhaustive_enum_match() {
     let module = parse(
         "enum Mode repr number { A = 0, B = 1, C = 2 }\nfn f(mode) = match mode { Mode.A => 1 Mode.C => 3 }",

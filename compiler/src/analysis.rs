@@ -877,10 +877,20 @@ impl ProjectAnalysis {
 
         if let Some(module) = self.module_for_path(path) {
             for binding in &module.resolved.bindings {
-                if binding.span.file_id == file.id {
+                if binding.span.file_id == file.id
+                    && file.slice(binding.span) == binding.name.as_str()
+                {
                     tokens.push(AnalysisSemanticToken {
                         span: binding.span,
                         kind: semantic_kind_for_binding(binding.kind),
+                    });
+                }
+            }
+            for (span, symbol) in &module.resolved.symbols_by_span {
+                if span.file_id == file.id {
+                    tokens.push(AnalysisSemanticToken {
+                        span: *span,
+                        kind: semantic_kind_for_binding(symbol.binding_kind),
                     });
                 }
             }
@@ -5711,6 +5721,75 @@ path = "vendor/mgfx/paint"
                 .iter()
                 .any(|action| action.title == "Add extern server ThirdPartyAddon.DoThing")
         );
+    }
+
+    #[test]
+    fn implicit_self_arrow_assignment_self_is_parameter_symbol() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("panel.lux");
+        let text = "local PANEL = {}\nPANEL.Paint = (w, h) -> self:PaintBody(w, h)\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            output.diagnostics_for_path(&path).is_empty(),
+            "{:#?}",
+            output.diagnostics_for_path(&path)
+        );
+
+        let offset = output
+            .offset_for_position(&path, 1, "PANEL.Paint = (w, h) -> se".len())
+            .expect("offset");
+        let symbol = output.symbol_at_path_offset(&path, offset).expect("symbol");
+        assert_eq!(symbol.name, "self");
+        assert_eq!(symbol.kind, AnalysisSymbolKind::Binding);
+        assert_eq!(symbol.external_availability, None);
+
+        let self_span = symbol.span;
+        let token = output
+            .semantic_tokens_for_path(&path)
+            .into_iter()
+            .find(|token| token.span == self_span)
+            .expect("self semantic token");
+        assert_eq!(token.kind, crate::analysis::SemanticTokenKind::Parameter);
+    }
+
+    #[test]
+    fn implicit_self_arrow_assignment_self_stays_lexical_while_typing_body() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("panel.lux");
+        let text = "local PANEL = {}\nPANEL.Paint = (w, h) -> self\n";
+        let output = analyze_files(
+            AnalysisConfig::new(&root),
+            [AnalysisFile {
+                path: path.clone(),
+                text: text.into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            output
+                .diagnostics_for_path(&path)
+                .iter()
+                .all(|diagnostic| diagnostic.code.as_deref() != Some("REALM_UNKNOWN")),
+            "{:#?}",
+            output.diagnostics_for_path(&path)
+        );
+
+        let offset = output
+            .offset_for_position(&path, 1, "PANEL.Paint = (w, h) -> se".len())
+            .expect("offset");
+        let symbol = output.symbol_at_path_offset(&path, offset).expect("symbol");
+        assert_eq!(symbol.name, "self");
+        assert_eq!(symbol.kind, AnalysisSymbolKind::Binding);
+        assert_eq!(symbol.external_availability, None);
     }
 
     #[test]
