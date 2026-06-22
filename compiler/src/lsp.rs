@@ -608,7 +608,31 @@ impl Server {
         &mut self,
         params: ColorPresentationParams,
     ) -> Result<serde_json::Value, String> {
-        json_result(color_presentations(params.color, params.range))
+        let file = self.document_file(&params.text_document.uri);
+        if let Some(path) = file.path.as_deref() {
+            self.flush_pending_analysis_if_missing_path(Some(path));
+        }
+        let analysis = file
+            .path
+            .as_deref()
+            .and_then(|path| self.analysis_for_path(path));
+        let semantic_color_offsets = file
+            .path
+            .as_deref()
+            .zip(analysis)
+            .map(|(path, analysis)| {
+                analysis
+                    .call_target_offsets_for_external_name(path, "Color")
+                    .into_iter()
+                    .collect::<HashSet<_>>()
+            })
+            .unwrap_or_default();
+        json_result(color_presentations(
+            &file,
+            params.color,
+            params.range,
+            |offset| semantic_color_offsets.contains(&offset),
+        ))
     }
 
     fn semantic_tokens(

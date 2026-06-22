@@ -2632,6 +2632,103 @@ fn color_presentation_replaces_range_with_color_constructor() {
 }
 
 #[test]
+fn color_presentation_preserves_alias_constructor_and_call_range() {
+    let root = temp_root("color_presentation_alias");
+    std::fs::create_dir_all(&root).expect("root");
+    let source = root.join("module.lux");
+    let text = "local makeColor = Color\nlocal theme = { ink = makeColor(236, 246, 255, 248), next = 1 }\n";
+    std::fs::write(&source, text).expect("source");
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&root).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    let uri = path_to_url(&source).expect("source uri");
+    server.documents.insert(uri.clone(), text.into());
+    let color_params = lsp_types::DocumentColorParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+    let color_response = server.document_color(color_params).expect("document color");
+    let colors: Vec<lsp_types::ColorInformation> =
+        serde_json::from_value(color_response).expect("document color response");
+    let alias_color = colors
+        .into_iter()
+        .find(|color| color.range.start.line == 1)
+        .expect("alias color");
+
+    let params = lsp_types::ColorPresentationParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri: uri.clone() },
+        color: lsp_types::Color {
+            red: 1.0,
+            green: 0.0,
+            blue: 0.5,
+            alpha: 0.25,
+        },
+        range: alias_color.range,
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+
+    let response = server
+        .color_presentation(params)
+        .expect("color presentation");
+    let presentations: Vec<lsp_types::ColorPresentation> =
+        serde_json::from_value(response).expect("color presentation response");
+    assert_eq!(presentations.len(), 1);
+    assert_eq!(presentations[0].label, "makeColor(255, 0, 128, 64)");
+    let edit = presentations[0].text_edit.as_ref().expect("text edit");
+    assert_eq!(edit.new_text, "makeColor(255, 0, 128, 64)");
+    assert_eq!(edit.range.start.line, 1);
+    assert_eq!(
+        edit.range.start.character,
+        "local theme = { ink = ".encode_utf16().count() as u32
+    );
+    assert_eq!(
+        edit.range.end.character,
+        "local theme = { ink = makeColor(236, 246, 255, 248)"
+            .encode_utf16()
+            .count() as u32
+    );
+
+    let wide_params = lsp_types::ColorPresentationParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri },
+        color: lsp_types::Color {
+            red: 0.0,
+            green: 1.0,
+            blue: 0.0,
+            alpha: 1.0,
+        },
+        range: lsp_types::Range {
+            start: alias_color.range.start,
+            end: lsp_types::Position {
+                line: 1,
+                character: "local theme = { ink = makeColor(236, 246, 255, 248),"
+                    .encode_utf16()
+                    .count() as u32,
+            },
+        },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+    let wide_response = server
+        .color_presentation(wide_params)
+        .expect("wide color presentation");
+    let wide_presentations: Vec<lsp_types::ColorPresentation> =
+        serde_json::from_value(wide_response).expect("wide color presentation response");
+    let wide_edit = wide_presentations[0].text_edit.as_ref().expect("wide edit");
+    assert_eq!(wide_edit.new_text, "makeColor(0, 255, 0)");
+    assert_eq!(wide_edit.range, edit.range);
+
+    drop(client_connection);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn file_uri_round_trip_preserves_paths() {
     let path = std::env::current_dir()
         .expect("cwd")

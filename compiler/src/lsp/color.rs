@@ -7,9 +7,10 @@ use lsp_types::{Color, ColorInformation, ColorPresentation, Range, TextEdit};
 
 use super::protocol::source_range;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct LuxColorCall {
     span: SourceSpan,
+    constructor: String,
     r: u8,
     g: u8,
     b: u8,
@@ -29,19 +30,40 @@ pub(crate) fn document_colors(
         .collect()
 }
 
-pub(crate) fn color_presentations(color: Color, range: Range) -> Vec<ColorPresentation> {
+pub(crate) fn color_presentations(
+    file: &SourceFile,
+    color: Color,
+    range: Range,
+    mut semantic_color_constructor: impl FnMut(usize) -> bool,
+) -> Vec<ColorPresentation> {
     let r = color_channel_to_byte(color.red);
     let g = color_channel_to_byte(color.green);
     let b = color_channel_to_byte(color.blue);
     let a = color_channel_to_byte(color.alpha);
-    let label = if a == 255 {
-        format!("Color({r}, {g}, {b})")
-    } else {
-        format!("Color({r}, {g}, {b}, {a})")
-    };
+    let request_span = span_for_range(file, range);
+    let call = request_span.and_then(|span| {
+        color_calls(file, &mut semantic_color_constructor)
+            .into_iter()
+            .filter(|call| spans_touch(call.span, span))
+            .min_by_key(|call| {
+                (
+                    call.span.byte_start.abs_diff(span.byte_start),
+                    call.span.len(),
+                )
+            })
+    });
+    let constructor = call
+        .as_ref()
+        .map(|call| call.constructor.as_str())
+        .unwrap_or("Color");
+    let edit_range = call
+        .as_ref()
+        .map(|call| source_range(file, call.span))
+        .unwrap_or(range);
+    let label = color_call_label(constructor, r, g, b, a);
     vec![ColorPresentation {
         text_edit: Some(TextEdit {
-            range,
+            range: edit_range,
             new_text: label.clone(),
         }),
         label,
@@ -106,6 +128,7 @@ fn parse_color_call(
                 tokens[index].span.byte_start,
                 tokens[close].span.byte_end,
             ),
+            constructor: name.clone(),
             r: args[0],
             g: args[1],
             b: args[2],
@@ -293,6 +316,17 @@ fn matching_paren(tokens: &[Token], open_index: usize) -> Option<usize> {
     None
 }
 
+fn span_for_range(file: &SourceFile, range: Range) -> Option<SourceSpan> {
+    let start =
+        file.offset_at_line_col_utf16(range.start.line as usize, range.start.character as usize);
+    let end = file.offset_at_line_col_utf16(range.end.line as usize, range.end.character as usize);
+    (start <= end).then(|| SourceSpan::new(file.id, start, end))
+}
+
+fn spans_touch(left: SourceSpan, right: SourceSpan) -> bool {
+    left.byte_start <= right.byte_end && right.byte_start <= left.byte_end
+}
+
 fn lsp_color(r: u8, g: u8, b: u8, a: u8) -> Color {
     Color {
         red: f32::from(r) / 255.0,
@@ -304,4 +338,12 @@ fn lsp_color(r: u8, g: u8, b: u8, a: u8) -> Color {
 
 fn color_channel_to_byte(value: f32) -> u8 {
     (value.clamp(0.0, 1.0) * 255.0).round() as u8
+}
+
+fn color_call_label(constructor: &str, r: u8, g: u8, b: u8, a: u8) -> String {
+    if a == 255 {
+        format!("{constructor}({r}, {g}, {b})")
+    } else {
+        format!("{constructor}({r}, {g}, {b}, {a})")
+    }
 }
