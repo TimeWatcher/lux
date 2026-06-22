@@ -2124,6 +2124,7 @@ impl ProjectAnalysis {
         let path = alias.path.join(".");
         let entry = api.entry(&path)?;
         let signature = entry.signatures.first()?;
+        let vararg = api_signature_is_vararg(signature);
         Some(AnalysisFunctionSignature {
             name: binding.name.clone(),
             label: signature.label.clone(),
@@ -2135,7 +2136,7 @@ impl ProjectAnalysis {
                     optional: parameter.optional || parameter.default.is_some(),
                 })
                 .collect(),
-            vararg: false,
+            vararg,
             definition_span: binding.span,
             definition_path: self.path_for_span(binding.span),
             module_id: "GMod API".to_string(),
@@ -3121,6 +3122,16 @@ fn expected_argument_count(required: usize, maximum: usize, vararg: bool) -> Str
 fn argument_count(count: usize) -> String {
     let word = if count == 1 { "argument" } else { "arguments" };
     format!("{count} {word}")
+}
+
+fn api_signature_is_vararg(signature: &gmod_api_db::ApiSignature) -> bool {
+    signature.parameters.iter().any(api_parameter_is_vararg) || signature.label.contains("...")
+}
+
+fn api_parameter_is_vararg(parameter: &gmod_api_db::ApiParameter) -> bool {
+    parameter.ty.eq_ignore_ascii_case("vararg")
+        || parameter.name == "vararg"
+        || parameter.name == "..."
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -4827,6 +4838,38 @@ path = "vendor/mgfx/paint"
             output.diagnostics
         );
         let _ = std::fs::remove_dir_all(std_root);
+    }
+
+    #[test]
+    fn external_api_alias_call_diagnostics_respect_vararg_parameters() {
+        let root = std::path::PathBuf::from("src");
+        let path = root.join("module.lux");
+        let output = analyze_files(
+            AnalysisConfig::new(&root).with_package_id("game"),
+            [AnalysisFile {
+                path: path.clone(),
+                text: "const mathMax = math.max\nfn ok() = mathMax(8, math.Round(4.2))\nfn bad() = mathMax()\n"
+                    .into(),
+            }],
+        )
+        .expect("analysis");
+
+        assert!(
+            !output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("CALL001")
+                    && diagnostic.message.contains("got 2")
+            }),
+            "{:#?}",
+            output.diagnostics
+        );
+        assert!(
+            output.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code.as_deref() == Some("CALL001")
+                    && diagnostic.message == "`mathMax` expects at least 1 argument, got 0"
+            }),
+            "{:#?}",
+            output.diagnostics
+        );
     }
 
     #[test]

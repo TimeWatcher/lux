@@ -1025,6 +1025,40 @@ fn gmod_api_signature_follows_external_aliases_across_parts() {
 }
 
 #[test]
+fn gmod_api_alias_call_diagnostics_respect_vararg_parameters() {
+    let root = PathBuf::from("src");
+    let path = root.join("client/ui.lux");
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: "const mathMax = math.max\nfn ok() = mathMax(8, math.Round(4.2))\nfn bad() = mathMax()\n"
+                .into(),
+        }],
+    )
+    .expect("analysis");
+    let diagnostics = analysis.lsp_diagnostics_for_path(&path);
+    assert!(
+        diagnostics.iter().all(|diagnostic| {
+            !(diagnostic.code.as_deref() == Some("CALL001") && diagnostic.message.contains("got 2"))
+        }),
+        "{diagnostics:#?}"
+    );
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_deref() == Some("CALL001") && diagnostic.message.contains("got 0")
+        }),
+        "{diagnostics:#?}"
+    );
+
+    let help = analysis
+        .signature_help_at_path_offset(&path, "const mathMax = math.max\nfn ok() = mathMax(".len())
+        .expect("signature help");
+    assert_eq!(help.signature.label, "math.max(numbers)");
+    assert!(help.signature.vararg);
+}
+
+#[test]
 fn lux_import_hover_takes_precedence_over_gmod_api_names() {
     let root = PathBuf::from("src");
     let path = root.join("client/ui.lux");
