@@ -931,6 +931,100 @@ fn api_hover_extracts_dot_paths_without_project_analysis() {
 }
 
 #[test]
+fn gmod_api_hover_and_signature_follow_local_external_aliases() {
+    let root = PathBuf::from("src");
+    let path = root.join("client/ui.lux");
+    let text = "client const hookAdd = hook?.Add\nclient fn setup() {\n  hookAdd(\"Initialize\", \"id\", () => nil)\n}\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+    assert!(
+        analysis
+            .lsp_diagnostics_for_path(&path)
+            .iter()
+            .all(|diagnostic| diagnostic.severity != Severity::Error),
+        "{:#?}",
+        analysis.lsp_diagnostics_for_path(&path)
+    );
+
+    let offset = analysis
+        .offset_for_position(&path, 2, "  hookAdd".len())
+        .expect("offset");
+    let symbol = analysis
+        .symbol_at_path_offset(&path, offset)
+        .expect("symbol");
+    assert_eq!(symbol.name, "hookAdd");
+    assert_eq!(symbol.external_name.as_deref(), Some("hook.Add"));
+    assert_eq!(
+        symbol
+            .signature
+            .as_ref()
+            .map(|signature| signature.label.as_str()),
+        Some("hook.Add(eventName, identifier, func)")
+    );
+
+    let api = ApiIndex::bundled();
+    let hover = external_api_hover_markdown(&analysis, &api, &path, offset).expect("hover");
+    assert!(hover.contains("hook.Add"), "{hover}");
+    assert!(hover.contains("Official documentation"), "{hover}");
+
+    let help = analysis
+        .signature_help_at_path_offset(
+            &path,
+            "client const hookAdd = hook?.Add\nclient fn setup() {\n  hookAdd(".len(),
+        )
+        .expect("signature help");
+    assert_eq!(
+        help.signature.label,
+        "hook.Add(eventName, identifier, func)"
+    );
+}
+
+#[test]
+fn gmod_api_signature_follows_external_aliases_across_parts() {
+    let root = PathBuf::from("src");
+    let alias_path = root.join("shop/base/cl_state.lux");
+    let use_path = root.join("shop/base/module.lux");
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [
+            AnalysisFile {
+                path: alias_path,
+                text: "client const hookAdd = hook.Add\n".into(),
+            },
+            AnalysisFile {
+                path: use_path.clone(),
+                text: "client fn setup() {\n  hookAdd(\"Initialize\", \"id\", () => nil)\n}\n"
+                    .into(),
+            },
+        ],
+    )
+    .expect("analysis");
+
+    let offset = analysis
+        .offset_for_position(&use_path, 1, "  hookAdd".len())
+        .expect("offset");
+    let symbol = analysis
+        .symbol_at_path_offset(&use_path, offset)
+        .expect("symbol");
+    assert_eq!(symbol.name, "hookAdd");
+    assert_eq!(symbol.external_name.as_deref(), Some("hook.Add"));
+
+    let help = analysis
+        .signature_help_at_path_offset(&use_path, "client fn setup() {\n  hookAdd(".len())
+        .expect("signature help");
+    assert_eq!(
+        help.signature.label,
+        "hook.Add(eventName, identifier, func)"
+    );
+}
+
+#[test]
 fn lux_import_hover_takes_precedence_over_gmod_api_names() {
     let root = PathBuf::from("src");
     let path = root.join("client/ui.lux");

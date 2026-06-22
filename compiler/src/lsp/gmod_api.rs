@@ -23,7 +23,8 @@ pub(crate) fn external_api_hover_markdown(
     if matches!(external, RealmAvailability::UnknownExternal) {
         return None;
     }
-    api.entry(&symbol.name)
+    let api_name = symbol.external_name.as_deref().unwrap_or(&symbol.name);
+    api.entry(api_name)
         .or_else(|| api_hover_entry_from_text(api, &file.text, offset))
         .map(entry_markdown)
 }

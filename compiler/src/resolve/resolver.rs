@@ -59,6 +59,12 @@ pub struct ResolvedExternalSymbol {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ResolvedExternalAlias {
+    pub path: Vec<String>,
+    pub availability: RealmAvailability,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Export {
     pub name: String,
     pub local_name: String,
@@ -92,6 +98,7 @@ pub struct ResolveOutput {
     pub module_edges: Vec<ModuleEdge>,
     pub symbols_by_span: HashMap<SourceSpan, ResolvedSymbol>,
     pub external_symbols_by_span: HashMap<SourceSpan, ResolvedExternalSymbol>,
+    pub external_aliases_by_binding: HashMap<BindingId, ResolvedExternalAlias>,
     pub diagnostics: Vec<Diagnostic>,
 }
 
@@ -233,6 +240,7 @@ pub struct Resolver {
     module_edges: Vec<ModuleEdge>,
     symbols_by_span: HashMap<SourceSpan, ResolvedSymbol>,
     external_symbols_by_span: HashMap<SourceSpan, ResolvedExternalSymbol>,
+    external_aliases_by_binding: HashMap<BindingId, ResolvedExternalAlias>,
     diagnostics: Vec<Diagnostic>,
     externs: Vec<ExternSymbol>,
     unknown_external_diagnostics: HashSet<ExternalDiagnosticKey>,
@@ -305,6 +313,7 @@ impl Resolver {
             module_edges: Vec::new(),
             symbols_by_span: HashMap::new(),
             external_symbols_by_span: HashMap::new(),
+            external_aliases_by_binding: HashMap::new(),
             diagnostics: Vec::new(),
             externs,
             unknown_external_diagnostics: HashSet::new(),
@@ -325,6 +334,7 @@ impl Resolver {
             module_edges: self.module_edges,
             symbols_by_span: self.symbols_by_span,
             external_symbols_by_span: self.external_symbols_by_span,
+            external_aliases_by_binding: self.external_aliases_by_binding,
             diagnostics: self.diagnostics,
         }
     }
@@ -464,9 +474,17 @@ impl Resolver {
         match &stmt.kind {
             StmtKind::Import(import) => self.resolve_import(stmt.span, import),
             StmtKind::FunctionDecl(decl) => self.resolve_function_decl_body_only(decl),
-            StmtKind::LocalDecl { values, .. } => {
+            StmtKind::LocalDecl { names, values, .. } => {
+                let aliases = self.local_external_aliases(values);
                 for expr in values {
                     self.resolve_expr(expr);
+                }
+                for (index, name) in names.iter().enumerate() {
+                    if let Some(alias) = aliases.get(index).and_then(Clone::clone)
+                        && let Some(binding_id) = self.lookup_module(&name.name)
+                    {
+                        self.external_aliases_by_binding.insert(binding_id, alias);
+                    }
                 }
             }
             StmtKind::LocalDestructure {
@@ -525,12 +543,16 @@ impl Resolver {
                 names,
                 values,
             } => {
+                let aliases = self.local_external_aliases(values);
                 for expr in values {
                     self.resolve_expr(expr);
                 }
                 let kind = binding_kind_for_mode(*mode);
-                for name in names {
-                    self.declare(name, kind, None, None);
+                for (index, name) in names.iter().enumerate() {
+                    let binding_id = self.declare(name, kind, None, None);
+                    if let Some(alias) = aliases.get(index).and_then(Clone::clone) {
+                        self.external_aliases_by_binding.insert(binding_id, alias);
+                    }
                 }
             }
             StmtKind::LocalDestructure {
@@ -1045,6 +1067,14 @@ impl Resolver {
         if self.enum_names.contains(base_name) {
             return true;
         }
+        if let ExprKind::Identifier(base) = &unparen_expr(&chain.base).kind
+            && let Some(binding_id) = self.lookup(&base.name)
+        {
+            if self.external_aliases_by_binding.contains_key(&binding_id) {
+                self.check_external_path_with_record(&path, span, span != base.span);
+            }
+            return false;
+        }
         if self.lookup(base_name).is_some() {
             return false;
         }
@@ -1053,11 +1083,12 @@ impl Resolver {
     }
 
     fn external_chain_path(&self, chain: &ChainExpr) -> Option<(Vec<String>, SourceSpan)> {
-        let ExprKind::Identifier(base) = &chain.base.kind else {
-            return None;
+        let (mut path, mut span) = match &unparen_expr(&chain.base).kind {
+            ExprKind::Identifier(base) if self.enum_names.contains(&base.name) => {
+                (vec![base.name.clone()], base.span)
+            }
+            _ => self.external_expr_path(&chain.base)?,
         };
-        let mut path = vec![base.name.clone()];
-        let mut span = base.span;
         for segment in &chain.segments {
             match &segment.kind {
                 ChainSegmentKind::Member { name, .. }
@@ -1074,6 +1105,38 @@ impl Resolver {
             }
         }
         Some((path, span))
+    }
+
+    fn external_alias_for_expr(&self, expr: &Expr) -> Option<ResolvedExternalAlias> {
+        let (path, _) = self.external_expr_path(expr)?;
+        Some(ResolvedExternalAlias {
+            availability: self.external_availability(&path),
+            path,
+        })
+    }
+
+    fn local_external_aliases(&self, values: &[Expr]) -> Vec<Option<ResolvedExternalAlias>> {
+        values
+            .iter()
+            .map(|expr| self.external_alias_for_expr(expr))
+            .collect()
+    }
+
+    fn external_expr_path(&self, expr: &Expr) -> Option<(Vec<String>, SourceSpan)> {
+        match &unparen_expr(expr).kind {
+            ExprKind::Identifier(ident) => {
+                if self.enum_names.contains(&ident.name) {
+                    return None;
+                }
+                if let Some(binding_id) = self.lookup(&ident.name) {
+                    let alias = self.external_aliases_by_binding.get(&binding_id)?;
+                    return Some((alias.path.clone(), ident.span));
+                }
+                Some((vec![ident.name.clone()], ident.span))
+            }
+            ExprKind::Chain(chain) => self.external_chain_path(chain),
+            _ => None,
+        }
     }
 
     fn resolve_expr_or_block(&mut self, item: &ExprOrBlock) {
@@ -1515,18 +1578,29 @@ impl Resolver {
     }
 
     fn check_external_path(&mut self, path: &[String], span: SourceSpan) {
+        self.check_external_path_with_record(path, span, true);
+    }
+
+    fn check_external_path_with_record(
+        &mut self,
+        path: &[String],
+        span: SourceSpan,
+        record_symbol: bool,
+    ) {
         if path.is_empty() {
             return;
         }
         let active = *self.active_realms.last().unwrap_or(&RealmSet::SHARED);
         let availability = self.external_availability(path);
-        self.external_symbols_by_span.insert(
-            span,
-            ResolvedExternalSymbol {
-                path: path.to_vec(),
-                availability: availability.clone(),
-            },
-        );
+        if record_symbol {
+            self.external_symbols_by_span.insert(
+                span,
+                ResolvedExternalSymbol {
+                    path: path.to_vec(),
+                    availability: availability.clone(),
+                },
+            );
+        }
         match availability {
             RealmAvailability::Known(realms) => {
                 if !realms.contains_all(active) {

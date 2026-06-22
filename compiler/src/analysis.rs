@@ -27,8 +27,8 @@ use crate::project::{
     resolve_import_target,
 };
 use crate::resolve::{
-    Binding, BindingKind, ResolveOutput, ResolvePart, Resolver, ResolverOptions,
-    UnknownExternalPolicy,
+    Binding, BindingKind, ResolveOutput, ResolvePart, ResolvedExternalAlias, Resolver,
+    ResolverOptions, UnknownExternalPolicy,
 };
 use crate::runtime::RuntimePackageRegistry;
 use crate::source::{FileId, SourceFile, SourceSpan};
@@ -326,6 +326,7 @@ pub enum AnalysisSymbolKind {
 pub struct AnalysisSymbol {
     pub kind: AnalysisSymbolKind,
     pub name: String,
+    pub external_name: Option<String>,
     pub detail: String,
     pub span: SourceSpan,
     pub definition_span: Option<SourceSpan>,
@@ -960,6 +961,7 @@ impl ProjectAnalysis {
             return Some(AnalysisSymbol {
                 kind: AnalysisSymbolKind::External,
                 name: external.path.join("."),
+                external_name: Some(external.path.join(".")),
                 detail: "external symbol".into(),
                 span: *span,
                 definition_span: None,
@@ -997,6 +999,7 @@ impl ProjectAnalysis {
             return Some(AnalysisSymbol {
                 kind: AnalysisSymbolKind::Export,
                 name: export.name.clone(),
+                external_name: None,
                 detail: format!("public export of `{}`", export.local_name),
                 span: export.span,
                 definition_span: Some(binding.span),
@@ -1975,14 +1978,17 @@ impl ProjectAnalysis {
             .map(|(_, _, binding)| binding.span)
             .or(Some(binding.span));
         let definition_path = definition_span.and_then(|span| self.path_for_span(span));
+        let external_alias = module.resolved.external_aliases_by_binding.get(&binding.id);
         let signature = target_binding
             .and_then(|(target_module, export, binding)| {
                 self.function_signature_for_binding(target_module, binding, &export.name)
             })
-            .or_else(|| self.function_signature_for_binding(module, binding, &binding.name));
+            .or_else(|| self.function_signature_for_binding(module, binding, &binding.name))
+            .or_else(|| self.function_signature_for_external_alias(binding, external_alias));
         AnalysisSymbol {
             kind: AnalysisSymbolKind::Binding,
             name: binding.name.clone(),
+            external_name: external_alias.map(|alias| alias.path.join(".")),
             detail: format!("{} binding", binding_kind_name(binding.kind)),
             span,
             definition_span,
@@ -1991,7 +1997,7 @@ impl ProjectAnalysis {
             available_realms: Some(binding.available_realms),
             exported_as,
             imported_from: import_target,
-            external_availability: None,
+            external_availability: external_alias.map(|alias| alias.availability.clone()),
             signature,
         }
     }
@@ -2053,6 +2059,12 @@ impl ProjectAnalysis {
                         self.function_signature_for_binding(target_module, binding, &export.name)
                     })
                     .or_else(|| self.function_signature_for_binding(module, binding, &binding.name))
+                    .or_else(|| {
+                        self.function_signature_for_external_alias(
+                            binding,
+                            module.resolved.external_aliases_by_binding.get(&binding.id),
+                        )
+                    })
             });
         local_signature.or_else(|| {
             self.package_member_symbol_at_span(module, target_span)
@@ -2099,6 +2111,34 @@ impl ProjectAnalysis {
             definition_span: binding.span,
             definition_path: self.path_for_span(binding.span),
             module_id: module.id.as_str().to_string(),
+        })
+    }
+
+    fn function_signature_for_external_alias(
+        &self,
+        binding: &Binding,
+        alias: Option<&ResolvedExternalAlias>,
+    ) -> Option<AnalysisFunctionSignature> {
+        let alias = alias?;
+        let api = self.config.resolver_options.gmod_api.as_ref()?;
+        let path = alias.path.join(".");
+        let entry = api.entry(&path)?;
+        let signature = entry.signatures.first()?;
+        Some(AnalysisFunctionSignature {
+            name: binding.name.clone(),
+            label: signature.label.clone(),
+            parameters: signature
+                .parameters
+                .iter()
+                .map(|parameter| AnalysisParameter {
+                    name: parameter.name.clone(),
+                    optional: parameter.optional || parameter.default.is_some(),
+                })
+                .collect(),
+            vararg: false,
+            definition_span: binding.span,
+            definition_path: self.path_for_span(binding.span),
+            module_id: "GMod API".to_string(),
         })
     }
 

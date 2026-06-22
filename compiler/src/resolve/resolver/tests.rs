@@ -478,6 +478,49 @@ fn gmod_api_database_uses_path_level_realm_data() {
 }
 
 #[test]
+fn gmod_external_aliases_preserve_binding_provenance() {
+    let module = parse(
+        "client const hookAdd = hook?.Add\nclient fn run() = hookAdd(\"Initialize\", \"id\", () => nil)",
+    );
+    let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
+
+    assert!(!output.has_errors(), "{:#?}", output.diagnostics);
+    let binding = output.binding_by_name("hookAdd").expect("hookAdd binding");
+    let alias = output
+        .external_aliases_by_binding
+        .get(&binding.id)
+        .expect("external alias");
+    assert_eq!(alias.path, ["hook", "Add"]);
+}
+
+#[test]
+fn gmod_external_alias_prefixes_are_checked_for_realms() {
+    let module = parse("const netx = net\nfn bad() = netx.Broadcast()");
+    let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
+
+    assert!(
+        has_diagnostic(&output, "REALM001"),
+        "{:#?}",
+        output.diagnostics
+    );
+}
+
+#[test]
+fn external_alias_tracking_does_not_classify_enum_variants_as_externals() {
+    let module = parse("enum Mode { Idle }\nfn read() = Mode.Idle");
+    let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
+
+    assert!(
+        output
+            .diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_deref() != Some("REALM_UNKNOWN")),
+        "{:#?}",
+        output.diagnostics
+    );
+}
+
+#[test]
 fn unknown_externals_warn_by_default_in_gmod_mode() {
     let module = parse("fn run() {\n  ThirdPartyAddon.DoThing()\n  ThirdPartyAddon.DoThing()\n}");
     let output = Resolver::resolve_with_options(&module, ResolverOptions::gmod_default());
