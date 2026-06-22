@@ -163,6 +163,12 @@ fn initialize_capabilities_are_not_double_wrapped() {
     assert!(value.get("completionProvider").is_some());
     assert!(value.get("hoverProvider").is_some());
     assert!(value.get("semanticTokensProvider").is_some());
+    assert_eq!(
+        value
+            .get("colorProvider")
+            .and_then(|provider| provider.as_bool()),
+        Some(true)
+    );
     let execute_commands = value
         .get("executeCommandProvider")
         .and_then(|provider| provider.get("commands"))
@@ -2438,6 +2444,94 @@ fn semantic_tokens_flush_pending_analysis_before_reading() {
     assert!(server.analysis_due.is_none());
     drop(client_connection);
     let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn document_color_detects_color_calls_and_local_aliases() {
+    let root = temp_root("document_color_aliases");
+    std::fs::create_dir_all(&root).expect("root");
+    let source = root.join("module.lux");
+    let text = "local makeColor = Color\nconst tint = makeColor\nlocal before = notColor(1, 2, 3)\nlocal red = Color(255, 0, 0)\nlocal amber = makeColor(255, 128, 0, 128)\nlocal later = tint(0, 64, 255)\nlocal ignored = \"Color(1, 2, 3)\"\n";
+    std::fs::write(&source, text).expect("source");
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&root).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    let uri = path_to_url(&source).expect("source uri");
+    server.documents.insert(uri.clone(), text.into());
+    let params = lsp_types::DocumentColorParams {
+        text_document: lsp_types::TextDocumentIdentifier { uri },
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+
+    let response = server.document_color(params).expect("document color");
+    let colors: Vec<lsp_types::ColorInformation> =
+        serde_json::from_value(response).expect("document color response");
+    assert_eq!(colors.len(), 3, "{colors:#?}");
+    assert_eq!(colors[0].range.start.line, 3);
+    assert!((colors[0].color.red - 1.0).abs() < f32::EPSILON);
+    assert!((colors[0].color.green - 0.0).abs() < f32::EPSILON);
+    assert!((colors[1].color.green - (128.0 / 255.0)).abs() < f32::EPSILON);
+    assert!((colors[1].color.alpha - (128.0 / 255.0)).abs() < f32::EPSILON);
+    assert_eq!(colors[2].range.start.line, 5);
+    assert!((colors[2].color.blue - 1.0).abs() < f32::EPSILON);
+
+    drop(client_connection);
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
+fn color_presentation_replaces_range_with_color_constructor() {
+    let initialize: InitializeParams = serde_json::from_value(serde_json::json!({
+        "processId": null,
+        "rootUri": path_to_url(&temp_root("color_presentation")).expect("root uri"),
+        "capabilities": {}
+    }))
+    .expect("initialize params");
+    let (server_connection, client_connection) = lsp_server::Connection::memory();
+    let mut server = Server::new(server_connection, initialize);
+    let range = lsp_types::Range {
+        start: lsp_types::Position {
+            line: 0,
+            character: 12,
+        },
+        end: lsp_types::Position {
+            line: 0,
+            character: 28,
+        },
+    };
+    let params = lsp_types::ColorPresentationParams {
+        text_document: lsp_types::TextDocumentIdentifier {
+            uri: "file:///tmp/module.lux".parse().expect("uri"),
+        },
+        color: lsp_types::Color {
+            red: 1.0,
+            green: 0.5,
+            blue: 0.0,
+            alpha: 1.0,
+        },
+        range,
+        work_done_progress_params: Default::default(),
+        partial_result_params: Default::default(),
+    };
+
+    let response = server
+        .color_presentation(params)
+        .expect("color presentation");
+    let presentations: Vec<lsp_types::ColorPresentation> =
+        serde_json::from_value(response).expect("color presentation response");
+    assert_eq!(presentations.len(), 1);
+    assert_eq!(presentations[0].label, "Color(255, 128, 0)");
+    let edit = presentations[0].text_edit.as_ref().expect("text edit");
+    assert_eq!(edit.range, range);
+    assert_eq!(edit.new_text, "Color(255, 128, 0)");
+
+    drop(client_connection);
 }
 
 #[test]

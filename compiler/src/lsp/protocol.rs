@@ -6,11 +6,11 @@ use crate::analysis::{
 };
 use crate::source::{SourceFile, SourceSpan};
 use lsp_types::{
-    CompletionOptions, Documentation, ExecuteCommandOptions, Hover, HoverContents, MarkupContent,
-    MarkupKind, OneOf, ParameterInformation, ParameterLabel, Position, Range, SemanticToken,
-    SemanticTokenType, SemanticTokensLegend, SemanticTokensOptions, ServerCapabilities,
-    SignatureHelp, SignatureHelpOptions, SignatureInformation, TextDocumentSyncCapability,
-    TextDocumentSyncKind, Uri, WorkDoneProgressOptions,
+    ColorProviderCapability, CompletionOptions, Documentation, ExecuteCommandOptions, Hover,
+    HoverContents, MarkupContent, MarkupKind, OneOf, ParameterInformation, ParameterLabel,
+    Position, Range, SemanticToken, SemanticTokenType, SemanticTokensLegend, SemanticTokensOptions,
+    ServerCapabilities, SignatureHelp, SignatureHelpOptions, SignatureInformation,
+    TextDocumentSyncCapability, TextDocumentSyncKind, Uri, WorkDoneProgressOptions,
 };
 use url::Url;
 
@@ -49,6 +49,7 @@ pub(crate) fn server_capabilities() -> ServerCapabilities {
         }),
         definition_provider: Some(OneOf::Left(true)),
         document_formatting_provider: Some(OneOf::Left(true)),
+        color_provider: Some(ColorProviderCapability::Simple(true)),
         code_action_provider: Some(lsp_types::CodeActionProviderCapability::Simple(true)),
         execute_command_provider: Some(ExecuteCommandOptions {
             commands: vec![INSTALL_STD_PACKAGES_COMMAND.into()],

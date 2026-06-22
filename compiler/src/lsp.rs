@@ -2,6 +2,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
+mod color;
 mod commands;
 mod completion;
 mod cursor;
@@ -16,6 +17,7 @@ mod workspace;
 use crate::analysis::{AnalysisFile, AnalysisWorkspace, ProjectAnalysis, format_text};
 use crate::module::RealmAvailability;
 use crate::package_manager::{DependencySource, InstallRequest, LUX_STD_REPO, install_package};
+use color::{color_presentations, document_colors};
 use commands::{
     CommandDocumentPosition, CommandResult, InstallStdPackagesCommand, active_realm_command,
     gmod_api_coverage_command, module_exports_command,
@@ -39,17 +41,18 @@ use lsp_types::notification::{
     DidSaveTextDocument, Notification as LspNotification, PublishDiagnostics, ShowMessage,
 };
 use lsp_types::request::{
-    CodeActionRequest, Completion, ExecuteCommand, Formatting, GotoDefinition, HoverRequest,
-    Request as LspRequest, ResolveCompletionItem, SemanticTokensFullRequest, SignatureHelpRequest,
+    CodeActionRequest, ColorPresentationRequest, Completion, DocumentColor, ExecuteCommand,
+    Formatting, GotoDefinition, HoverRequest, Request as LspRequest, ResolveCompletionItem,
+    SemanticTokensFullRequest, SignatureHelpRequest,
 };
 use lsp_types::{
-    CodeActionOrCommand, CodeActionParams, CompletionItem, CompletionParams, CompletionResponse,
-    Diagnostic, DidChangeTextDocumentParams, DidChangeWatchedFilesParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DidSaveTextDocumentParams,
-    DocumentFormattingParams, ExecuteCommandParams, GotoDefinitionParams, GotoDefinitionResponse,
-    Hover, HoverParams, InitializeParams, Location, MessageType, Position,
-    PublishDiagnosticsParams, Range, SemanticTokens, SemanticTokensParams, SemanticTokensResult,
-    ShowMessageParams, SignatureHelp, TextEdit, Uri,
+    CodeActionOrCommand, CodeActionParams, ColorPresentationParams, CompletionItem,
+    CompletionParams, CompletionResponse, Diagnostic, DidChangeTextDocumentParams,
+    DidChangeWatchedFilesParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, DocumentColorParams, DocumentFormattingParams, ExecuteCommandParams,
+    GotoDefinitionParams, GotoDefinitionResponse, Hover, HoverParams, InitializeParams, Location,
+    MessageType, Position, PublishDiagnosticsParams, Range, SemanticTokens, SemanticTokensParams,
+    SemanticTokensResult, ShowMessageParams, SignatureHelp, TextEdit, Uri,
 };
 use protocol::{
     INSTALL_STD_PACKAGES_COMMAND, document_uri_key, encode_semantic_tokens, json_result,
@@ -218,6 +221,16 @@ impl Server {
             None => return Ok(()),
         };
         let request = match self.try_request::<Formatting>(request, Self::formatting)? {
+            Some(request) => request,
+            None => return Ok(()),
+        };
+        let request = match self.try_request::<DocumentColor>(request, Self::document_color)? {
+            Some(request) => request,
+            None => return Ok(()),
+        };
+        let request = match self
+            .try_request::<ColorPresentationRequest>(request, Self::color_presentation)?
+        {
             Some(request) => request,
             None => return Ok(()),
         };
@@ -566,6 +579,18 @@ impl Server {
         json_result(Some(edits))
     }
 
+    fn document_color(&mut self, params: DocumentColorParams) -> Result<serde_json::Value, String> {
+        let file = self.document_file(&params.text_document.uri);
+        json_result(document_colors(&file))
+    }
+
+    fn color_presentation(
+        &mut self,
+        params: ColorPresentationParams,
+    ) -> Result<serde_json::Value, String> {
+        json_result(color_presentations(params.color, params.range))
+    }
+
     fn semantic_tokens(
         &mut self,
         params: SemanticTokensParams,
@@ -749,6 +774,28 @@ impl Server {
         let offset =
             file.offset_at_line_col_utf16(position.line as usize, position.character as usize);
         DocumentSnapshot { path, file, offset }
+    }
+
+    fn document_file(&self, uri: &Uri) -> crate::source::SourceFile {
+        let key = document_uri_key(uri);
+        let path = url_to_path(uri);
+        let text = self
+            .documents
+            .get(&key)
+            .cloned()
+            .or_else(|| {
+                path.as_deref().and_then(|path| {
+                    self.analysis_for_path(path)
+                        .and_then(|analysis| analysis.file_by_path(path))
+                        .map(|file| file.text.clone())
+                })
+            })
+            .or_else(|| {
+                path.as_deref()
+                    .and_then(|path| std::fs::read_to_string(path).ok())
+            })
+            .unwrap_or_default();
+        crate::source::SourceFile::new(0, path, text)
     }
 
     fn reanalyze_and_publish(&mut self) {
