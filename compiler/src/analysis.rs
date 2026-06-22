@@ -346,9 +346,51 @@ pub struct AnalysisFunctionSignature {
     pub label: String,
     pub parameters: Vec<AnalysisParameter>,
     pub vararg: bool,
+    pub arity: Vec<AnalysisSignatureArity>,
     pub definition_span: SourceSpan,
     pub definition_path: Option<PathBuf>,
     pub module_id: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnalysisSignatureArity {
+    pub required: usize,
+    pub maximum: Option<usize>,
+}
+
+impl AnalysisFunctionSignature {
+    fn accepts_argument_count(&self, count: usize) -> bool {
+        self.arity.iter().any(|arity| {
+            count >= arity.required && arity.maximum.is_none_or(|maximum| count <= maximum)
+        })
+    }
+
+    fn expected_argument_count(&self) -> String {
+        expected_argument_count(&self.arity)
+    }
+}
+
+impl AnalysisSignatureArity {
+    fn exact(count: usize) -> Self {
+        Self {
+            required: count,
+            maximum: Some(count),
+        }
+    }
+
+    fn range(required: usize, maximum: usize) -> Self {
+        Self {
+            required,
+            maximum: Some(maximum),
+        }
+    }
+
+    fn at_least(required: usize) -> Self {
+        Self {
+            required,
+            maximum: None,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -2308,6 +2350,7 @@ impl ProjectAnalysis {
         Some(AnalysisFunctionSignature {
             name: display_name.to_string(),
             label: function_signature_label(display_name, &decl.params, decl.vararg),
+            arity: arity_from_parameters(&parameters, decl.vararg),
             parameters,
             vararg: decl.vararg,
             definition_span: binding.span,
@@ -2341,22 +2384,25 @@ impl ProjectAnalysis {
         let api = self.config.resolver_options.gmod_api.as_ref()?;
         let entry = api.entry(path)?;
         let signature = entry.signatures.first()?;
+        let parameters = signature
+            .parameters
+            .iter()
+            .map(|parameter| {
+                analysis_parameter_from_api_parameter(
+                    parameter,
+                    definition_span,
+                    definition_path.clone(),
+                    "GMod API callback",
+                )
+            })
+            .collect::<Vec<_>>();
+        let vararg = api_signature_is_vararg(signature);
         Some(AnalysisFunctionSignature {
             name: display_name.to_string(),
             label: signature.label.clone(),
-            parameters: signature
-                .parameters
-                .iter()
-                .map(|parameter| {
-                    analysis_parameter_from_api_parameter(
-                        parameter,
-                        definition_span,
-                        definition_path.clone(),
-                        "GMod API callback",
-                    )
-                })
-                .collect(),
-            vararg: api_signature_is_vararg(signature),
+            arity: api_signature_arity(path, &parameters, vararg),
+            parameters,
+            vararg,
             definition_span,
             definition_path,
             module_id: "GMod API".to_string(),
@@ -3294,18 +3340,22 @@ fn call_signature_diagnostics(analysis: &ProjectAnalysis) -> Vec<Diagnostic> {
                 continue;
             };
             let argument_count = call.args.len();
-            let required = signature
-                .parameters
-                .iter()
-                .filter(|parameter| !parameter.optional)
-                .count();
-            let maximum = signature.parameters.len();
-            let too_few = argument_count < required;
-            let too_many = !signature.vararg && argument_count > maximum;
-            if !too_few && !too_many {
+            if signature.accepts_argument_count(argument_count) {
                 continue;
             }
 
+            let maximum = signature
+                .arity
+                .iter()
+                .filter_map(|arity| arity.maximum)
+                .max()
+                .unwrap_or(signature.parameters.len());
+            let too_many = signature
+                .arity
+                .iter()
+                .filter_map(|arity| arity.maximum)
+                .max()
+                .is_some_and(|maximum| argument_count > maximum);
             let label_span = if too_many {
                 call.args
                     .get(maximum)
@@ -3318,7 +3368,7 @@ fn call_signature_diagnostics(analysis: &ProjectAnalysis) -> Vec<Diagnostic> {
                 Diagnostic::error(format!(
                     "`{}` expects {}, got {}",
                     signature.name,
-                    expected_argument_count(required, maximum, signature.vararg),
+                    signature.expected_argument_count(),
                     argument_count
                 ))
                 .with_code("CALL001")
@@ -3329,14 +3379,27 @@ fn call_signature_diagnostics(analysis: &ProjectAnalysis) -> Vec<Diagnostic> {
     diagnostics
 }
 
-fn expected_argument_count(required: usize, maximum: usize, vararg: bool) -> String {
-    if vararg {
-        return format!("at least {}", argument_count(required));
+fn expected_argument_count(arities: &[AnalysisSignatureArity]) -> String {
+    if arities.is_empty() {
+        return "0 arguments".into();
     }
-    if required == maximum {
-        return argument_count(maximum);
+    if arities.len() == 1 {
+        let arity = arities[0];
+        return match arity.maximum {
+            None => format!("at least {}", argument_count(arity.required)),
+            Some(maximum) if arity.required == maximum => argument_count(maximum),
+            Some(maximum) => format!("between {} and {} arguments", arity.required, maximum),
+        };
     }
-    format!("between {required} and {maximum} arguments")
+    let parts = arities
+        .iter()
+        .map(|arity| match arity.maximum {
+            None => format!("at least {}", argument_count(arity.required)),
+            Some(maximum) if arity.required == maximum => argument_count(maximum),
+            Some(maximum) => format!("{}-{} arguments", arity.required, maximum),
+        })
+        .collect::<Vec<_>>();
+    parts.join(" or ")
 }
 
 fn argument_count(count: usize) -> String {
@@ -3352,6 +3415,46 @@ fn api_parameter_is_vararg(parameter: &gmod_api_db::ApiParameter) -> bool {
     parameter.ty.eq_ignore_ascii_case("vararg")
         || parameter.name == "vararg"
         || parameter.name == "..."
+}
+
+fn api_signature_arity(
+    path: &str,
+    parameters: &[AnalysisParameter],
+    vararg: bool,
+) -> Vec<AnalysisSignatureArity> {
+    match path {
+        "pcall" => vec![AnalysisSignatureArity::at_least(1)],
+        "xpcall" => vec![AnalysisSignatureArity::at_least(2)],
+        "table.insert" => vec![
+            AnalysisSignatureArity::exact(2),
+            AnalysisSignatureArity::exact(3),
+        ],
+        "render.OverrideBlend" => vec![
+            AnalysisSignatureArity::exact(1),
+            AnalysisSignatureArity::exact(4),
+            AnalysisSignatureArity::exact(7),
+        ],
+        "mesh.Begin" => vec![
+            AnalysisSignatureArity::exact(2),
+            AnalysisSignatureArity::exact(3),
+        ],
+        _ => arity_from_parameters(parameters, vararg),
+    }
+}
+
+fn arity_from_parameters(
+    parameters: &[AnalysisParameter],
+    vararg: bool,
+) -> Vec<AnalysisSignatureArity> {
+    let required = parameters
+        .iter()
+        .filter(|parameter| !parameter.optional)
+        .count();
+    if vararg {
+        vec![AnalysisSignatureArity::at_least(required)]
+    } else {
+        vec![AnalysisSignatureArity::range(required, parameters.len())]
+    }
 }
 
 fn analysis_parameter_from_api_parameter(
@@ -3383,22 +3486,25 @@ fn analysis_signature_from_api_signature(
     definition_path: Option<PathBuf>,
     module_id: &str,
 ) -> AnalysisFunctionSignature {
+    let parameters = signature
+        .parameters
+        .iter()
+        .map(|parameter| {
+            analysis_parameter_from_api_parameter(
+                parameter,
+                definition_span,
+                definition_path.clone(),
+                module_id,
+            )
+        })
+        .collect::<Vec<_>>();
+    let vararg = api_signature_is_vararg(signature);
     AnalysisFunctionSignature {
         name: name.to_string(),
         label: signature.label.clone(),
-        parameters: signature
-            .parameters
-            .iter()
-            .map(|parameter| {
-                analysis_parameter_from_api_parameter(
-                    parameter,
-                    definition_span,
-                    definition_path.clone(),
-                    module_id,
-                )
-            })
-            .collect(),
-        vararg: api_signature_is_vararg(signature),
+        arity: arity_from_parameters(&parameters, vararg),
+        parameters,
+        vararg,
         definition_span,
         definition_path,
         module_id: module_id.to_string(),

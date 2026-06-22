@@ -991,6 +991,117 @@ fn gmod_api_hover_and_signature_follow_local_external_aliases() {
 }
 
 #[test]
+fn gmod_api_hover_recognizes_optional_member_aliases_for_render_mesh_and_surface() {
+    let root = PathBuf::from("src");
+    let path = root.join("client/render.lux");
+    let text = "client local renderOverrideBlend = render?.OverrideBlend\nclient local meshBegin = mesh?.Begin\nclient local surfaceCreateFont = surface?.CreateFont\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+
+    for (line, prefix, expected_path) in [
+        (
+            0,
+            "client local renderOverrideBlend = render?.Override".len(),
+            "render.OverrideBlend",
+        ),
+        (1, "client local meshBegin = mesh?.Beg".len(), "mesh.Begin"),
+        (
+            2,
+            "client local surfaceCreateFont = surface?.Create".len(),
+            "surface.CreateFont",
+        ),
+    ] {
+        let offset = analysis
+            .offset_for_position(&path, line, prefix)
+            .expect("offset");
+        let symbol = analysis
+            .symbol_at_path_offset(&path, offset)
+            .unwrap_or_else(|| panic!("symbol for {expected_path}"));
+        assert_eq!(symbol.external_name.as_deref(), Some(expected_path));
+        assert!(
+            matches!(
+                symbol.external_availability,
+                Some(crate::module::RealmAvailability::Known(_))
+            ),
+            "{symbol:#?}"
+        );
+
+        let api = ApiIndex::bundled();
+        let hover = external_api_hover_markdown(&analysis, &api, &path, offset).expect("API hover");
+        assert!(hover.contains(expected_path), "{hover}");
+    }
+}
+
+#[test]
+fn gmod_api_alias_metadata_survives_package_set_multi_part_modules() {
+    let root = temp_root("gmod_package_set_api_aliases");
+    let package_dir = root.join("lux-mgfx/lux/mgfx/text");
+    let source_dir = package_dir.join("src");
+    std::fs::create_dir_all(&source_dir).expect("source dir");
+    std::fs::write(
+        root.join("lux.package.toml"),
+        "name = \"lux-mgfx\"\n\n[[package]]\nid = \"@lux/mgfx/text\"\nversion = \"0.1.0\"\npath = \"lux-mgfx/lux/mgfx/text\"\n",
+    )
+    .expect("manifest");
+    let base_path = source_dir.join("cl_base.lux");
+    let composed_path = source_dir.join("cl_composed.lux");
+    std::fs::write(
+        &base_path,
+        "local meshBegin = mesh?.Begin\nlocal renderOverrideBlend = render?.OverrideBlend\nlocal surfaceCreateFont = surface?.CreateFont\n",
+    )
+    .expect("base");
+    std::fs::write(
+        &composed_path,
+        "client fn draw(batch) {\n  meshBegin(MATERIAL_TRIANGLES, #batch * 2)\n  renderOverrideBlend(false)\n  renderOverrideBlend(true, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD)\n  surfaceCreateFont(\"MGFX\", {})\n}\n",
+    )
+    .expect("composed");
+
+    let config = analysis_configs(&root, &HashMap::new())
+        .into_iter()
+        .find(AnalysisConfig::is_package_set)
+        .expect("package-set config");
+    let workspace = AnalysisWorkspace::load(config, Vec::new()).expect("analysis");
+    let analysis = workspace.analysis();
+    let diagnostics = analysis.lsp_diagnostics_for_path(&composed_path);
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_deref() != Some("CALL001")),
+        "{diagnostics:#?}"
+    );
+
+    let offset = analysis
+        .offset_for_position(&base_path, 1, "local renderOverride".len())
+        .expect("offset");
+    let symbol = analysis
+        .symbol_at_path_offset(&base_path, offset)
+        .expect("symbol");
+    assert_eq!(
+        symbol.external_name.as_deref(),
+        Some("render.OverrideBlend")
+    );
+    assert!(
+        matches!(
+            symbol.external_availability,
+            Some(crate::module::RealmAvailability::Known(_))
+        ),
+        "{symbol:#?}"
+    );
+
+    let api = ApiIndex::bundled();
+    let hover = external_api_hover_markdown(analysis, &api, &base_path, offset).expect("API hover");
+    assert!(hover.contains("render.OverrideBlend"), "{hover}");
+
+    let _ = std::fs::remove_dir_all(root);
+}
+
+#[test]
 fn gmod_api_signature_follows_external_aliases_across_parts() {
     let root = PathBuf::from("src");
     let alias_path = root.join("shop/base/cl_state.lux");
@@ -1061,6 +1172,56 @@ fn gmod_api_alias_call_diagnostics_respect_vararg_parameters() {
         .expect("signature help");
     assert_eq!(help.signature.label, "math.max(numbers)");
     assert!(help.signature.vararg);
+}
+
+#[test]
+fn gmod_api_alias_call_diagnostics_accept_common_lua_and_gmod_overloads() {
+    let root = PathBuf::from("src");
+    let path = root.join("client/overloads.lux");
+    let text = "client local protectedCall = pcall\nclient local tableInsert = table.insert\nclient local renderOverrideBlend = render?.OverrideBlend\nclient local meshBegin = mesh?.Begin\nclient fn draw(records, reload, batch) {\n  protectedCall(reload)\n  tableInsert(records, batch)\n  renderOverrideBlend(false)\n  renderOverrideBlend(true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD)\n  renderOverrideBlend(true, BLEND_SRC_COLOR, BLEND_SRC_ALPHA, BLENDFUNC_ADD, BLEND_ONE, BLEND_ZERO, BLENDFUNC_ADD)\n  meshBegin(MATERIAL_TRIANGLES, #batch * 2)\n}\n";
+    let analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: path.clone(),
+            text: text.into(),
+        }],
+    )
+    .expect("analysis");
+    let diagnostics = analysis.lsp_diagnostics_for_path(&path);
+    assert!(
+        diagnostics
+            .iter()
+            .all(|diagnostic| diagnostic.code.as_deref() != Some("CALL001")),
+        "{diagnostics:#?}"
+    );
+
+    let bad_path = root.join("client/bad_overloads.lux");
+    let bad_analysis = analyze_files(
+        AnalysisConfig::new(&root).with_package_id("game"),
+        [AnalysisFile {
+            path: bad_path.clone(),
+            text: "client local tableInsert = table.insert\nclient local renderOverrideBlend = render?.OverrideBlend\nclient fn draw(records) {\n  tableInsert(records)\n  renderOverrideBlend(true, BLEND_SRC_COLOR)\n}\n"
+                .into(),
+        }],
+    )
+    .expect("analysis");
+    let bad_diagnostics = bad_analysis.lsp_diagnostics_for_path(&bad_path);
+    assert!(
+        bad_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_deref() == Some("CALL001")
+                && diagnostic.message.contains("2 arguments or 3 arguments")
+        }),
+        "{bad_diagnostics:#?}"
+    );
+    assert!(
+        bad_diagnostics.iter().any(|diagnostic| {
+            diagnostic.code.as_deref() == Some("CALL001")
+                && diagnostic
+                    .message
+                    .contains("1 argument or 4 arguments or 7 arguments")
+        }),
+        "{bad_diagnostics:#?}"
+    );
 }
 
 #[test]
